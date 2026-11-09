@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
-"""Save ticket artifacts outside the source repository and verify them.
+"""Save ticket artifacts under ~/.krithi/<TICKET>/ (outside the repository) and verify them.
 
-Usage: save_artifacts.py --ticket ABC-123 [--base DIR] [--init] [FILE ...]
+Usage: save_artifacts.py --ticket ABC-123 [--base DIR] [--root DIR] [--init] [FILE ...]
 
-Layout: <base>/<TICKET>/files/<artifact>   and the prompt goes in <base>/<TICKET>/
-Default base: <git-root>/../plan-builder/artifacts  (or <cwd>/../plan-builder/artifacts
-outside git). PLAN_BUILDER_HOME overrides the base. Refuses any destination inside a git
-work tree. Never overwrites; collisions get a numeric suffix. Prints JSON.
+Layout:
+  ~/.krithi/<TICKET>/<artifact>                            supporting files, grouped by ticket, outside any repo
+  <repo>/docs/plan-prompts/<TICKET>-codex-plan-prompt.md   the generated prompt (inside the repo, under docs/)
+Base for artifacts: ~/.krithi (override: KRITHI_HOME env var or --base). Refuses a base inside a
+git work tree. Repo root for the prompt: git top-level of the cwd, or the cwd outside git (--root).
+Never overwrites (collisions get a numeric suffix); verifies existence, size and SHA-256.
+Prints JSON with absolute artifact paths and the repo-relative prompt path.
 """
 import argparse, hashlib, json, os, re, shutil, subprocess, sys
 from pathlib import Path
 
 TICKET_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
+PROMPT_DIR = "docs/plan-prompts"
 
 
 def git(args, cwd):
@@ -22,25 +26,24 @@ def git(args, cwd):
         return 1, ""
 
 
-def nearest_existing(p: Path) -> Path:
-    p = p.resolve()
-    while not p.exists() and p != p.parent:
-        p = p.parent
-    return p
-
-
 def inside_git_worktree(p: Path) -> bool:
-    rc, out = git(["rev-parse", "--is-inside-work-tree"], nearest_existing(p))
+    q = p.resolve()
+    while not q.exists() and q != q.parent:
+        q = q.parent
+    rc, out = git(["rev-parse", "--is-inside-work-tree"], q)
     return rc == 0 and out == "true"
 
 
 def default_base() -> Path:
-    env = os.environ.get("PLAN_BUILDER_HOME")
-    if env:
-        return Path(env).expanduser().resolve()
+    env = os.environ.get("KRITHI_HOME")
+    return Path(env).expanduser().resolve() if env else (Path.home() / ".krithi").resolve()
+
+
+def repo_root(override):
+    if override:
+        return Path(override).expanduser().resolve()
     rc, top = git(["rev-parse", "--show-toplevel"], Path.cwd())
-    root = Path(top) if rc == 0 and top else Path.cwd()
-    return (root / ".." / "plan-builder" / "artifacts").resolve()
+    return Path(top).resolve() if rc == 0 and top else Path.cwd().resolve()
 
 
 def sha256(p: Path) -> str:
@@ -62,24 +65,30 @@ def unique(dest: Path) -> Path:
         n += 1
 
 
+def fail(msg: str) -> int:
+    print(json.dumps({"ok": False, "error": msg}))
+    return 2
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--ticket", required=True)
-    ap.add_argument("--base")
+    ap.add_argument("--base", help="artifact base folder (default: ~/.krithi or $KRITHI_HOME)")
+    ap.add_argument("--root", help="repository root for the prompt (default: git top-level of the cwd)")
     ap.add_argument("--init", action="store_true", help="only create/print the folders")
     ap.add_argument("files", nargs="*")
     a = ap.parse_args()
 
     if not TICKET_RE.match(a.ticket):
-        print(json.dumps({"ok": False, "error": f"invalid ticket id {a.ticket!r}: use letters, digits, '-' or '_'"}))
-        return 2
+        return fail(f"invalid ticket id {a.ticket!r}: use letters, digits, '-' or '_'")
+    root = repo_root(a.root)
     base = Path(a.base).expanduser().resolve() if a.base else default_base()
     ticket_dir = base / a.ticket
-    files_dir = ticket_dir / "files"
     if inside_git_worktree(ticket_dir):
-        print(json.dumps({"ok": False, "error": f"{ticket_dir} is inside a git work tree; choose a folder outside any repository (--base or PLAN_BUILDER_HOME)"}))
-        return 2
-    files_dir.mkdir(parents=True, exist_ok=True)
+        return fail(f"{ticket_dir} is inside a git work tree; artifacts must live outside the repository (use --base or KRITHI_HOME)")
+    prompt_file = root / PROMPT_DIR / f"{a.ticket}-codex-plan-prompt.md"
+    ticket_dir.mkdir(parents=True, exist_ok=True)
+    prompt_file.parent.mkdir(parents=True, exist_ok=True)
 
     saved, failed = [], []
     for f in a.files:
@@ -87,19 +96,21 @@ def main() -> int:
         try:
             if not src.is_file():
                 raise FileNotFoundError("not a file or not found")
-            dest = unique(files_dir / re.sub(r"[^\w.\- ]", "_", src.name))
+            dest = unique(ticket_dir / re.sub(r"[^\w.\- ]", "_", src.name))
             shutil.copy2(src, dest)
             if not dest.is_file() or dest.stat().st_size != src.stat().st_size or sha256(dest) != sha256(src):
                 raise OSError("verification failed (size or hash mismatch)")
-            saved.append({"source": str(src.resolve()), "path": str(dest.resolve()), "bytes": dest.stat().st_size, "sha256": sha256(dest)})
+            saved.append({"source": str(src.resolve()), "path": str(dest.resolve()),
+                          "bytes": dest.stat().st_size, "sha256": sha256(dest)})
         except Exception as e:  # report per file, keep going
             failed.append({"source": str(src), "error": str(e)})
 
     print(json.dumps({
         "ok": not failed,
-        "ticket_dir": str(ticket_dir),
-        "files_dir": str(files_dir),
-        "prompt_path": str(ticket_dir / f"{a.ticket}-codex-plan-prompt.md"),
+        "repo_root": str(root),
+        "artifacts_dir": str(ticket_dir),
+        "prompt_path": prompt_file.relative_to(root).as_posix(),
+        "prompt_absolute_path": str(prompt_file),
         "saved": saved,
         "failed": failed,
     }, indent=2))

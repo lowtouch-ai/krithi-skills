@@ -1,10 +1,25 @@
 #!/usr/bin/env python3
 """Validate a generated plan-builder prompt. Usage: check_prompt.py PROMPT.md. Exit 1 on errors."""
-import re, sys
+import re, subprocess, sys
 from pathlib import Path
 
 REQUIRED = ["Objective", "Ticket details", "Key terms", "Repository context", "Supporting artifacts", "Expected behavior", "Implied requirements", "Investigation tasks",
             "Planning requirements", "Constraints", "Open questions", "Deliverable"]
+
+
+def find_root(p: Path) -> Path:
+    """Repository root: git top-level of the prompt's folder, else the parent of docs/plan-prompts."""
+    try:
+        r = subprocess.run(["git", "-C", str(p.resolve().parent), "rev-parse", "--show-toplevel"],
+                           capture_output=True, text=True, timeout=15)
+        if r.returncode == 0 and r.stdout.strip():
+            return Path(r.stdout.strip())
+    except (OSError, subprocess.SubprocessError):
+        pass
+    parts = p.resolve().parts
+    if "docs" in parts:
+        return Path(*parts[:len(parts) - 1 - parts[::-1].index("docs")])
+    return p.resolve().parent
 
 
 def main() -> int:
@@ -40,6 +55,7 @@ def main() -> int:
     if re.search(r"\b(TODO|TBD|FIXME)\b", text):
         errors.append("TODO/TBD/FIXME left in prompt")
 
+    root = find_root(p)
     sec = re.search(r"^## Supporting artifacts\s*$(.*?)(?=^## )", text, re.M | re.S)
     if sec:
         for path in re.findall(r"`([^`\n]+)`", sec.group(1)):
@@ -49,6 +65,8 @@ def main() -> int:
                 errors.append(f"artifact path is not absolute: {path}")
             elif not Path(path).exists():
                 errors.append(f"artifact path does not exist: {path}")
+            elif str(Path(path).resolve()).startswith(str(root) + "/"):
+                errors.append(f"artifact is inside the repository (must be outside, e.g. ~/.krithi/<TICKET>/): {path}")
     else:
         errors.append("could not parse Supporting artifacts section")
 

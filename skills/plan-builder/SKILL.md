@@ -1,6 +1,6 @@
 ---
 name: plan-builder
-description: Convert a ticket (Jira text, screenshot, HTML, Markdown, PDF, log, email or a plain description) for a bug, enhancement, new feature, removal, UI/accessibility change or refactor into a complete, self-contained prompt for Codex Plan Mode. Requires a ticket number, asks for supporting artifacts, saves them outside the source repository under the ticket number with verified absolute paths, and writes the prompt to a Markdown file that tells Codex to investigate, analyze impact and dependencies, propose an implementation strategy, risks and tests, and stay in Plan Mode without modifying code. Use when asked to build, write, generate or prepare a plan prompt, planning prompt or Codex plan for a ticket, bug report or feature request.
+description: Convert a ticket (Jira text, screenshot, HTML, Markdown, PDF, log, email or a plain description) for a bug, enhancement, new feature, removal, UI/accessibility change or refactor into a complete, self-contained prompt for Codex Plan Mode. Requires a ticket number, asks for supporting artifacts, saves them under ~/.krithi/<ticket number>/ (outside the repository) with verified absolute paths, and writes the prompt to a Markdown file under docs/plan-prompts/ that tells Codex to investigate, analyze impact and dependencies, propose an implementation strategy, risks and tests, and stay in Plan Mode without modifying code. Use when asked to build, write, generate or prepare a plan prompt, planning prompt or Codex plan for a ticket, bug report or feature request.
 ---
 
 # Plan builder
@@ -9,7 +9,7 @@ Turns a ticket into a prompt that a developer pastes into Codex (or points Codex
 
 ## Hard rules
 
-1. **No code changes, ever.** The only files this skill writes are inside the artifact folder (see step 4). Do not touch the repository's tracked files, branches or git state.
+1. **No code changes, ever.** The only things this skill writes are the supporting files under `~/.krithi/<TICKET>/` (outside the repository) and the prompt file under `docs/plan-prompts/` in the repository (steps 4 and 7). Do not touch application code, other tracked files, branches or git state; never commit, stage or push.
 2. **Ticket number first.** Do not generate a prompt without one (step 0).
 3. **Facts come from the ticket.** Every requirement, name, label, number and expected behavior in the prompt must come from the user's input or artifacts you read. Anything unclear, missing or contradictory goes under **Open questions**, never into the requirements as a guess. Keep the ticket's own wording for names and labels.
 4. **Only verified paths.** Include an artifact path in the prompt only after `scripts/save_artifacts.py` reported it saved and verified. If a save failed, say so and leave it out.
@@ -42,13 +42,13 @@ Ask, and wait for the answer:
 
 Files the user already supplied in this session (such as the screenshot or HTML the ticket came from) count as artifacts: offer to include them rather than asking again.
 
-### 4. Save artifacts outside the repository
-Default storage: `../plan-builder/artifacts/<TICKET>/` relative to the root of the repository you are in (a sibling folder of the repo, so nothing lands in the repo). `PLAN_BUILDER_HOME` overrides the base folder (`artifacts/`); the user may name another path with `--base`. The script refuses any destination inside a git work tree.
+### 4. Save artifacts under `~/.krithi/<TICKET>/`
+Supporting files go in a `.krithi/` folder in the user's home directory (like `~/.codex/`), grouped by ticket number: `~/.krithi/<TICKET>/<file>`. This is **outside the repository**, so artifacts (which may hold sensitive data) never touch it. The generated prompt, by contrast, goes under `docs/plan-prompts/` in the repository (step 7). `KRITHI_HOME` or `--base` overrides the base folder; the script refuses any base inside a git work tree.
 
 ```bash
-python3 <skill-dir>/scripts/save_artifacts.py --ticket <TICKET> [--base <dir>] <file> [<file> ...]
+python3 <skill-dir>/scripts/save_artifacts.py --ticket <TICKET> [--base <dir>] [--root <repo>] <file> [<file> ...]
 ```
-It copies each file to `<base>/<TICKET>/files/`, never overwrites (collisions get a numeric suffix), verifies existence, size and SHA-256, and prints JSON with each saved file's absolute path, or an error per failed file. With no files, run it with `--init` to print the folder paths only. Report failures to the user and continue without those files.
+It copies each file to `~/.krithi/<TICKET>/`, never overwrites (collisions get a numeric suffix), verifies existence, size and SHA-256, and prints JSON with each saved file's **absolute** `path` (or an error per failed file), plus the prompt's repo-relative path. With no files, run it with `--init` to create the folders and print the paths only. Report failures to the user and continue without those files. Only the absolute paths from this JSON go into the prompt.
 
 ### 5. Extract and reason about the requirements
 From the input write down, privately: title; objective and business context; the exact items, fields, labels, endpoints or screens named; current behavior; expected behavior; constraints and non-goals; acceptance hints; links; open questions and ambiguities; what each artifact shows; and the **key terms**: the ticket's own names, labels, identifiers, error text and domain words, verbatim, as phrases and as single-word stems. Do this from the input only; the code is not scanned (Plan Mode does that).
@@ -75,20 +75,20 @@ Follow `references/prompt-template.md` (sections, order and wording rules) and a
 - Do not define domain terms from your own knowledge. Pass them on as the ticket words them; you may add what the repo docs say they mean, labelled "per docs", and Codex confirms it in the code.
 
 ### 7. Save and validate
-Save the prompt to `<base>/<TICKET>/<TICKET>-codex-plan-prompt.md` (the script prints this folder), then:
+Save the prompt to `docs/plan-prompts/<TICKET>-codex-plan-prompt.md` in the repository (the script prints the exact path and creates the folder), then:
 ```bash
 python3 <skill-dir>/scripts/check_prompt.py <prompt-file>
 ```
-It checks required sections, the Plan Mode clause at the top and bottom, that every listed artifact path is absolute and exists, and that no `{placeholder}` or `TODO` is left. Fix every error and re-run until clean.
+It checks required sections, the Plan Mode clause at the top and bottom, that every listed artifact path is absolute, exists and lies outside the repository, and that no `{placeholder}` or `TODO` is left. Fix every error and re-run until clean.
 
 ### 8. Deliver
 Reply with:
 1. The classification and the ticket number.
-2. The **absolute path** of the saved prompt and of the saved artifacts, and which saves were verified or failed.
+2. The repo-relative path of the saved prompt and the absolute path of each saved artifact, which saves were verified or failed, and that the prompt is written but not staged or committed.
 3. The full prompt text, untruncated, in a code block for pasting.
 4. The handoff:
-   > In Codex, switch to Plan mode (press **Shift+Tab**, or type `/plan`), then either paste the prompt above or say: *Read `<absolute prompt path>` and follow it.*
-   > Optional hard guard when starting a fresh terminal session: `codex -s read-only "Read <absolute prompt path> and follow it"` (read-only sandbox, so edits are blocked even if the prompt is ignored).
+   > In Codex, switch to Plan mode (press **Shift+Tab**, or type `/plan`), then either paste the prompt above or say: *Read `<relative prompt path>` and follow it.* (Codex runs at the repository root, so the relative path works; if it cannot read the file, paste the prompt.)
+   > Optional hard guard when starting a fresh terminal session: `codex -s read-only "Read <relative prompt path> and follow it"` from the repository root (read-only sandbox, so edits are blocked even if the prompt is ignored).
 5. Open questions the user should answer before or while planning, and anything you could not read.
 
 Never claim Codex was put into Plan Mode: this skill cannot toggle it. It only writes the prompt, the explicit no-edit clause, and the handoff above.
@@ -97,7 +97,7 @@ Never claim Codex was put into Plan Mode: this skill cannot toggle it. It only w
 
 - A developer who has never seen the ticket can paste the prompt and Codex has everything it needs: what, why, where to look, what to produce, what not to do.
 - Nothing in the prompt is invented; every gap is an explicit question.
-- Artifact paths are absolute, exist, and live outside the repository.
+- Artifact paths are absolute, verified to exist, outside the repository, and grouped under `~/.krithi/<TICKET>/`.
 - The prompt asks for a plan only, with exact repo references, confirmed-vs-assumed labels, testing and risks.
 
 ## Files
