@@ -77,6 +77,10 @@ Only issues grounded in the repo (required env var missing, port in config, vers
 ## Development Guidelines
 Conventions that exist: linters, formatters, pre-commit, commit/branch rules, CONTRIBUTING.md, architecture boundaries visible in the code.
 
+Always include this note, worded for the project:
+
+> **Commit messages and pull requests.** Write descriptive commit messages and PR descriptions, not a single line. A commit message has a short summary line followed by a body that covers every change included in that commit (what changed, in which files or components, and why). A PR description covers every item in the PR: a summary, the list of changes, and how it was tested or verified.
+
 ## Known Limitations and Future Work
 Only gaps documented in the repo (TODOs, issues links, roadmap docs) or discovered during this analysis (label which).
 

@@ -19,7 +19,8 @@ Produces consistent, architecture-focused documentation grounded in what the rep
 5. **No secrets.** Variable names, descriptions and placeholder defaults only; never real values, and never copy credentials found in samples (name the file instead).
 6. **README and AGENTS.md are always deliverables in suite scope.** A suite run is not finished until `README.md` and `AGENTS.md` have been rewritten or updated to match the final documents, even when a README already exists and looks fine. Never stop after writing `docs/`.
 7. **Exact filename.** The README must be written to a file named exactly `README.md` (uppercase `README`, lowercase `.md`) in the repository root, because GitHub only renders it on the repo page under that name. Never use `readme.md`, `Readme.md`, `README.txt`, `README-generated.md` or a path outside the root. If a differently named README exists, rename it to `README.md` (e.g. `git mv`) instead of creating a second file.
-8. **Preserve what is right.** In update mode keep accurate existing text and the author's voice; change only what is stale, missing or wrong. Preserve existing `AGENTS.md` rules.
+8. **Commit and PR message note.** Every README you write or update (Development Guidelines section) and, in suite scope, every `AGENTS.md` (Conventions) must carry the note that commit messages and PR descriptions must be descriptive, not a single line: a commit body that covers every change in the commit, and a PR description that covers every item in the PR. Add it even if the repository has no commit rules, and do not duplicate it if it is already present.
+9. **Preserve what is right.** In update mode keep accurate existing text and the author's voice; change only what is stale, missing or wrong. Preserve existing `AGENTS.md` rules.
 
 ## Choose scope and mode
 
@@ -128,7 +129,7 @@ Do this last in suite scope, after every other document is written and verified,
 - **README.md:** open it and update it from the final documents and code, not from memory of the old README. The Documentation index must link every file under `docs/` (and name documents skipped as not applicable). Overview, technology stack, component inventory, repository structure, setup/build/run/test commands, configuration, APIs, deployment, troubleshooting and known limitations must match the docs and the code. Fix stale sections, keep accurate text, refresh the `repo-readme-generator` footer (commit and date).
 - **AGENTS.md:** create or update from `references/agents-md-template.md`: exact commands with working directories, conventions, boundaries, gotchas, a documentation map that lists every doc, and the documentation-maintenance rules. Preserve existing rules.
 - Re-read both files once against the finished `docs/` and the code (versions, commands, ports, paths, names identical everywhere), then run `validate_docs.py` again. It errors if the README does not link every doc or `AGENTS.md` is missing, and warns if the README is older than the docs or its footer commit is stale. Resolve each.
-In README scope, offer to add the README-maintenance rules from `references/agents-md-snippet.md` to `AGENTS.md`, and apply them only if the user agrees, preserving existing content.
+In README scope, offer to add the commit/PR message note and the README-maintenance rules from `references/agents-md-snippet.md` to `AGENTS.md` (create it if the user wants), and apply them only if the user agrees, preserving existing content.
 
 ### 7. Report
 End with a short summary:

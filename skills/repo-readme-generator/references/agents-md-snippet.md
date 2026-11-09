@@ -23,6 +23,10 @@ Before finishing such a change:
 4. Mention in the final message which README sections changed.
 
 Never document behavior that is not implemented; mark it `Planned` or `TBD`.
+
+## Commit messages and pull requests
+
+Write descriptive commit messages and PR descriptions, never a single line. A commit message has a short summary line plus a body that covers every change in that commit (what changed, in which files or components, and why). A PR description covers every item in the PR: a summary, the list of changes, and how it was tested or verified.
 ```
 
 `<skill-dir>` is the installed skill folder, for example `~/.codex/skills/repo-readme-generator`.
