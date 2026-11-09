@@ -21,7 +21,7 @@ Task type: {bug | enhancement | feature | removal | ui-accessibility | refactor}
 {From AGENTS.md, README.md and docs/ only, labelled "per docs" and unverified against the code. Include: "Read `AGENTS.md` first and follow it" if it exists; one line on what the product is and how it is layered; the `AGENTS.md` rules and documented build/test/lint commands that matter here; the doc paths most relevant to this ticket ("read these first"); what the docs say the Key terms mean. Keep it short, a few bullets. If there is no AGENTS.md, README or docs/, write "No AGENTS.md, README.md or docs/ found; discover the architecture and conventions from the code." Say: "Confirm all of this against the code; the documentation may be stale."}
 
 ## Supporting artifacts
-{One bullet per verified artifact: `{absolute path}`: what it shows / why it matters. Say: "Read each artifact before exploring the code." If none: "No supporting artifacts were provided."}
+{One bullet per verified artifact: `{absolute path, e.g. /home/user/.krithi/ABC-123/screenshot.png}`: what it shows / why it matters. Use the absolute paths reported by save_artifacts.py (the files live outside the repository). Say: "Read each artifact before exploring the code." If none: "No supporting artifacts were provided."}
 
 ## Expected behavior
 {Outcomes after the change. First what the ticket states. Then what it clearly implies (see the next section), each labelled **Assumption**. Always include what must keep working and what must not change.}

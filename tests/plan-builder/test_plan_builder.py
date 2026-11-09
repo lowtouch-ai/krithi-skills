@@ -10,8 +10,8 @@ tmp = Path(tempfile.mkdtemp())
 problems = []
 
 
-def run(script, *a, cwd=None, env=None):
-    return subprocess.run([sys.executable, script, *a], capture_output=True, text=True, cwd=cwd, env=env)
+def run(script, *a, cwd=None):
+    return subprocess.run([sys.executable, script, *a], capture_output=True, text=True, cwd=cwd)
 
 
 def expect(cond, msg):
@@ -19,23 +19,32 @@ def expect(cond, msg):
         problems.append(msg)
 
 
+repo = tmp / "repo"; (repo / "src").mkdir(parents=True)
+subprocess.run(["git", "init", "-q", str(repo)])
 src = tmp / "evidence.log"; src.write_text("ERROR something failed\n")
-base = tmp / "out"
 
-r = run(save, "--ticket", "ABC-1", "--base", str(base), str(src), str(tmp / "missing.png"))
+home = tmp / "home"
+env = {**os.environ, "KRITHI_HOME": str(home / ".krithi")}
+
+
+def run_save(*a, cwd):
+    return subprocess.run([sys.executable, save, *a], capture_output=True, text=True, cwd=cwd, env=env)
+
+
+# artifacts go to ~/.krithi/<TICKET>/ (outside the repo); prompt path is under the repo's docs/
+r = run_save("--ticket", "ABC-1", str(src), str(tmp / "missing.png"), cwd=repo / "src")
 j = json.loads(r.stdout)
 expect(r.returncode == 1 and len(j["saved"]) == 1 and len(j["failed"]) == 1, "save should report 1 saved + 1 failed")
 saved = j["saved"][0]["path"]
-expect(os.path.isabs(saved) and Path(saved).is_file(), "saved path must be absolute and exist")
-r2 = run(save, "--ticket", "ABC-1", "--base", str(base), str(src))
-expect(json.loads(r2.stdout)["saved"][0]["path"] != saved, "collision must not overwrite")
-expect(run(save, "--ticket", "../x", "--base", str(base)).returncode == 2, "bad ticket id must be rejected")
-
-repo = tmp / "repo"; repo.mkdir(); subprocess.run(["git", "init", "-q", str(repo)])
-r3 = run(save, "--ticket", "ABC-2", "--base", str(repo / "art"), str(src))
-expect(r3.returncode == 2 and "git work tree" in r3.stdout, "destination inside a repo must be refused")
-r4 = run(save, "--ticket", "ABC-3", "--init", cwd=str(repo), env={**os.environ, "PLAN_BUILDER_HOME": str(tmp / "home")})
-expect(r4.returncode == 0 and str(tmp / "home" / "ABC-3") in r4.stdout, "PLAN_BUILDER_HOME must be honored")
+expect(saved == str((home / ".krithi" / "ABC-1" / "evidence.log").resolve()), f"unexpected artifact path {saved}")
+expect(Path(saved).is_file() and not saved.startswith(str(repo)), "artifact must exist and be outside the repo")
+expect(j["prompt_path"] == "docs/plan-prompts/ABC-1-codex-plan-prompt.md", "prompt path must be under docs/plan-prompts")
+expect(Path(j["repo_root"]) == repo.resolve(), "repo root must be the git top-level even from a subfolder")
+j2 = json.loads(run_save("--ticket", "ABC-1", str(src), cwd=repo).stdout)
+expect(j2["saved"][0]["path"] != saved, "collision must not overwrite")
+expect(run_save("--ticket", "../x", cwd=repo).returncode == 2, "bad ticket id must be rejected")
+r3 = subprocess.run([sys.executable, save, "--ticket", "ABC-2", "--base", str(repo / "art"), str(src)], capture_output=True, text=True, cwd=repo)
+expect(r3.returncode == 2 and "git work tree" in r3.stdout, "artifact base inside a repo must be refused")
 
 good = f"""> **PLAN MODE ONLY.** Do not create, edit or delete any file.
 
@@ -68,12 +77,17 @@ x
 
 > **PLAN MODE ONLY.** Do not modify any code.
 """
-pg = tmp / "good.md"; pg.write_text(good)
-expect(run(check, str(pg)).returncode == 0, "valid prompt should pass")
+pg = repo / j["prompt_path"]; pg.write_text(good)
+expect(run(check, str(pg)).returncode == 0, "valid prompt should pass: " + run(check, str(pg)).stdout)
 bad = good.replace(saved, "relative/evidence.log").replace("## Deliverable", "## Other").replace("x\n## Ticket", "{oops}\n## Ticket")
-pb = tmp / "bad.md"; pb.write_text(bad)
+pb = repo / "docs/plan-prompts/bad.md"; pb.write_text(bad)
 out = run(check, str(pb)).stdout
 expect("not absolute" in out and "missing section: Deliverable" in out and "placeholder" in out, "bad prompt errors not all reported")
+pn = repo / "docs/plan-prompts/missing.md"; pn.write_text(good.replace(saved, str(home / ".krithi" / "ABC-1" / "nope.png")))
+expect("does not exist" in run(check, str(pn)).stdout, "missing artifact must be reported")
+inrepo = repo / "src" / "shot.png"; inrepo.write_text("x")
+pi = repo / "docs/plan-prompts/inrepo.md"; pi.write_text(good.replace(saved, str(inrepo)))
+expect("inside the repository" in run(check, str(pi)).stdout, "artifact inside the repo must be reported")
 
 print("OK" if not problems else "\n".join(problems))
 sys.exit(1 if problems else 0)
