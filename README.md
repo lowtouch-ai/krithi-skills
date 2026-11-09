@@ -17,7 +17,7 @@ Work moves through four stages, and a human approves each one before anything me
 
 An orchestration agent routes each task to the model that suits it (Claude Code, Codex, Kimi or Gemma) and syncs status with Jira, Azure DevOps or ServiceNow. Krithi is aimed at engineering teams with a backlog and too few engineers, especially in regulated environments, for work such as legacy modernization, greenfield builds, data pipelines and platform migrations. lowtouch.ai also offers it as a managed service ([Velocity Pods](https://www.lowtouch.ai/agents/krithi/)), where its engineers run Krithi and own the review gates.
 
-The skills in this repository are reusable building blocks for that kind of work: accessibility scanning and agent-ready documentation.
+The skills in this repository are reusable building blocks for that kind of work: accessibility scanning, security auditing, agent-ready documentation and ticket-to-plan prompt building.
 
 ## Skills
 
@@ -229,8 +229,22 @@ Then switch Codex to Plan mode (Shift+Tab or `/plan`) and paste the prompt, or s
 
 ### Update
 
+To get the latest version, use either option, then restart Codex.
+
+Option 1: ask the installer to update from the URL:
+
 ```
 $skill-installer update https://github.com/lowtouch-ai/krithi-skills/tree/main/skills/plan-builder
+```
+
+Option 2: remove the installed folder and install it again:
+
+```
+rm -rf ~/.codex/skills/plan-builder
+```
+
+```
+$skill-installer install https://github.com/lowtouch-ai/krithi-skills/tree/main/skills/plan-builder
 ```
 
 ### Uninstall
@@ -238,6 +252,8 @@ $skill-installer update https://github.com/lowtouch-ai/krithi-skills/tree/main/s
 ```
 rm -rf ~/.codex/skills/plan-builder
 ```
+
+Files the skill wrote (`../plan-builder/artifacts/<TICKET>/`: saved artifacts and prompts) are not removed with the skill.
 
 ## Uninstalling from inside Codex
 
