@@ -32,6 +32,7 @@ Run from the repository root unless noted.
 - Language/style rules enforced by tooling: <eslint/prettier/ruff/black/...> (config: `<file>`)
 - Naming, layering and error-handling patterns visible in the code (with an example path each).
 - Commit/PR rules: <from CONTRIBUTING or git history, else TBD>
+- **Commit messages and pull requests must be descriptive, not a single line.** A commit message has a short summary line plus a body covering every change in that commit (what changed, where, and why). A PR description covers every item in the PR: summary, list of changes, and how it was tested. This applies to every agent and contributor, and is always included even when the repo has no commit rules of its own.
 
 ## Architecture rules
 - <boundary 1: e.g. "handlers call services; services never import handlers">

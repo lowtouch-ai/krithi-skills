@@ -79,7 +79,7 @@ def loc_str(f, indent=True):
     if len(files) > 1:
         return f"`{f['file']}:{f['line']}` and {len(files) - 1} other file(s)"
     lines = sorted({l["line"] for l in locs}) or [f.get("line", 1)]
-    shown = ", ".join(str(x) for x in lines[:6]) + ("…" if len(lines) > 6 else "")
+    shown = ", ".join(str(x) for x in lines)
     return f"`{f['file']}:{shown}`"
 
 
@@ -147,7 +147,7 @@ def source_revision(meta, git):
     repos = meta.get("repositories")
     if repos:
         items = [f"{n}: {(g or {}).get('branch') or '—'} @ {(g or {}).get('commit') or 'not under git'}" for n, g in repos.items()]
-        return "; ".join(items[:8]) + (f" (+{len(items) - 8} more, see Appendix A)" if len(items) > 8 else "")
+        return "; ".join(items)
     return f"{git.get('branch', '—')} @ {git.get('commit', '—')}" if git.get("commit") else "Not under git / unknown"
 
 
@@ -155,7 +155,7 @@ def repository_revisions(meta, git):
     repos = meta.get("repositories")
     if repos:
         lines = []
-        for n, g in list(repos.items())[:40]:
+        for n, g in list(repos.items()):
             g = g or {}
             lines.append(f"{n}: " + (f"`{g['commit_full']}` ({'uncommitted changes to tracked files' if g.get('dirty') else 'clean'})" if g.get("commit_full") else "not under git"))
         return "<br>".join(lines) + (f"<br>…and {len(repos) - 40} more" if len(repos) > 40 else "")
@@ -895,10 +895,10 @@ def main():
         newf = [f for f in findings if f.get("delta") == "new"]
         if newf:
             w("**New since the previous scan**\n")
-            w(table(["ID", "Severity", "Issue", "Location"], [[f["id"], f["severity"], f["title"], loc_str(f)] for f in newf[:40]]) + (f"\n\n…and {len(newf) - 40} more." if len(newf) > 40 else ""))
+            w(table(["ID", "Severity", "Issue", "Location"], [[f["id"], f["severity"], f["title"], loc_str(f)] for f in newf]))
         if gone:
             w("\n**No longer detected**\n")
-            w(table(["Previous ID", "Severity", "Issue", "File"], [[g["id"], g["severity"], g["title"], f"`{g['file']}`"] for g in gone[:40]]) + (f"\n\n…and {len(gone) - 40} more." if len(gone) > 40 else ""))
+            w(table(["Previous ID", "Severity", "Issue", "File"], [[g["id"], g["severity"], g["title"], f"`{g['file']}`"] for g in gone]))
 
     if prev:
         w("\n### 3.5 Comparison with the Previous Review\n")
@@ -929,8 +929,8 @@ def main():
             for r_ in rts:
                 cnt[r_["auth"]] = cnt.get(r_["auth"], 0) + 1
             w(f"**Route inventory ({len(rts)} route registrations found statically).** " + ", ".join(f"{k}: {v}" for k, v in sorted(cnt.items())) +
-              ". 'none seen' means no authentication marker near the route; it may be enforced by a gateway or base class. The full list is in `scan.json`.\n")
-            show = [r_ for r_ in rts if r_["auth"] == "none seen"][:40]
+              ". 'none seen' means no authentication marker near the route; it may be enforced by a gateway or base class. Routes with no authentication marker are listed below.\n")
+            show = [r_ for r_ in rts if r_["auth"] == "none seen"]
             if show:
                 w(table(["Method", "Path", "Framework", "Location", "Authentication"], [[r_["method"], f"`{r_['path']}`", r_["framework"], f"`{r_['file']}:{r_['line']}`", r_["auth"]] for r_ in show]))
                 w("")
@@ -945,7 +945,7 @@ def main():
         w(f"### 5.{i} {f['id']}: {f['title']}{flag}\n")
         w(table(["Attribute", "Detail"], [
             ["Severity", f"**{f['severity']}**"], ["Domain", dom_title[f["domain"]]],
-            ["Location", ", ".join(f"`{l.get('file', f['file'])}:{l['line']}`" for l in (f.get("locations") or [dict(line=f['line'])])[:12])],
+            ["Location", ", ".join(f"`{l.get('file', f['file'])}:{l['line']}`" for l in (f.get("locations") or [dict(line=f['line'])]))],
             ["Weakness (CWE)", f.get("cwe") or "—"], ["OWASP Top 10 (2021)", f.get("owasp") or "—"],
             ["Confidence", f.get("confidence", "—")], ["Detected by", f.get("source", "scanner") + (f" rule {f['rule']}" if f["rule"] != "MANUAL" else " (manual review)")],
             ["Status", f.get("status", "Open")]]
@@ -963,7 +963,7 @@ def main():
         snips = [l for l in (f.get("locations") or []) if l.get("snippet")]
         if snips:
             w("**Evidence** (secrets masked)\n")
-            w("```text\n" + "\n".join(f"{l.get('file', f['file'])}:{l['line']}: {redact_line(l['snippet'])}" for l in snips[:12]) + "\n```\n")
+            w("```text\n" + "\n".join(f"{l.get('file', f['file'])}:{l['line']}: {redact_line(l['snippet'])}" for l in snips) + "\n```\n")
         w(f"**Recommendation.** {f['fix']}\n")
         if (f.get("patch") or "").strip():
             w("**Suggested patch** (review and test before applying; not applied by this tool)\n")
@@ -1089,7 +1089,7 @@ def main():
         w("\n### A.2 Coverage by Component\n")
         w("Components are the top-level folders (or `packages/*`, `services/*`, `apps/*` style folders in a monorepo), ordered by review priority: Critical and High candidates first. "
           "*Review status* is what the assessor recorded after reading the code; automated detection covered every scanned file regardless.\n")
-        shown = [c for c in comps if c["critical"] or c["high"] or c["medium"]][:40] or comps[:40]
+        shown = comps
         w(table(["Component", "Files", "Lines", "Candidates", "Critical", "High", "Medium", "Low/Info", "Manual review"],
                 [[f"`{c['component']}`", f"{c['files']:,}", f"{c['lines']:,}", c["candidates"], c["critical"], c["high"], c["medium"], c["low"],
                   rc_status(c["component"])[0] + (f": {rc_status(c['component'])[1]}" if rc_status(c["component"])[1] else "")] for c in shown]))

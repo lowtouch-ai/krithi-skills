@@ -271,15 +271,16 @@ def build_md(scan, a):
          "- Every finding lists its file and line, and the WCAG success criteria it maps to. Section 508 (revised, 2017) incorporates WCAG 2.0 Level A and AA, so criteria added in WCAG 2.1+ are marked as not required by 508.", "",
          "## Scope", "", f"- Path: `{scan['root']}`", f"- Source files analysed: {scan['files_scanned']}  ·  stylesheets available for contrast: {scan['css_files']}"]
     if scan["skipped"]:
-        o += ["- Not analysed: " + "; ".join(f"`{f}` ({why})" for f, why in scan["skipped"][:10])]
+        o += ["- Not analysed: " + "; ".join(f"`{f}` ({why})" for f, why in scan["skipped"])]
     o += ["", "| Category | Items | Meaning |", "|---|---:|---|"] + [f"| {l} | {c[k]} | {m} |" for k, l, m in CATEGORIES] + [""]
     worst = sorted(((f, v) for f, v in scan["per_file"].items() if v["error"] + v["contrast"] + v["alert"]),
                    key=lambda kv: (-(kv[1]["error"] + kv[1]["contrast"]), -kv[1]["alert"], kv[0]))
     if worst:
         o += ["## Files with the most findings", "", "| File | Errors | Contrast Errors | Alerts |", "|---|---:|---:|---:|"]
-        o += [f"| `{f}` | {v['error']} | {v['contrast']} | {v['alert']} |" for f, v in worst[:a.max_files]]
-        if len(worst) > a.max_files:
-            o.append(f"| … {len(worst) - a.max_files} more files (see JSON) | | | |")
+        shown_files = worst[:a.max_files] if a.max_files else worst
+        o += [f"| `{f}` | {v['error']} | {v['contrast']} | {v['alert']} |" for f, v in shown_files]
+        if len(shown_files) < len(worst):
+            o.append(f"| … {len(worst) - len(shown_files)} more files (limited by --max-files; omit it to list all) | | | |")
         o.append("")
     roll = sc_rollup(scan)
     o += ["## WCAG success criteria affected", "", "| SC | Name | Level | Failures | To review | Rules |", "|---|---|---|---:|---:|---|"]
@@ -295,15 +296,16 @@ def build_md(scan, a):
             o += [f"**{rule.get('title', rid)}** (`{rid}`) — {len(inst)} in {nfiles} file{'s' if nfiles != 1 else ''}  ", f"{rule.get('summary', '')}  ",
                   f"WCAG: {sc_text(rid)} · Section 508: {s508(rid)}", ""]
             if k in ("error", "contrast", "alert"):
-                for i in inst[:a.max_instances]:
+                shown = inst[:a.max_instances] if a.max_instances else inst
+                for i in shown:
                     extra = ""
                     if k == "contrast":
                         extra = f" — ratio {i['ratio']}:1 (needs {i['min']}:1), text {i['fg']} on {i['bg']}, {i['size']}"
                     elif i.get("note"):
                         extra = f" — {i['note']}"
                     o.append(f"- `{i['file']}:{i['line']}`{extra}  \n  `{(i['html'] or '')[:120]}`")
-                if len(inst) > a.max_instances:
-                    o.append(f"- … {len(inst) - a.max_instances} more (see JSON)")
+                if len(shown) < len(inst):
+                    o.append(f"- … {len(inst) - len(shown)} more (limited by --max-instances; omit it to list all)")
                 o.append("")
     und = scan["meta"].get("contrastUndetermined", 0)
     chk = scan["meta"].get("checkedForContrast", 0)
@@ -361,12 +363,12 @@ def build_html(md_text):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("paths", nargs="+", help="source files or directories")
+    ap.add_argument("paths", nargs="*", default=["."], help="source files or directories (default: the current directory, a full scan)")
     ap.add_argument("--out", default="a11y-report")
     ap.add_argument("--format", default="md,html,json")
     ap.add_argument("--title", default="", help="Client or project name for the report heading")
-    ap.add_argument("--max-instances", type=int, default=10, help="examples listed per rule in md/html")
-    ap.add_argument("--max-files", type=int, default=25, help="files listed in the per-file summary")
+    ap.add_argument("--max-instances", type=int, default=0, help="examples listed per rule in md/html (0 = all, the default)")
+    ap.add_argument("--max-files", type=int, default=0, help="files listed in the per-file summary (0 = all, the default)")
     ap.add_argument("--include-tests", action="store_true", help="also scan test, spec and story files")
     a = ap.parse_args()
     fmts = {f.strip() for f in a.format.split(",") if f.strip()}

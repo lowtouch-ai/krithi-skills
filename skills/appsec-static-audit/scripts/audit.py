@@ -776,8 +776,8 @@ def finalize(col, cap_per_rule=40):
     kept, suppressed = [], {}
     for rule, lst in by_rule.items():
         lst.sort(key=lambda c: (R.SEV.index(c["severity"]), c["file"]))
-        kept.extend(lst[:cap_per_rule])
-        if len(lst) > cap_per_rule:
+        kept.extend(lst[:cap_per_rule] if cap_per_rule else lst)
+        if cap_per_rule and len(lst) > cap_per_rule:
             suppressed[rule] = len(lst) - cap_per_rule
     kept.sort(key=lambda c: (R.SEV.index(c["severity"]), c["domain"], c["file"], c["line"]))
     seen = {}
@@ -1000,8 +1000,8 @@ def bind_inputs(items, names, what):
 
 def main():
     ap = argparse.ArgumentParser(description="Offline static security scan; writes scan.json + sbom.cdx.json")
-    ap.add_argument("repo", nargs="+", help="path to the source repository; give several to scan them as one workspace (paths in the report are prefixed with each folder name)")
-    ap.add_argument("--out", default="./security-audit", help="output directory")
+    ap.add_argument("repo", nargs="*", default=["."], help="path to the source repository (default: the current directory); give several to scan them as one workspace (paths in the report are prefixed with each folder name)")
+    ap.add_argument("--out", default=None, help="output directory (default: <repo>/docs/security-audit inside the first repository)")
     ap.add_argument("--name", help="application name for the report/SBOM (default: folder name)")
     ap.add_argument("--max-file-kb", type=int, default=1024)
     ap.add_argument("--no-git-history", action="store_true", help="skip the git history secret scan")
@@ -1012,7 +1012,7 @@ def main():
     ap.add_argument("--exclude-from", help="file with one exclude pattern per line")
     ap.add_argument("--suppressions", action="append", default=[], help="suppression policy JSON (accepted risks / known false positives); repeatable")
     ap.add_argument("--previous", help="scan.json of an earlier run to compare against (default: the scan.json already in --out; 'none' disables)")
-    ap.add_argument("--cap-per-rule", type=int, default=40, help="max candidates listed per rule (extra files are counted, not listed)")
+    ap.add_argument("--cap-per-rule", type=int, default=0, help="max candidates listed per rule (0 = list every candidate, the default)")
     ap.add_argument("--advisory-db", help="advisory snapshot to use instead of references/advisory-db.json.gz (see tools/build_advisory_db.py)")
     ap.add_argument("--sarif", action="append", default=[], help="SARIF file from another tool (Semgrep, CodeQL, ...) to merge; repeatable; with several repositories use NAME=FILE")
     a = ap.parse_args()
@@ -1031,6 +1031,8 @@ def main():
         seen_names[n_] = seen_names.get(n_, 0) + 1
         names.append(n_ if seen_names[n_] == 1 else f"{n_}-{seen_names[n_]}")
     root = roots[0]
+    if not a.out:
+        a.out = os.path.join(root, "docs", "security-audit")
     scope_label = "workspace" if multi else names[0]                     # what the ID registry and the previous-scan check are keyed on
     os.makedirs(a.out, exist_ok=True)
     t0 = time.time()
@@ -1042,6 +1044,11 @@ def main():
                 excludes += [l.strip() for l in fh if l.strip() and not l.startswith("#")]
         except OSError as e:
             sys.exit(f"error: cannot read --exclude-from: {e}")
+    # Keep the audit's own output (reports, scan.json, SBOM) out of the scan when it lives inside a repository.
+    out_abs = os.path.abspath(a.out)
+    for r_ in roots:
+        if out_abs.startswith(r_ + os.sep):
+            excludes.append(os.path.relpath(out_abs, r_).replace(os.sep, "/"))
     prev_path = a.previous or os.path.join(a.out, "scan.json")
     prev = None if (a.previous or "").lower() == "none" else load_previous(prev_path)
     if prev and ((prev.get("meta") or {}).get("registry_label") or (prev.get("meta") or {}).get("repository")) != scope_label:
@@ -1107,7 +1114,7 @@ def main():
     with open(os.path.join(a.out, "sbom.cdx.json"), "w", encoding="utf-8") as fh:
         json.dump(sbom_doc, fh, indent=2)
 
-    cands, suppressed = finalize(col, a.cap_per_rule * (len(roots) if multi else 1))
+    cands, suppressed = finalize(col, a.cap_per_rule * (len(roots) if multi else 1) if a.cap_per_rule else 0)
     repo_name = scope_label
     id_note = assign_stable_ids(cands, os.path.join(a.out, "finding-ids.json"), repo_name)
     supp_paths = list(a.suppressions)

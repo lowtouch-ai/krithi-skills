@@ -9,13 +9,18 @@ Reads source files, applies the WAVE rule set (110 items, six categories) and wr
 
 ## Run a scan
 
+**Invoking the skill by name is enough: run a full scan with no questions about options.** With no path given, scan the whole current repository (`.`), with every format and every finding listed. Only ask the user something if the repository path is genuinely unclear.
+
 ```bash
+python3 <skill-dir>/scripts/scan.py                                   # full scan of the current directory
 python3 <skill-dir>/scripts/scan.py PATH [PATH ...] --out ./a11y-report --title "Client name"
 ```
 
-`PATH` is a file or a directory (scanned recursively). `<skill-dir>` is usually `~/.codex/skills/wave-a11y-scan`.
+`PATH` is a file or a directory (scanned recursively); the default is the current directory. `<skill-dir>` is usually `~/.codex/skills/wave-a11y-scan`.
 
-Options: `--format md,html,json` (default all), `--max-instances 10` (examples per rule), `--max-files 25` (rows in the per-file summary), `--include-tests` (also scan test, spec and story files).
+Options (all optional; the defaults give the full report): `--format md,html,json` (default all), `--max-instances N` and `--max-files N` (default `0` = list every instance and every file; set a number only to shorten a report on request), `--include-tests` (also scan test, spec and story files).
+
+The Markdown and HTML reports contain every finding and every table row; nothing is cut off with "see JSON". `results.json` holds the same findings in machine-readable form.
 
 Outputs in `--out`: `report.md`, `report.html` (hand to the client), and `results.json` with every finding (file, line, selector, snippet, contrast colors and ratios).
 
