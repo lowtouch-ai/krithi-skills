@@ -47,6 +47,8 @@ x
 x
 ## Key terms
 x
+## Repository context
+x
 ## Supporting artifacts
 - `{saved}`: log
 ## Expected behavior

@@ -1,6 +1,6 @@
 # Prompt template
 
-The generated prompt is one Markdown file. Use these sections in this order. Fill each from the ticket and from reasoning about the ticket (never from scanning the repository). Replace every `{...}` before saving; `check_prompt.py` fails on leftovers. State each fact once: do not repeat it across sections.
+The generated prompt is one Markdown file. Use these sections in this order. Fill each from the ticket, from reasoning about it, and from the repo's AGENTS.md, README.md and docs/ (never from the source code). Replace every `{...}` before saving; `check_prompt.py` fails on leftovers. State each fact once: do not repeat it across sections.
 
 ```markdown
 > **PLAN MODE ONLY.** Do not create, edit, rename or delete any file, do not create branches or commits, and do not run commands that change the repository, its data or any environment. Read, search and analyze only.
@@ -16,6 +16,9 @@ Task type: {bug | enhancement | feature | removal | ui-accessibility | refactor}
 
 ## Key terms
 {The ticket's own names, labels, identifiers, error text and domain words, verbatim, one bullet each, with at most a few words of context from the ticket. Give the quoted phrases AND the distinct single-word stems (for example "fragment analysis images" and `fragment`, `plot`), because code identifiers rarely match whole phrases. Say: "Use these as starting points for searching the repository. Confirm what each means in this product from the code; do not assume."}
+
+## Repository context
+{From AGENTS.md, README.md and docs/ only, labelled "per docs" and unverified against the code. Include: "Read `AGENTS.md` first and follow it" if it exists; one line on what the product is and how it is layered; the `AGENTS.md` rules and documented build/test/lint commands that matter here; the doc paths most relevant to this ticket ("read these first"); what the docs say the Key terms mean. Keep it short, a few bullets. If there is no AGENTS.md, README or docs/, write "No AGENTS.md, README.md or docs/ found; discover the architecture and conventions from the code." Say: "Confirm all of this against the code; the documentation may be stale."}
 
 ## Supporting artifacts
 {One bullet per verified artifact: `{absolute path}`: what it shows / why it matters. Say: "Read each artifact before exploring the code." If none: "No supporting artifacts were provided."}
@@ -63,10 +66,10 @@ Provide a step-by-step implementation plan with exact file references, proposed 
 
 ## Writing rules
 
-- **Prompt only, no scanning.** Do not search or read the target repository to write the prompt, and do not explain domain concepts from your own knowledge. Plan Mode does the investigation. Key terms are the ticket's words, not definitions.
+- **Prompt only, light context.** Read only AGENTS.md, README.md and docs/ (shallowly) to write the prompt; never source code. Do not explain domain concepts from your own knowledge. Plan Mode does the investigation. Key terms are the ticket's words; add their documented meaning only "per docs".
 - **Reason, don't invent.** Ticket facts are stated plainly. Implications and hazards you reason out are labelled **Assumption**. Never state an invented fact as if the ticket said it.
 - **Say each fact once.** Use "Confirmed (from ticket)" only where a statement could be mistaken for an assumption; do not put it on every line.
-- Quote labels and names exactly as the ticket writes them. Do not name repo files, classes or functions unless the ticket does.
+- Quote labels and names exactly as the ticket writes them. Do not name repo files, classes or functions unless the ticket or the docs do (then cite the doc).
 - If a term looks like a typo or is unclear (for example an odd phrase in a comparison), keep it verbatim in Key terms and add a question under Open questions instead of correcting it. Do not build the Objective on it.
 - Do not tell Codex to open URLs from the ticket (environments, Jira links); they are context only. Say so when the ticket contains one.
 - **Numbers that depend on the setup** (screen sizes such as 1920 x 1080, time limits, volumes): ask under Open questions what they measure (physical screen, browser viewport, display scaling) and what the acceptance target is. Do not invent measurements.
