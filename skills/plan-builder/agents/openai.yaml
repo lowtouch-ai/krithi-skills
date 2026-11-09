@@ -1,0 +1,3 @@
+interface:
+  display_name: "Plan Builder"
+  short_description: "Turn a ticket (text, screenshot, HTML, Markdown, logs) into a ready-to-use Codex Plan Mode prompt, with artifacts saved outside the repo"
