@@ -14,6 +14,9 @@ The generated prompt is one Markdown file. Use these sections in this order. Fil
 {Task type: bug | enhancement | feature | removal | ui-accessibility | refactor}
 {The specifics exactly as the ticket words them: numbered/bulleted list of the items, labels, fields, screens, endpoints, rules or values involved. For a bug: observed vs expected behavior, steps to reproduce, environment, frequency. For a feature: the user story and each requirement.}
 
+## Key terms
+{Terms, labels, identifiers, error messages, screen or field names, and domain words taken verbatim from the ticket, one bullet each, with at most a few words of context from the ticket. Say: "Use these as starting points for searching the repository. Confirm what each means in this product from the code; do not assume."}
+
 ## Supporting artifacts
 {One bullet per verified artifact: `{absolute path}`: what it shows / why it matters. Instruct: "Read each artifact before exploring the code." If none: "No supporting artifacts were provided."}
 
@@ -71,3 +74,6 @@ Provide a step-by-step implementation plan with exact file references, proposed 
 - Keep every section ticket-specific; delete a shared block that does not apply instead of leaving filler.
 - Remove sections that cannot apply only if the template says so; otherwise keep the heading and state "Not applicable: {reason}".
 - Include no secrets; refer to the artifact instead.
+- **Prompt only, no scanning.** Do not search or read the target repository to write the prompt, and do not explain domain concepts from your own knowledge. Plan Mode does the investigation. Key terms are the ticket's words, not definitions.
+- If a term looks like a typo or is unclear (for example an odd phrase in a comparison), keep it verbatim in Key terms and add a question under Open questions instead of correcting it.
+- Do not tell Codex to open URLs from the ticket (environments, Jira links); they are context only.

@@ -45,6 +45,8 @@ good = f"""> **PLAN MODE ONLY.** Do not create, edit or delete any file.
 x
 ## Ticket details
 x
+## Key terms
+x
 ## Supporting artifacts
 - `{saved}`: log
 ## Expected behavior

@@ -51,14 +51,15 @@ python3 <skill-dir>/scripts/save_artifacts.py --ticket <TICKET> [--base <dir>] <
 It copies each file to `<base>/<TICKET>/files/`, never overwrites (collisions get a numeric suffix), verifies existence, size and SHA-256, and prints JSON with each saved file's absolute path, or an error per failed file. With no files, run it with `--init` to print the folder paths only. Report failures to the user and continue without those files.
 
 ### 5. Extract the requirements
-From the input write down, privately: title; objective and business context; the exact items, fields, labels, endpoints or screens named; current behavior; expected behavior; constraints and non-goals; acceptance hints; links; open questions and ambiguities; what each artifact shows.
+From the input write down, privately: title; objective and business context; the exact items, fields, labels, endpoints or screens named; current behavior; expected behavior; constraints and non-goals; acceptance hints; links; open questions and ambiguities; what each artifact shows; and the **key terms**: the ticket's own names, labels, identifiers, error text and domain words, verbatim. Do this from the input only; do not scan the repository (Plan Mode does that).
 
 ### 6. Assemble the prompt
 Follow `references/prompt-template.md` (sections, order and wording rules) and add the investigation block(s) for the task type from `references/task-type-modules.md`. Write it as a complete, self-contained document: Codex has no memory of this conversation and cannot see the ticket system.
 - Describe the task and its context in your own words from the ticket, and quote exact names and labels.
 - Keep it ticket-specific and concise: no filler, no generic advice that does not help this ticket.
 - Mark each statement as **Confirmed (from ticket)** or **Assumption** where it matters.
-- Never name files, classes or functions in the target repo unless the ticket does; tell Codex to find them.
+- Never name files, classes or functions in the target repo unless the ticket does; tell Codex to find them, starting from the Key terms section.
+- Do not define or explain domain terms yourself; pass them on as the ticket words them and let Codex confirm their meaning from the code.
 
 ### 7. Save and validate
 Save the prompt to `<base>/<TICKET>/<TICKET>-codex-plan-prompt.md` (the script prints this folder), then:
