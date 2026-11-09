@@ -1,6 +1,6 @@
 # Task-type modules
 
-Add the module for the classified task type to the **Investigation tasks** section, and adjust item 2 of Planning requirements. Combine two modules when the ticket mixes types. These are question lists for Codex to answer from the repo; fill in ticket specifics, never repo specifics you have not been given.
+Use the module for the classified task type as a source of questions for the **Investigation tasks** section, and set item 2 of Planning requirements. Do not paste the lists: rewrite each question with the ticket's own terms, group them by the layers the ticket touches (UI, backend and data, integrations, dependencies and impact), and drop what does not apply. Combine two modules when the ticket mixes types. Never add repo specifics you have not been given.
 
 ## bug
 - Reproduce on paper: trace the exact steps and inputs in the ticket through the code and state where behavior diverges from expected.

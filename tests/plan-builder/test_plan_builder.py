@@ -51,6 +51,8 @@ x
 - `{saved}`: log
 ## Expected behavior
 x
+## Implied requirements and hazards
+x
 ## Investigation tasks
 x
 ## Planning requirements
