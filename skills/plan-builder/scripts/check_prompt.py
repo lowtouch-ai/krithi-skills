@@ -3,7 +3,7 @@
 import re, sys
 from pathlib import Path
 
-REQUIRED = ["Objective", "Ticket details", "Key terms", "Supporting artifacts", "Expected behavior", "Implied requirements", "Investigation tasks",
+REQUIRED = ["Objective", "Ticket details", "Key terms", "Repository context", "Supporting artifacts", "Expected behavior", "Implied requirements", "Investigation tasks",
             "Planning requirements", "Constraints", "Open questions", "Deliverable"]
 
 
