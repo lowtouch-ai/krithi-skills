@@ -26,6 +26,7 @@ The skills in this repository are reusable building blocks for that kind of work
 | [`repo-readme-generator`](#repo-readme-generator) | Creates or updates a repo's README, or a full documentation suite with `AGENTS.md` and diagrams, from verified evidence. |
 | [`appsec-static-audit`](#appsec-static-audit) | Source-code-only security audit of one repository or several (OWASP, SSO, secrets, dependencies and SBOM, IaC, CI/CD, PII/FTI) with a timestamped enterprise report, SARIF output and a CI gate, mapped to NIST 800-53, IRS Pub 1075 and EOTSS. |
 | [`wave-a11y-scan`](#wave-a11y-scan) | WAVE-style accessibility scan of a project's source code with a client-ready report (WCAG 2.x, Section 508 note). |
+| [`plan-builder`](#plan-builder) | Turns a ticket (text, screenshot, HTML, Markdown, logs) into a ready-to-paste Codex Plan Mode prompt; supporting artifacts are saved outside the repo under the ticket number and referenced by verified absolute paths. |
 
 In Codex, install a skill with the command in its section, then restart Codex. Skills are installed as folders under `~/.codex/skills/` (or `$CODEX_HOME/skills/` if you set `CODEX_HOME`).
 
@@ -205,6 +206,38 @@ rm -rf ~/.codex/skills/wave-a11y-scan
 ```
 
 Files the skill wrote into your projects (`a11y-report/`) are not removed with the skill.
+
+## plan-builder
+
+Converts a ticket for a bug, enhancement, new feature, removal, UI/accessibility change or refactor into a complete Codex Plan Mode prompt. It asks for the ticket number and any supporting artifacts, saves the artifacts to `../plan-builder/artifacts/<TICKET>/files/` (outside the repository, checksum-verified), writes `<TICKET>-codex-plan-prompt.md` there, and tells Codex to investigate, analyze impact, dependencies, implementation strategy, risks and tests while staying in Plan Mode without modifying code. Details: [`SKILL.md`](skills/plan-builder/SKILL.md).
+
+### Install
+
+```
+$skill-installer install https://github.com/lowtouch-ai/krithi-skills/tree/main/skills/plan-builder
+```
+
+### Test
+
+Open Codex in the repository the ticket applies to and run:
+
+```
+$plan-builder build a plan prompt for ABC-123 from this ticket: <paste text or give a screenshot/HTML/Markdown path>
+```
+
+Then switch Codex to Plan mode (Shift+Tab or `/plan`) and paste the prompt, or say: `Read <prompt path> and follow it`.
+
+### Update
+
+```
+$skill-installer update https://github.com/lowtouch-ai/krithi-skills/tree/main/skills/plan-builder
+```
+
+### Uninstall
+
+```
+rm -rf ~/.codex/skills/plan-builder
+```
 
 ## Uninstalling from inside Codex
 
