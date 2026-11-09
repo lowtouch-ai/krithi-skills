@@ -209,7 +209,7 @@ Files the skill wrote into your projects (`a11y-report/`) are not removed with t
 
 ## plan-builder
 
-Converts a ticket for a bug, enhancement, new feature, removal, UI/accessibility change or refactor into a complete Codex Plan Mode prompt. It asks for the ticket number and any supporting artifacts, saves the artifacts to `~/.krithi/<TICKET>/` (outside the repository, checksum-verified, referenced by absolute path), writes `docs/plan-prompts/<TICKET>-codex-plan-prompt.md`, and tells Codex to investigate, analyze impact, dependencies, implementation strategy, risks and tests while staying in Plan Mode without modifying code. Details: [`SKILL.md`](skills/plan-builder/SKILL.md).
+Converts a ticket for a bug, enhancement, new feature, removal, UI/accessibility change or refactor into a complete Codex Plan Mode prompt. It asks for the ticket number and any supporting artifacts, saves the artifacts to `~/.krithi/<TICKET>/` (outside the repository, checksum-verified, referenced by absolute path), writes `docs/plan-prompts/<TICKET>-codex-plan-prompt.md`, and tells Codex to investigate, analyze impact, dependencies, implementation strategy, risks and tests while staying in Plan Mode without modifying code. It then runs that prompt automatically in a read-only `codex exec` session, saves the plan to `docs/plan-prompts/<TICKET>-implementation-plan.md`, shows the full plan and asks whether to **build it** or **change it** (changes re-run the plan with your comments; build asks about the branch, then implements the approved plan, without committing). Details: [`SKILL.md`](skills/plan-builder/SKILL.md).
 
 ### Install
 
@@ -225,7 +225,7 @@ Open Codex in the repository the ticket applies to and run:
 $plan-builder build a plan prompt for ABC-123 from this ticket: <paste text or give a screenshot/HTML/Markdown path>
 ```
 
-Then switch Codex to Plan mode (Shift+Tab or `/plan`) and paste the prompt, or say: `Read <prompt path> and follow it`.
+The skill shows the plan and asks: build it, or change it. If the automatic plan run fails (no `codex` on the path, timeout), it falls back to the manual route: switch Codex to Plan mode (Shift+Tab or `/plan`) and paste the prompt, or say: `Read <prompt path> and follow it`.
 
 ### Update
 
