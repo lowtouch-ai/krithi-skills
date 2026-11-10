@@ -1,6 +1,6 @@
 ---
 name: plan-builder
-description: Convert a ticket (Jira text, screenshot, HTML, Markdown, PDF, log, email or a plain description) for a bug, enhancement, new feature, removal, UI/accessibility change or refactor into a complete, self-contained prompt for Codex Plan Mode. Requires a ticket number, asks for supporting artifacts, saves them under ~/.krithi/<ticket number>/ (outside the repository) with verified absolute paths, and writes the prompt to a Markdown file under docs/plan-prompts/ that tells Codex to investigate, analyze impact and dependencies, propose an implementation strategy, risks and tests, and stay in Plan Mode without modifying code; then runs that prompt in a read-only Codex session, saves the resulting implementation plan, shows it, and asks whether to build it or change it. Use when asked to build, write, generate or prepare a plan prompt, planning prompt or Codex plan for a ticket, bug report or feature request.
+description: Convert a ticket (Jira text, screenshot, HTML, Markdown, PDF, log, email or a plain description) for a bug, enhancement, new feature, removal, UI/accessibility change or refactor into a complete, self-contained prompt for Codex Plan Mode. Requires a ticket number, asks for supporting artifacts, saves them under ~/.krithi/<ticket number>/ (outside the repository) with verified absolute paths, and writes the prompt to a Markdown file under docs/plan-prompts/ that tells Codex to investigate, analyze impact and dependencies, propose an implementation strategy, risks and tests, and stay in Plan Mode without modifying code; then shows the prompt and asks the user to go ahead or change it, and once approved runs that prompt in a read-only Codex session, saves the resulting implementation plan, shows it, and asks whether to build it or change it. Use when asked to build, write, generate or prepare a plan prompt, planning prompt or Codex plan for a ticket, bug report or feature request.
 ---
 
 # Plan builder
@@ -81,8 +81,18 @@ python3 <skill-dir>/scripts/check_prompt.py <prompt-file>
 ```
 It checks required sections, the Plan Mode clause at the top and bottom, that every listed artifact path is absolute, exists and lies outside the repository, and that no `{placeholder}` or `TODO` is left. Fix every error and re-run until clean.
 
-### 8. Run the plan (automatic, read-only)
-Do not ask; go straight on once the prompt validates. From the repository root:
+### 7b. Confirm the prompt before planning
+Once the prompt validates, stop and show the user: the ticket number and classification, the repo-relative path of the saved prompt, the absolute path of each saved artifact (verified or failed), that the prompt is written but not staged or committed, the **full prompt text** in a code block, and any open questions or things you could not read. Then ask, and wait:
+> Do you want to:
+> 1. **Go ahead**: create the detailed implementation plan from this prompt, or
+> 2. **Change the prompt**: tell me what to add, remove or fix?
+
+- **Change the prompt:** apply the comments to the prompt file (same rules as step 6, facts only from the ticket or the user's comments), re-run `check_prompt.py`, show the updated prompt and ask again. Repeat until the user says go ahead.
+- **Go ahead** (or any clear yes, such as "go", "yes", "create the plan"): run step 8 with the saved prompt exactly as it is. Do not edit it further.
+- If the user does not choose, stop here; do not run the plan.
+
+### 8. Run the plan (read-only)
+Only after the user has said go ahead in step 7b. From the repository root:
 ```bash
 python3 <skill-dir>/scripts/run_plan.py --ticket <TICKET> [--root <repo>]
 ```
