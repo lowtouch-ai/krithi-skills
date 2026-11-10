@@ -24,6 +24,10 @@ Before finishing such a change:
 
 Never document behavior that is not implemented; mark it `Planned` or `TBD`.
 
+## Code comments
+
+New or changed code must carry adequate comments: explain non-obvious logic, intent and the reason for the change, following the repository's comment style. Do not add comments that only restate the code.
+
 ## Commit messages and pull requests
 
 Write descriptive commit messages and PR descriptions, never a single line. A commit message has a short summary line plus a body that covers every change in that commit (what changed, in which files or components, and why). A PR description covers every item in the PR: a summary, the list of changes, and how it was tested or verified.

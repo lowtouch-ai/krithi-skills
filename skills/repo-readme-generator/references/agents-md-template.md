@@ -34,6 +34,8 @@ Run from the repository root unless noted.
 - Commit/PR rules: <from CONTRIBUTING or git history, else TBD>
 - **Commit messages and pull requests must be descriptive, not a single line.** A commit message has a short summary line plus a body covering every change in that commit (what changed, where, and why). A PR description covers every item in the PR: summary, list of changes, and how it was tested. This applies to every agent and contributor, and is always included even when the repo has no commit rules of its own.
 
+- **Code must carry adequate comments.** New or changed code needs clear comments explaining non-obvious logic, intent and the reason for the change, following the repo's comment style. Do not add comments that only restate the code.
+
 ## Architecture rules
 - <boundary 1: e.g. "handlers call services; services never import handlers">
 - <invariant: e.g. "votes are queued in Redis, only the worker writes to the database">
