@@ -89,5 +89,34 @@ inrepo = repo / "src" / "shot.png"; inrepo.write_text("x")
 pi = repo / "docs/plan-prompts/inrepo.md"; pi.write_text(good.replace(saved, str(inrepo)))
 expect("inside the repository" in run(check, str(pi)).stdout, "artifact inside the repo must be reported")
 
+# --- run_plan.py with a fake codex on PATH ---
+run_plan = str(root / "skills/plan-builder/scripts/run_plan.py")
+bindir = tmp / "bin"; bindir.mkdir()
+fake = bindir / "codex"
+fake.write_text("""#!/bin/sh
+# fake codex: find -o <file>, read stdin, write a plan (marker if feedback seen)
+out=""; prev=""
+for a in "$@"; do [ "$prev" = "-o" ] && out="$a"; prev="$a"; done
+in=$(cat)
+body="## Current architecture\nx\n## Root cause\nConfirmed: x\n## Files to modify\nx\n## Recommended implementation\nx\n## Dependencies and impact\nx\n## Risks and regression areas\nx\n## Testing strategy\nx\n## Rollout and compatibility\nx\n## Acceptance criteria\nx\n## Open questions\nnone"
+case "$in" in *"Revision request"*) body="$body\nREVISED";; esac
+[ -n "$FAKE_CODEX_MODIFY" ] && echo hi > "$FAKE_CODEX_MODIFY"
+printf "$body" > "$out"
+""")
+fake.chmod(0o755)
+penv = {**os.environ, "PATH": f"{bindir}:{os.environ['PATH']}"}
+def rp(*a, e=penv):
+    return subprocess.run([sys.executable, run_plan, "--ticket", "ABC-1", "--root", str(repo), *a], capture_output=True, text=True, env=e)
+rr = rp(); jj = json.loads(rr.stdout)
+expect(rr.returncode == 0 and jj["ok"] and jj["plan_path"] == "docs/plan-prompts/ABC-1-implementation-plan.md", "run_plan should save the plan: " + rr.stdout[-300:])
+expect(jj["missing_headings"] == [] and jj["repo_changed_during_run"] == [] and not jj["unlabelled_findings_warning"], "plan checks should pass: " + rr.stdout[-300:])
+rr2 = rp("--feedback", "make it smaller"); j3 = json.loads(rr2.stdout)
+expect(j3["ok"] and j3["revised"] and "REVISED" in (repo / j3["plan_path"]).read_text(), "feedback must reach codex and overwrite the plan")
+expect((repo / "docs/plan-prompts/ABC-1-implementation-plan.prev.md").is_file(), "previous plan must be kept")
+rr3 = rp(e={**penv, "FAKE_CODEX_MODIFY": str(repo / "src" / "changed.txt")}); j4 = json.loads(rr3.stdout)
+expect(j4["repo_changed_during_run"] and any("changed.txt" in x for x in j4["repo_changed_during_run"]), "repo changes during the run must be reported")
+rr4 = subprocess.run([sys.executable, run_plan, "--ticket", "ABC-1", "--root", str(repo)], capture_output=True, text=True, env={**os.environ, "PATH": "/nonexistent"})
+expect(json.loads(rr4.stdout).get("reason") == "codex_not_found", "missing codex must be reported")
+
 print("OK" if not problems else "\n".join(problems))
 sys.exit(1 if problems else 0)
