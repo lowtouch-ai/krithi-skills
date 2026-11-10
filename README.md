@@ -17,7 +17,7 @@ Work moves through four stages, and a human approves each one before anything me
 
 An orchestration agent routes each task to the model that suits it (Claude Code, Codex, Kimi or Gemma) and syncs status with Jira, Azure DevOps or ServiceNow. Krithi is aimed at engineering teams with a backlog and too few engineers, especially in regulated environments, for work such as legacy modernization, greenfield builds, data pipelines and platform migrations. lowtouch.ai also offers it as a managed service ([Velocity Pods](https://www.lowtouch.ai/agents/krithi/)), where its engineers run Krithi and own the review gates.
 
-The skills in this repository are reusable building blocks for that kind of work: accessibility scanning, security auditing, agent-ready documentation and ticket-to-plan prompt building.
+The skills in this repository are reusable building blocks for that kind of work: accessibility scanning, security auditing, agent-ready documentation, ticket-to-plan prompt building and migration effort estimation.
 
 ## Skills
 
@@ -27,6 +27,7 @@ The skills in this repository are reusable building blocks for that kind of work
 | [`appsec-static-audit`](#appsec-static-audit) | Source-code-only security audit of one repository or several (OWASP, SSO, secrets, dependencies and SBOM, IaC, CI/CD, PII/FTI) with a timestamped enterprise report, SARIF output and a CI gate, mapped to NIST 800-53, IRS Pub 1075 and EOTSS. |
 | [`wave-a11y-scan`](#wave-a11y-scan) | WAVE-style accessibility scan of a project's source code with a client-ready report (WCAG 2.x, Section 508 note). |
 | [`plan-builder`](#plan-builder) | Turns a ticket (text, screenshot, HTML, Markdown, logs) into a ready-to-paste Codex Plan Mode prompt; supporting artifacts are saved under `~/.krithi/<TICKET>/` (outside the repo) and referenced by verified absolute paths; the prompt is saved under `docs/plan-prompts/`. |
+| [`migration-estimate`](#migration-estimate) | Reads a codebase and estimates migration or modernisation effort the Krithi way: high-level PRD, detailed PRDs, stories and sprints, with a human-team vs Krithi timeline side by side, an approximate go-live allowance, and a self-review for coverage; all Markdown under `docs/migration-estimate/`. |
 
 In Codex, install a skill with the command in its section, then restart Codex. Skills are installed as folders under `~/.codex/skills/` (or `$CODEX_HOME/skills/` if you set `CODEX_HOME`).
 
@@ -254,6 +255,54 @@ rm -rf ~/.codex/skills/plan-builder
 ```
 
 Files the skill wrote (`~/.krithi/<TICKET>/` artifacts and `docs/plan-prompts/` prompts in your projects) are not removed with the skill.
+
+## migration-estimate
+
+Estimates the effort to migrate or modernise the application in the current repository: it reads the code, writes a high-level PRD in Kriti-REQ's PRD format (use cases, business rules, roles, data, citations, confidence), breaks it into detailed PRDs, converts each into stories and counts sprints. Five stories make one sprint of two engineers; a human team runs a sprint in 10 working days and Krithi in 2, so the same sprint count is five times faster (40 sprints = 80 weeks vs 16 weeks). The estimate covers development and testing only; QA sign-off, production deployment and data migration are listed separately with an approximate 20% go-live allowance. All numbers are computed by a script from the PRDs. Before finishing, the skill checks the PRDs against the codebase for missed modules, integrations and features, scores the gap the way Kriti-REQ's quality check does, reworks above 30%, re-runs the estimate and records the check in `review.md`. Details: [`SKILL.md`](skills/migration-estimate/SKILL.md).
+
+### Install
+
+```
+$skill-installer install https://github.com/lowtouch-ai/krithi-skills/tree/main/skills/migration-estimate
+```
+
+### Test
+
+Open Codex at the root of the application repository and run:
+
+```
+$migration-estimate estimate the migration effort for this codebase
+```
+
+Output, in the repository: `docs/migration-estimate/00-high-level-prd.md`, one `prd-NN-<slug>.md` per detailed PRD, `estimate-summary.md` and `review.md`. The codebase inventory is saved outside the repository under `~/.krithi/migration-estimate/<repo>/`.
+
+### Update
+
+To get the latest version, use either option, then restart Codex.
+
+Option 1: ask the installer to update from the URL:
+
+```
+$skill-installer update https://github.com/lowtouch-ai/krithi-skills/tree/main/skills/migration-estimate
+```
+
+Option 2: remove the installed folder and install it again:
+
+```
+rm -rf ~/.codex/skills/migration-estimate
+```
+
+```
+$skill-installer install https://github.com/lowtouch-ai/krithi-skills/tree/main/skills/migration-estimate
+```
+
+### Uninstall
+
+```
+rm -rf ~/.codex/skills/migration-estimate
+```
+
+Files the skill wrote (`docs/migration-estimate/` in your projects and `~/.krithi/migration-estimate/`) are not removed with the skill.
 
 ## Uninstalling from inside Codex
 
