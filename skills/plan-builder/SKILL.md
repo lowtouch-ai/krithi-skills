@@ -86,9 +86,7 @@ Reply with:
 1. The classification and the ticket number.
 2. The repo-relative path of the saved prompt and the absolute path of each saved artifact, which saves were verified or failed, and that the prompt is written but not staged or committed.
 3. The full prompt text, untruncated, in a code block for pasting.
-4. The handoff:
-   > In Codex, switch to Plan mode (press **Shift+Tab**, or type `/plan`), then either paste the prompt above or say: *Read `<relative prompt path>` and follow it.* (Codex runs at the repository root, so the relative path works; if it cannot read the file, paste the prompt.)
-   > Optional hard guard when starting a fresh terminal session: `codex -s read-only "Read <relative prompt path> and follow it"` from the repository root (read-only sandbox, so edits are blocked even if the prompt is ignored).
+4. The final line, exactly: *Enter Plan mode (press **Shift+Tab**, or type `/plan`) and run: Read `<relative prompt path>` and follow it.* (Codex runs at the repository root, so the relative path works.) Do not mention `codex -s` or any other command-line flags.
 5. Open questions the user should answer before or while planning, and anything you could not read.
 
 Never claim Codex was put into Plan Mode: this skill cannot toggle it. It only writes the prompt, the explicit no-edit clause, and the handoff above.
