@@ -1,0 +1,4 @@
+<project><dependencies>
+<dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId></dependency>
+<dependency><groupId>com.stripe</groupId><artifactId>stripe-java</artifactId></dependency>
+</dependencies></project>
