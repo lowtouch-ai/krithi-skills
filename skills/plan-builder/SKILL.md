@@ -90,7 +90,7 @@ It runs `codex exec -s read-only --ephemeral -C <repo> -o <tmp> -` with the save
 
 If the JSON says `ok: false`:
 - `codex_not_found`, `codex_failed` or `timeout`: say why, then fall back to following the saved prompt yourself in this session: read-only, no edits, same plan headings, and state that the sandbox was not enforced. Save that plan to the same plan path.
-- Anything else: show the error and give the user the prompt path, the full prompt text and the manual handoff (in Codex press **Shift+Tab** or type `/plan`, then paste the prompt or say *Read `<relative prompt path>` and follow it*).
+- Anything else: show the error and give the user the prompt path, the full prompt text and the manual handoff as one final line: *Enter Plan mode (press **Shift+Tab**, or type `/plan`) and run: Read `<relative prompt path>` and follow it.*
 
 ### 9. Show the plan and ask
 The final reply, in this order:

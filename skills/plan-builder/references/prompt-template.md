@@ -50,6 +50,7 @@ Use exactly these headings, in this order, in your plan. If a section has nothin
 - **PLAN MODE ONLY: do not modify any files or implement changes yet.**
 - Follow the repository's existing architecture, conventions and patterns.
 - Prefer minimal, targeted changes over broad refactoring.
+- Require adequate code comments: the plan must call for clear comments on new or changed code, explaining non-obvious logic and the reason for the change, following the repository's comment style.
 {Ticket-specific "do not" and "preserve" lines derived from the ticket and the hazards above: what must not be deleted, removed globally or changed, and what must keep working.}
 - Do not assume; verify by inspecting the code. Label each finding **Confirmed** (seen in code or artifact) or **Assumption**.
 - Reference actual file paths and function names.
