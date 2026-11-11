@@ -17,7 +17,7 @@ Work moves through four stages, and a human approves each one before anything me
 
 An orchestration agent routes each task to the model that suits it (Claude Code, Codex, Kimi or Gemma) and syncs status with Jira, Azure DevOps or ServiceNow. Krithi is aimed at engineering teams with a backlog and too few engineers, especially in regulated environments, for work such as legacy modernization, greenfield builds, data pipelines and platform migrations. lowtouch.ai also offers it as a managed service ([Velocity Pods](https://www.lowtouch.ai/agents/krithi/)), where its engineers run Krithi and own the review gates.
 
-The skills in this repository are reusable building blocks for that kind of work: accessibility scanning, security auditing, agent-ready documentation, ticket-to-plan prompt building and migration effort estimation.
+The skills in this repository are reusable building blocks for that kind of work: accessibility scanning, security auditing, agent-ready documentation, ticket-to-plan prompt building, migration effort estimation and pull request preparation.
 
 ## Skills
 
@@ -28,6 +28,7 @@ The skills in this repository are reusable building blocks for that kind of work
 | [`wave-a11y-scan`](#wave-a11y-scan) | WAVE-style accessibility scan of a project's source code with a client-ready report (WCAG 2.x, Section 508 note). |
 | [`plan-builder`](#plan-builder) | Turns a ticket (text, screenshot, HTML, Markdown, logs) into a ready-to-paste Codex Plan Mode prompt; supporting artifacts are saved under `~/.krithi/<TICKET>/` (outside the repo) and referenced by verified absolute paths; the prompt is saved under `docs/plan-prompts/`. |
 | [`migration-estimate`](#migration-estimate) | Reads a codebase and estimates migration or modernisation effort the Krithi way: high-level PRD, detailed PRDs, stories and sprints, with a human-team vs Krithi timeline side by side, an approximate go-live allowance, and a self-review for coverage; all Markdown under `docs/migration-estimate/`. |
+| [`prepare-pr`](#prepare-pr) | Takes finished, tested work to a pull request: reviews the change (bugs, security, quality, performance, requirements) and fixes what you approve, runs the tests, updates only the docs the change affects, checks the branch name fits the work, commits only in-scope files with a detailed message, then asks before pushing and opening the PR. |
 
 In Codex, install a skill with the command in its section, then restart Codex. Skills are installed as folders under `~/.codex/skills/` (or `$CODEX_HOME/skills/` if you set `CODEX_HOME`).
 
@@ -303,6 +304,60 @@ rm -rf ~/.codex/skills/migration-estimate
 ```
 
 Files the skill wrote (`docs/migration-estimate/` in your projects and `~/.krithi/migration-estimate/`) are not removed with the skill.
+
+## prepare-pr
+
+Run it once the implementation is done and tested. It reviews every change against the original requirements (correctness, security, performance, maintainability), verifies each finding before reporting it, fixes the ones you approve and runs the relevant tests. It then updates only the documentation the change makes wrong, checks that the feature branch name matches the work (and offers a new branch if it does not), commits only the files that belong to this work with a commit message that explains what changed and why and how it was tested, and finally asks whether to push and open the PR. It stops for your answer before a new branch, a commit and a push; it never commits unrelated changes, force-pushes, bypasses hooks or pushes to the default branch, and it blocks staged secrets and `.env` files. It needs Python 3 and git; opening the PR needs the `gh` CLI (without it, the skill pushes and prints the PR title, body and compare link). Details: [`SKILL.md`](skills/prepare-pr/SKILL.md).
+
+### Install
+
+```
+$skill-installer install https://github.com/lowtouch-ai/krithi-skills/tree/main/skills/prepare-pr
+```
+
+### Test
+
+Open Codex in the repository where you finished the work and run:
+
+```
+$prepare-pr
+```
+
+With the requirement or ticket, so the review checks against it:
+
+```
+$prepare-pr this implements ABC-123: invoices must include every line item in the total
+```
+
+If you answer **no** at the push question, the commit stays on your local feature branch and nothing is pushed.
+
+### Update
+
+To get the latest version, use either option, then restart Codex.
+
+Option 1: ask the installer to update from the URL:
+
+```
+$skill-installer update https://github.com/lowtouch-ai/krithi-skills/tree/main/skills/prepare-pr
+```
+
+Option 2: remove the installed folder and install it again:
+
+```
+rm -rf ~/.codex/skills/prepare-pr
+```
+
+```
+$skill-installer install https://github.com/lowtouch-ai/krithi-skills/tree/main/skills/prepare-pr
+```
+
+### Uninstall
+
+```
+rm -rf ~/.codex/skills/prepare-pr
+```
+
+Commits, branches and PRs the skill made are not removed with the skill.
 
 ## Uninstalling from inside Codex
 
