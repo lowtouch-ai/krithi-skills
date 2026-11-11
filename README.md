@@ -277,9 +277,12 @@ Open Codex at the root of the application repository and run:
 
 ```
 $migration-estimate estimate the migration effort for this codebase
+$migration-estimate estimate the effort to fix the a11y report and the security audit
 ```
 
-Output, in the repository: `docs/migration-estimate/00-high-level-prd.md`, one `prd-NN-<slug>.md` per detailed PRD, `estimate-summary.md` and `review.md`. The codebase inventory is saved outside the repository under `~/.krithi/migration-estimate/<repo>/`.
+The first prompt writes, in the repository: `docs/migration-estimate/00-high-level-prd.md`, one `prd-NN-<slug>.md` per detailed PRD, `estimate-summary.md` and `review.md`. The codebase inventory is saved outside the repository under `~/.krithi/migration-estimate/<repo>/`.
+
+The second prompt needs `docs/a11y-report/results.json` (from `wave-a11y-scan`) and the security audit's SARIF file (from `appsec-static-audit`, rendered with `--emit-sarif`). It writes `docs/remediation-estimate/`.
 
 ### Update
 
