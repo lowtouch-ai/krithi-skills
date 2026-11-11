@@ -1,11 +1,11 @@
 ---
 name: wave-a11y-scan
-description: Scan a project's source code for accessibility problems using the WAVE rule set and produce a client-ready report. Use when asked to run an accessibility or WAVE-style audit of a repo or folder of HTML, templates, JSX/TSX, Vue, Svelte or Astro files, or to check WCAG 2.x A/AA and Section 508 issues such as alt text, labels, headings, landmarks, ARIA, link and button names, tables and contrast. Reports Errors, Contrast Errors, Alerts, Features, Structural Elements and ARIA with file and line, each mapped to WCAG success criteria.
+description: Scan a project's source code for accessibility problems using the WAVE rule set plus the Mass.gov web testing checklist, and produce a client-ready report. Use when asked to run an accessibility or WAVE-style audit of a repo or folder of HTML, templates, JSX/TSX, Vue, Svelte or Astro files, or to check WCAG 2.x A/AA and Section 508 issues such as alt text, labels, headings, landmarks, ARIA, link and button names, tables and contrast. Reports Errors, Contrast Errors, Alerts, Features, Structural Elements and ARIA with file and line, each mapped to WCAG success criteria, and shows how the scan covers each item of the Mass.gov checklist and what is left for manual testing.
 ---
 
 # WAVE-style accessibility scan of source code
 
-Reads source files, applies the WAVE rule set (110 items, six categories) and writes a Markdown, HTML and JSON report. Every finding has a file and line and carries its WCAG 2.x success criteria and a Section 508 note. No browser, network or install is needed: it needs only Python 3.
+Reads source files, applies the WAVE rule set (110 items, six categories) plus 37 extra source checks (Mass.gov checklist, axe-core, WCAG 2.2, WCAG 2.1 and React/Material-UI), and writes a Markdown, HTML and JSON report. Every finding has a file and line and carries its WCAG 2.x success criteria and a Section 508 note. No browser, network or install is needed: it needs only Python 3.
 
 ## Run a scan
 
@@ -13,7 +13,7 @@ Reads source files, applies the WAVE rule set (110 items, six categories) and wr
 
 ```bash
 python3 <skill-dir>/scripts/scan.py                                   # full scan of the current directory
-python3 <skill-dir>/scripts/scan.py PATH [PATH ...] --out ./a11y-report --title "Client name"
+python3 <skill-dir>/scripts/scan.py PATH [PATH ...] --out docs/a11y-report --title "Client name"
 ```
 
 `PATH` is a file or a directory (scanned recursively); the default is the current directory. `<skill-dir>` is usually `~/.codex/skills/wave-a11y-scan`.
@@ -22,11 +22,44 @@ Options (all optional; the defaults give the full report): `--format md,html,jso
 
 The Markdown and HTML reports contain every finding and every table row; nothing is cut off with "see JSON". `results.json` holds the same findings in machine-readable form.
 
-Outputs in `--out`: `report.md`, `report.html` (hand to the client), and `results.json` with every finding (file, line, selector, snippet, contrast colors and ratios).
+Outputs go to `docs/a11y-report/` in the scanned repository (created if missing; change it with `--out`) and are meant to be committed with the repo: `report.md`, `report.html` (hand to the client), and `results.json` with every finding (file, line, selector, snippet, contrast colors and ratios).
 
 Scanned: `.html .htm .jsx .tsx .vue .svelte .astro` and common template types (`.php .erb .ejs .hbs .njk .liquid .twig .jinja .cshtml .razor`), plus `.js` files that import React. Skipped: `node_modules`, build output (`dist`, `build`, `.next`, `.nuxt`, `out`), `vendor`, tests and stories, minified files, files over 1 MB.
 
 Exit codes: `0` ok (findings do not change it); `2` bad option; `3` a path does not exist or no markup files were found (no report is written).
+
+## Extra checks beyond WAVE
+
+Rules in the catalog with a `source` field are not WAVE rules:
+
+- `mass-web-checklist` (6): zoom blocked by the viewport meta, media autoplay, multiple H1, iframe without title, focus outline removed in CSS, dialog without a name.
+- `axe-core` (15, a static subset of the rules behind axe DevTools and Accessibility Insights): video without a captions track, duplicate id, invalid ARIA role or attribute, missing required ARIA attribute, ARIA control without a name, focusable content inside `aria-hidden`, nested interactive controls, `input type=button` without a name, `role=img` without a name, visible text missing from the accessible name (2.5.3), invalid `scope`, missing or duplicate `main`, text spacing locked with `!important`.
+
+- `wcag-2.2` (6): target size under 24px, fixed or sticky elements that may cover focus, password autofill blocked or paste blocked, CAPTCHA, drag without an alternative.
+- `wcag-2.1` (6): personal-data fields without `autocomplete`, fixed-height text clipping, hover-only content, orientation locked in CSS, auto-advancing carousels, animation without `prefers-reduced-motion`.
+- `react-mui` (4): click handler on a div or span with no keyboard access, icon-only `IconButton`/`Fab` without a name, toast or notification without a live region, data grids to review. `Dialog`/`Modal`/`Drawer` components without a name also use `dialog_name_missing`.
+
+axe rules that need a rendered page (for example the exact computed `target-size`, `link-in-text-block`, `scrollable-region-focusable`, `autocomplete-valid`) are not implemented; axe DevTools covers them in the browser.
+
+The report also contains:
+
+- **Contrast checks left for a person:** the text elements whose colors could not be worked out, per file and line, to check with the WebAIM Contrast Checker, the Vispero Colour Contrast Analyser or ANDI's cANDI module. Each contrast error has a `verify` link that opens the WebAIM checker with its colors. Ratios are truncated to two decimals, like WebAIM, and were cross-checked against WebAIM's API (pass/fail agreed on every pair tried).
+- **Tools to use with this report:** axe DevTools, WAVE, Accessibility Insights, ANDI, the WebAIM checker and the Vispero CCA, each with what it adds and whether it is open source. Open source: axe-core (engine of axe DevTools), Accessibility Insights (MIT), ANDI (Apache-2.0, self-hostable), CCA (GPL-3.0). Closed: WAVE and the WebAIM checker (which has a free JSON API and a bookmarklet).
+
+When presenting results, tell the user to run axe DevTools or Accessibility Insights (Assessment for the manual items) on the rendered pages and to use ANDI to settle name and label findings.
+
+## Mass.gov web testing checklist
+
+The report has a section for the [Mass.gov Web Testing Checklist](https://accessibility.mass.gov/testing-checklists/web-testing-checklist/) (50 items in 11 groups). `references/mass-web-checklist.json` maps every item to the scanner rules that check it, its WCAG criteria and a manual test. Each item is marked **Scan** (checked in source), **Partly** or **Manual** (needs a person with a browser, keyboard and screen reader), with the scan result beside it.
+
+- A clean result on a Scan or Partly item is not a pass; the manual test is still required. Say so when you present the report.
+- Lead with the Manual items as a to-do list: keyboard traps, focus order and return, error messages, captions, zoom and reflow, screen reader announcements.
+- Mass.gov's own guidance, repeated in the report: automated tools catch roughly 25-30% of errors; screen reader testing is always needed and should be done by a specialist, a tester with a year of experience or a daily user (NVDA+Chrome, JAWS+Chrome or VoiceOver+Safari).
+- To refresh the checklist, the page loads its items from `https://accessibility.mass.gov/testing-checklists/web-testing-checklist.csv`; update the JSON from it and re-map new items.
+
+## Additional WCAG 2.2, WCAG 2.1 and React checks
+
+The report has a second checklist after the Mass.gov one: 21 items (W01 to W21) in three groups, WCAG 2.2 criteria, WCAG 2.1 criteria and React/Material-UI patterns. `references/extra-checks.json` maps each to scanner rules and a manual test. WCAG 2.2 removed 4.1.1 Parsing, so it is not listed. Section 508 incorporates WCAG 2.0 only, so these criteria are marked as not required by 508 in the report; they matter for WCAG 2.2 AA. Same rule as the Mass.gov list: no findings is not a pass.
 
 ## Reading the results
 
@@ -49,7 +82,9 @@ Exit codes: `0` ok (findings do not change it); `2` bad option; `3` a path does 
 - `scripts/scan.py` finds files, runs the checks and builds the reports.
 - `scripts/source_parser.py` parses HTML, JSX, Vue, Svelte and template syntax into an element tree with line numbers.
 - `scripts/source_checks.py` holds the rule checks. `scripts/source_css.py` resolves CSS for contrast and text-size checks.
-- `references/wave-rule-catalog.json` is the rule catalog (IDs, titles, categories, WCAG mapping).
+- `references/wave-rule-catalog.json` is the rule catalog (IDs, titles, categories, WCAG mapping). Rules with `"source": "mass-web-checklist"` are not WAVE rules.
+- `references/extra-checks.json` is the WCAG 2.2, WCAG 2.1 and React checklist with its mapping to rules and manual tests.
+- `references/mass-web-checklist.json` is the Mass.gov checklist with its mapping to rules, WCAG and manual tests, plus the recommended tools.
 
 ## Known limits
 

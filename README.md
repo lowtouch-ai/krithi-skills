@@ -25,9 +25,9 @@ The skills in this repository are reusable building blocks for that kind of work
 |---|---|
 | [`repo-readme-generator`](#repo-readme-generator) | Creates or updates a repo's README, or a full documentation suite with `AGENTS.md` and diagrams, from verified evidence. |
 | [`appsec-static-audit`](#appsec-static-audit) | Source-code-only security audit of one repository or several (OWASP, SSO, secrets, dependencies and SBOM, IaC, CI/CD, PII/FTI) with a timestamped enterprise report, SARIF output and a CI gate, mapped to NIST 800-53, IRS Pub 1075 and EOTSS. |
-| [`wave-a11y-scan`](#wave-a11y-scan) | WAVE-style accessibility scan of a project's source code with a client-ready report (WCAG 2.x, Section 508 note). |
+| [`wave-a11y-scan`](#wave-a11y-scan) | WAVE-style accessibility scan of a project's source code with a client-ready report (WCAG 2.2, Section 508 note). |
 | [`plan-builder`](#plan-builder) | Turns a ticket (text, screenshot, HTML, Markdown, logs) into a ready-to-paste Codex Plan Mode prompt; supporting artifacts are saved under `~/.krithi/<TICKET>/` (outside the repo) and referenced by verified absolute paths; the prompt is saved under `docs/plan-prompts/`. |
-| [`migration-estimate`](#migration-estimate) | Reads a codebase and estimates migration or modernisation effort the Krithi way: high-level PRD, detailed PRDs, stories and sprints, with a human-team vs Krithi timeline side by side, an approximate go-live allowance, and a self-review for coverage; all Markdown under `docs/migration-estimate/`. |
+| [`migration-estimate`](#migration-estimate) | Reads a codebase and estimates migration or modernisation effort the Krithi way: high-level PRD, detailed PRDs, stories and sprints, with a human-team vs Krithi timeline side by side, an approximate go-live allowance, and a self-review for coverage; all Markdown under `docs/migration-estimate/`. It plans every migration onto Krithi's standard architecture (FastAPI, PostgreSQL, Redis, Next.js, Airflow; our AI stack when the app has AI agents). It also estimates the effort to fix an accessibility report and a security audit (`docs/remediation-estimate/`). |
 | [`prepare-pr`](#prepare-pr) | Takes finished, tested work to a pull request: reviews the change (bugs, security, quality, performance, requirements) and fixes what you approve, runs the tests, updates only the docs the change affects, checks the branch name fits the work, commits only in-scope files with a detailed message, then asks before pushing and opening the PR. |
 
 In Codex, install a skill with the command in its section, then restart Codex. Skills are installed as folders under `~/.codex/skills/` (or `$CODEX_HOME/skills/` if you set `CODEX_HOME`).
@@ -165,7 +165,7 @@ Files the skill wrote into your projects (`security-audit/`) are not removed wit
 
 ## wave-a11y-scan
 
-WAVE-style accessibility scan of a project's source code (HTML, templates, JSX/TSX, Vue, Svelte, Astro) with a client-ready report (WCAG 2.x, Section 508 note). Findings carry file and line. It needs only Python 3; no browser or install. Automated checks do not prove code is accessible; manual keyboard and screen-reader testing is still required. Details: [`SKILL.md`](skills/wave-a11y-scan/SKILL.md).
+WAVE-style accessibility scan of a project's source code (HTML, templates, JSX/TSX, Vue, Svelte, Astro) with a client-ready report (WCAG 2.2, Section 508 note). The report also covers the [Mass.gov web testing checklist](https://accessibility.mass.gov/testing-checklists/web-testing-checklist/): each of its 50 items is marked as checked by the scan, partly checked, or manual-only, with a manual test for the rest. A second checklist of 21 items covers WCAG 2.2 criteria (target size, focus not obscured, accessible authentication, dragging), other WCAG 2.1 criteria and React/Material-UI patterns, with matching source checks. It also adds a static subset of axe-core rules, lists contrast checks left for a person, and points to the tools Mass.gov recommends (axe DevTools, WAVE, Accessibility Insights, ANDI, contrast checkers). Findings carry file and line. It needs only Python 3; no browser or install. Automated checks do not prove code is accessible; manual keyboard and screen-reader testing is still required. Details: [`SKILL.md`](skills/wave-a11y-scan/SKILL.md).
 
 ### Install
 
@@ -207,7 +207,7 @@ $skill-installer install https://github.com/lowtouch-ai/krithi-skills/tree/main/
 rm -rf ~/.codex/skills/wave-a11y-scan
 ```
 
-Files the skill wrote into your projects (`a11y-report/`) are not removed with the skill.
+Files the skill wrote into your projects (`docs/a11y-report/`) are not removed with the skill.
 
 ## plan-builder
 
@@ -259,7 +259,11 @@ Files the skill wrote (`~/.krithi/<TICKET>/` artifacts and `docs/plan-prompts/` 
 
 ## migration-estimate
 
-Estimates the effort to migrate or modernise the application in the current repository: it reads the code, writes a high-level PRD in Kriti-REQ's PRD format (use cases, business rules, roles, data, citations, confidence), breaks it into detailed PRDs, converts each into stories and counts sprints. Five stories make one sprint of two engineers; a human team runs a sprint in 10 working days and Krithi in 2, so the same sprint count is five times faster (40 sprints = 80 weeks vs 16 weeks). The estimate covers development and testing only; QA sign-off, production deployment and data migration are listed separately with an approximate 20% go-live allowance. All numbers are computed by a script from the PRDs. Before finishing, the skill checks the PRDs against the codebase for missed modules, integrations and features, scores the gap the way Kriti-REQ's quality check does, reworks above 30%, re-runs the estimate and records the check in `review.md`. Details: [`SKILL.md`](skills/migration-estimate/SKILL.md).
+Estimates the effort to migrate or modernise the application in the current repository: it reads the code, writes a high-level PRD in Kriti-REQ's PRD format (use cases, business rules, roles, data, citations, confidence), breaks it into detailed PRDs, converts each into stories and counts sprints. Five stories make one sprint of two engineers; a human team runs a sprint in 10 working days and Krithi in 2, so the same sprint count is five times faster (40 sprints = 80 weeks vs 16 weeks). The estimate covers development and testing only; QA sign-off, production deployment and data migration are listed separately with an approximate 20% go-live allowance. All numbers are computed by a script from the PRDs. Before finishing, the skill checks the PRDs against the codebase for missed modules, integrations and features, scores the gap the way Kriti-REQ's quality check does, reworks above 30%, re-runs the estimate and records the check in `review.md`.
+
+**Target architecture.** Every estimate is planned on Krithi's standard architecture: FastAPI backend, PostgreSQL (one database and user per application), Redis, a Next.js UI that follows the design system (WCAG 2.1 AA), Airflow for scheduled, long-running and event-driven work, Vault for secrets and MinIO when files are stored; multi-tenancy plumbing only for multi-tenant apps. If the inventory finds AI agents, the plan uses our AI stack (agentomatic, agentvector, Ollama, agentconnector, DAGs as tools) and never Open WebUI. Each legacy screen group, endpoint group and scheduled job maps to a Next.js, FastAPI or Airflow DAG story, foundation stories are added, and anything that cannot follow the standard is recorded as a deviation. The script checks the mapping. See [`target-architecture.md`](skills/migration-estimate/references/target-architecture.md).
+
+**Remediation estimates.** It also estimates the effort to fix what `wave-a11y-scan` and `appsec-static-audit` found. A script reads `docs/a11y-report/results.json` and the audit's SARIF (render the report with `--emit-sarif`), turns findings into fix stories (one rule in one folder, split above a cap, plus a verification story per report) and counts sprints on the same rules, human team vs Krithi, per report and combined, in `docs/remediation-estimate/`. Accessibility alerts and unconfirmed security leads are listed but not estimated unless asked. Run it with `$migration-estimate estimate the effort to fix the a11y report and the security audit`. Details: [`SKILL.md`](skills/migration-estimate/SKILL.md).
 
 ### Install
 

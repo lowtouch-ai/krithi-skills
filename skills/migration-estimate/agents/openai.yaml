@@ -1,3 +1,3 @@
 interface:
   display_name: "Migration Estimate"
-  short_description: "Read a codebase, write high-level and detailed PRDs with stories, and estimate sprints for a human team vs Krithi, self-reviewed for coverage"
+  short_description: "Read a codebase, plan it onto Krithi's standard architecture (FastAPI, Postgres, Redis, Next.js, Airflow; AI stack for agent apps), write high-level and detailed PRDs with stories, and estimate sprints for a human team vs Krithi, self-reviewed for coverage; also estimates the effort to fix an accessibility report and a security audit"

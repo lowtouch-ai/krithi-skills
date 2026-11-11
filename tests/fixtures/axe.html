@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head><title>Axe fixture</title></head>
+<body>
+<main>
+<h1>Axe</h1>
+<main><p>second main</p></main>
+<p id="dup">a</p><p id="dup">b</p>
+<div role="buton">typo role</div>
+<div aria-labell="x">typo attr</div>
+<div role="checkbox">no aria-checked</div>
+<div role="checkbox" aria-checked="false" aria-label="ok">fine</div>
+<div role="button"></div>
+<div role="textbox"></div>
+<div role="textbox" aria-label="Search"></div>
+<div aria-hidden="true"><a href="/x">hidden link</a></div>
+<div aria-hidden="true"><a href="/x" tabindex="-1">ok</a></div>
+<a href="/outer"><button>nested</button></a>
+<input type="button">
+<input type="button" value="Go">
+<svg role="img"></svg>
+<svg role="img"><title>Logo</title></svg>
+<button aria-label="Send">Submit</button>
+<button aria-label="Submit form">Submit</button>
+<table><tr><th scope="column">h</th><td scope="row">x</td></tr></table>
+<p style="line-height:1 !important">tight</p>
+<video src="a.mp4"></video>
+<video src="b.mp4"><track kind="captions" src="b.vtt"></video>
+</main>
+</body></html>

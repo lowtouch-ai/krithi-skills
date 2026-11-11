@@ -1,0 +1,669 @@
+{
+ "source": "https://accessibility.mass.gov/testing-checklists/web-testing-checklist/",
+ "title": "Mass.gov Web Testing Checklist",
+ "retrieved": "2026-11-11",
+ "notes": [
+  "Automated testing catches roughly 25-30% of errors and only a limited subset of requirements, so every page also needs manual testing.",
+  "Screen reader testing is always needed for web pages and should be done by an accessibility specialist, a tester with at least a year of screen reader experience, or a daily screen reader user.",
+  "Recommended screen reader and browser pairs (pick one): NVDA with Chrome, JAWS with Chrome, VoiceOver with Safari.",
+  "Mass.gov's helpful tools (axe DevTools, WAVE, Accessibility Insights, ANDI, WebAIM and Vispero contrast checkers) are listed with how to use them under 'Tools to use with this report'."
+ ],
+ "coverage_key": {
+  "automated": "The scanner checks this in source; findings are real, but a clean result still needs the manual test.",
+  "partial": "The scanner covers part of this; the rest needs a manual test.",
+  "manual": "The scanner cannot check this; it needs a person with a browser, keyboard or screen reader."
+ },
+ "items": [
+  {
+   "id": "M01",
+   "group": "Automated testing",
+   "text": "Run an automated checker and review findings.",
+   "coverage": "partial",
+   "rules": [
+    "@errors"
+   ],
+   "wcag": "",
+   "manual_test": "Also run axe DevTools, WAVE or Accessibility Insights (FastPass) on the rendered page; they see runtime DOM and computed styles that this source scan cannot."
+  },
+  {
+   "id": "M02",
+   "group": "Automated testing",
+   "text": "No Critical or Serious issues remain unresolved and automated findings have been reviewed and remediated.",
+   "coverage": "partial",
+   "rules": [
+    "@errors"
+   ],
+   "wcag": "",
+   "manual_test": "Re-run the scan and the browser checker after fixes; confirm zero Critical or Serious results and record what was reviewed and dismissed."
+  },
+  {
+   "id": "M03",
+   "group": "Color and contrast",
+   "text": "Text meets color contrast requirements.",
+   "coverage": "partial",
+   "rules": [
+    "contrast",
+    "text_small"
+   ],
+   "wcag": "1.4.3, 1.4.6",
+   "manual_test": "Check text that this scan skipped (utility classes, gradients, images; listed under 'Contrast checks left for a person') with the WebAIM Contrast Checker, the Vispero Colour Contrast Analyser or ANDI's cANDI module: 4.5:1 normal text, 3:1 large text."
+  },
+  {
+   "id": "M04",
+   "group": "Color and contrast",
+   "text": "Interactive elements (buttons, form fields, icons, keyboard focus indicator) meet color contrast.",
+   "coverage": "partial",
+   "rules": [
+    "focus_outline_removed",
+    "target_size_small"
+   ],
+   "wcag": "1.4.11, 2.4.7",
+   "manual_test": "Check borders of inputs and buttons, icons and the focus indicator are at least 3:1 against adjacent colors (WebAIM's checker has a graphics and UI components result). Use the Colour Contrast Analyser eyedropper on the focus ring."
+  },
+  {
+   "id": "M05",
+   "group": "Color and contrast",
+   "text": "Important non-text elements (data visualizations, charts, graphs, maps) meet color contrast.",
+   "coverage": "manual",
+   "rules": [],
+   "wcag": "1.4.11",
+   "manual_test": "Check chart lines, bars, map regions and legend swatches reach 3:1 against their background and neighbours."
+  },
+  {
+   "id": "M06",
+   "group": "Color and contrast",
+   "text": "Information is not communicated by color alone.",
+   "coverage": "manual",
+   "rules": [],
+   "wcag": "1.4.1",
+   "manual_test": "View the page in grayscale; every status, error, link and chart series must still be distinguishable by text, icon or pattern."
+  },
+  {
+   "id": "M07",
+   "group": "Color and contrast",
+   "text": "Links are visually distinguishable from surrounding text",
+   "coverage": "manual",
+   "rules": [],
+   "wcag": "1.4.1",
+   "manual_test": "Links inside text need a non-color cue (underline) or 3:1 contrast against surrounding text plus a cue on hover and focus. Use WebAIM's link contrast checker (https://webaim.org/resources/linkcontrastchecker/) or the cANDI module."
+  },
+  {
+   "id": "M08",
+   "group": "Content and structure",
+   "text": "Pages have meaningful titles.",
+   "coverage": "automated",
+   "rules": [
+    "title_invalid"
+   ],
+   "wcag": "2.4.2",
+   "manual_test": "Confirm each title is unique and describes this page, not just the site."
+  },
+  {
+   "id": "M09",
+   "group": "Content and structure",
+   "text": "Page contains a single H1 and logical heading structure",
+   "coverage": "automated",
+   "rules": [
+    "h1_missing",
+    "h1_multiple",
+    "heading_missing",
+    "heading_skipped",
+    "heading_empty"
+   ],
+   "wcag": "1.3.1, 2.4.6",
+   "manual_test": "Open the screen reader headings list (NVDA: H or Insert+F7) and confirm the outline reads as a logical table of contents."
+  },
+  {
+   "id": "M10",
+   "group": "Content and structure",
+   "text": "Headings accurately describe the content below them.",
+   "coverage": "partial",
+   "rules": [
+    "heading_empty"
+   ],
+   "wcag": "2.4.6",
+   "manual_test": "Read each heading with the content under it; the heading must describe that content."
+  },
+  {
+   "id": "M11",
+   "group": "Content and structure",
+   "text": "The primary language of the page is identified, and any passages in other languages are identified.",
+   "coverage": "partial",
+   "rules": [
+    "language_missing"
+   ],
+   "wcag": "3.1.1, 3.1.2",
+   "manual_test": "The scan checks the page lang. Search the content for passages in another language and confirm they carry their own lang attribute."
+  },
+  {
+   "id": "M12",
+   "group": "Content and structure",
+   "text": "Content is organized into logical sections and landmarks are used.",
+   "coverage": "automated",
+   "rules": [
+    "region_missing",
+    "main_missing",
+    "main_multiple"
+   ],
+   "wcag": "1.3.1, 2.4.1",
+   "manual_test": "List landmarks in the screen reader (NVDA: D) and confirm main, navigation, header and footer are present and not duplicated without labels."
+  },
+  {
+   "id": "M13",
+   "group": "Content and structure",
+   "text": "Instructions do not reference only color, location, shape, or sound.",
+   "coverage": "manual",
+   "rules": [],
+   "wcag": "1.3.3",
+   "manual_test": "Read instructions and error text; none may rely only on 'the red button', 'on the right' or a sound."
+  },
+  {
+   "id": "M14",
+   "group": "Images and graphics",
+   "text": "Informative images have meaningful alternative text.",
+   "coverage": "partial",
+   "rules": [
+    "alt_missing",
+    "alt_link_missing",
+    "alt_input_missing",
+    "alt_area_missing",
+    "alt_map_missing",
+    "alt_suspicious",
+    "alt_redundant",
+    "alt_duplicate",
+    "alt_long",
+    "role_img_alt_missing"
+   ],
+   "wcag": "1.1.1",
+   "manual_test": "Judge each alt text: it must give the image's purpose, not its file name or 'image of'. ANDI's images module shows the alt text assistive technology receives."
+  },
+  {
+   "id": "M15",
+   "group": "Images and graphics",
+   "text": "Decorative images are ignored by assistive technology.",
+   "coverage": "partial",
+   "rules": [
+    "alt_spacer_missing",
+    "alt_null",
+    "image_title"
+   ],
+   "wcag": "1.1.1",
+   "manual_test": "Turn images off or use a screen reader; decorative images (alt=\"\" or CSS backgrounds) must not be announced."
+  },
+  {
+   "id": "M16",
+   "group": "Images and graphics",
+   "text": "Data visualizations include text summaries.",
+   "coverage": "manual",
+   "rules": [],
+   "wcag": "1.1.1",
+   "manual_test": "Each chart or map needs a text summary or data table next to it; check it states the main takeaway."
+  },
+  {
+   "id": "M17",
+   "group": "Images and graphics",
+   "text": "Images of text are avoided unless necessary.",
+   "coverage": "manual",
+   "rules": [],
+   "wcag": "1.4.5",
+   "manual_test": "Look for text rendered inside images (banners, buttons, screenshots of tables) and replace it with real text where possible."
+  },
+  {
+   "id": "M18",
+   "group": "Forms",
+   "text": "Every form field has a visible label.",
+   "coverage": "automated",
+   "rules": [
+    "label_missing",
+    "label_empty",
+    "label_orphaned",
+    "label_multiple",
+    "label_title",
+    "select_missing_label"
+   ],
+   "wcag": "1.3.1, 3.3.2",
+   "manual_test": "Check every input has a label that stays visible while typing; a placeholder alone does not count."
+  },
+  {
+   "id": "M19",
+   "group": "Forms",
+   "text": "Every form field has a programmatic label.",
+   "coverage": "automated",
+   "rules": [
+    "label_missing",
+    "label_empty",
+    "label_orphaned",
+    "label_multiple",
+    "label_title",
+    "select_missing_label",
+    "id_duplicate",
+    "aria_name_missing",
+    "input_button_name_missing",
+    "icon_button_name_missing"
+   ],
+   "wcag": "1.3.1, 4.1.2",
+   "manual_test": "Tab to each field with the screen reader and confirm it announces its label, type and state. ANDI's focusable-elements module shows each field's accessible name and description."
+  },
+  {
+   "id": "M20",
+   "group": "Forms",
+   "text": "Required fields are clearly identified.",
+   "coverage": "manual",
+   "rules": [],
+   "wcag": "3.3.2",
+   "manual_test": "Required fields must be marked in text (and with required or aria-required), not by color or an asterisk with no legend."
+  },
+  {
+   "id": "M21",
+   "group": "Forms",
+   "text": "Instructions appear before users enter information.",
+   "coverage": "manual",
+   "rules": [],
+   "wcag": "3.3.2",
+   "manual_test": "Instructions, formats and constraints must come before the field or be linked with aria-describedby."
+  },
+  {
+   "id": "M22",
+   "group": "Forms",
+   "text": "Error messages clearly explain what needs to be fixed.",
+   "coverage": "manual",
+   "rules": [],
+   "wcag": "3.3.1, 3.3.3",
+   "manual_test": "Submit the form with bad and empty values; each message must say what is wrong and how to fix it."
+  },
+  {
+   "id": "M23",
+   "group": "Forms",
+   "text": "Error messages identify the affected field.",
+   "coverage": "manual",
+   "rules": [],
+   "wcag": "3.3.1, 4.1.3",
+   "manual_test": "The error must name the affected field, be linked to it, and be announced (summary with focus or aria-live)."
+  },
+  {
+   "id": "M24",
+   "group": "Forms",
+   "text": "Forms can be completed using only a keyboard.",
+   "coverage": "partial",
+   "rules": [
+    "event_handler",
+    "javascript_jumpmenu",
+    "tabindex",
+    "click_no_keyboard",
+    "hover_without_focus",
+    "dragging_alternative"
+   ],
+   "wcag": "2.1.1",
+   "manual_test": "Complete the whole form with Tab, Shift+Tab, Space, Enter and arrow keys only."
+  },
+  {
+   "id": "M25",
+   "group": "Keyboard accessibility",
+   "text": "All functionality works without a mouse.",
+   "coverage": "partial",
+   "rules": [
+    "event_handler",
+    "javascript_jumpmenu",
+    "tabindex",
+    "click_no_keyboard",
+    "hover_without_focus",
+    "dragging_alternative",
+    "datagrid_review"
+   ],
+   "wcag": "2.1.1",
+   "manual_test": "Unplug the mouse and use every feature: menus, tabs, accordions, sliders, drag and drop alternatives."
+  },
+  {
+   "id": "M26",
+   "group": "Keyboard accessibility",
+   "text": "Keyboard focus is always visible.",
+   "coverage": "partial",
+   "rules": [
+    "focus_outline_removed",
+    "focus_obscured_risk"
+   ],
+   "wcag": "2.4.7",
+   "manual_test": "Tab through the page and confirm a visible focus indicator on every control, including inside dialogs and menus. Accessibility Insights' Assessment (or FastPass tab stops) shows the tab order visually."
+  },
+  {
+   "id": "M27",
+   "group": "Keyboard accessibility",
+   "text": "Focus order is logical.",
+   "coverage": "partial",
+   "rules": [
+    "tabindex",
+    "aria_hidden_focusable",
+    "nested_interactive"
+   ],
+   "wcag": "2.4.3, 1.3.2",
+   "manual_test": "Tab order must follow the visual and reading order; no positive tabindex jumps. Accessibility Insights' Assessment (or FastPass tab stops) shows the tab order visually."
+  },
+  {
+   "id": "M28",
+   "group": "Keyboard accessibility",
+   "text": "No keyboard traps exist.",
+   "coverage": "manual",
+   "rules": [],
+   "wcag": "2.1.2",
+   "manual_test": "Tab into and out of every widget, embedded frame and dialog; you must be able to leave with the keyboard alone. Accessibility Insights' Assessment (or FastPass tab stops) shows the tab order visually."
+  },
+  {
+   "id": "M29",
+   "group": "Keyboard accessibility",
+   "text": "Skip navigation link works correctly.",
+   "coverage": "automated",
+   "rules": [
+    "link_skip_broken",
+    "link_skip"
+   ],
+   "wcag": "2.4.1",
+   "manual_test": "Press Tab once on page load: a skip link should appear, and Enter must move focus to the main content."
+  },
+  {
+   "id": "M30",
+   "group": "Links and navigation",
+   "text": "Link text describes its destination or action.",
+   "coverage": "automated",
+   "rules": [
+    "link_empty",
+    "link_suspicious",
+    "link_word",
+    "link_redundant",
+    "alt_link_missing",
+    "label_in_name_mismatch",
+    "aria_name_missing",
+    "nested_interactive",
+    "icon_button_name_missing"
+   ],
+   "wcag": "2.4.4, 2.4.9",
+   "manual_test": "Open the links list (NVDA: Insert+F7); each link must make sense out of context. ANDI's links/buttons module shows the accessible name of each link."
+  },
+  {
+   "id": "M31",
+   "group": "Links and navigation",
+   "text": "Multiple links with the same text go to the same destination.",
+   "coverage": "partial",
+   "rules": [
+    "link_redundant"
+   ],
+   "wcag": "2.4.4, 3.2.4",
+   "manual_test": "Find links that share the same text and confirm they go to the same place."
+  },
+  {
+   "id": "M32",
+   "group": "Links and navigation",
+   "text": "Navigation is consistent across pages.",
+   "coverage": "manual",
+   "rules": [],
+   "wcag": "3.2.3, 3.2.4",
+   "manual_test": "Compare the navigation order and labels across several pages; they must not change."
+  },
+  {
+   "id": "M33",
+   "group": "Links and navigation",
+   "text": "Users can identify where they are in the site or application.",
+   "coverage": "manual",
+   "rules": [],
+   "wcag": "2.4.8, 2.4.5",
+   "manual_test": "Check the current page is marked (aria-current), with breadcrumbs or a visible nav state."
+  },
+  {
+   "id": "M34",
+   "group": "Tables",
+   "text": "Tables are only used for data or comparison.",
+   "coverage": "partial",
+   "rules": [
+    "table_layout"
+   ],
+   "wcag": "1.3.1",
+   "manual_test": "Tables are for tabular data only; layout done with tables must use role=presentation, or better, CSS."
+  },
+  {
+   "id": "M35",
+   "group": "Tables",
+   "text": "Tables include row and column headers.",
+   "coverage": "automated",
+   "rules": [
+    "th_empty",
+    "table_layout",
+    "scope_attr_invalid"
+   ],
+   "wcag": "1.3.1",
+   "manual_test": "Move through the table with the screen reader (Ctrl+Alt+arrows); each cell must announce its row and column header. ANDI's tables module shows how headers are associated with cells."
+  },
+  {
+   "id": "M36",
+   "group": "Tables",
+   "text": "Complex tables remain understandable when read row by row.",
+   "coverage": "manual",
+   "rules": [],
+   "wcag": "1.3.1",
+   "manual_test": "Read a complex table cell by cell; scope, headers/id or a simpler split of the table may be needed."
+  },
+  {
+   "id": "M37",
+   "group": "Videos and multimedia",
+   "text": "Videos contain captions.",
+   "coverage": "partial",
+   "rules": [
+    "html5_video_audio",
+    "youtube_video",
+    "audio_video",
+    "video_captions_missing"
+   ],
+   "wcag": "1.2.2, 1.2.4",
+   "manual_test": "Play each video with captions on; captions must be accurate, synchronised and include speaker and sound cues."
+  },
+  {
+   "id": "M38",
+   "group": "Videos and multimedia",
+   "text": "Audio-only content provides a text transcript.",
+   "coverage": "partial",
+   "rules": [
+    "html5_video_audio",
+    "youtube_video",
+    "audio_video"
+   ],
+   "wcag": "1.2.1",
+   "manual_test": "Audio-only content needs a transcript on the page or linked next to it."
+  },
+  {
+   "id": "M39",
+   "group": "Videos and multimedia",
+   "text": "Video-only content provides a text transcript or audio description.",
+   "coverage": "partial",
+   "rules": [
+    "html5_video_audio",
+    "youtube_video",
+    "audio_video"
+   ],
+   "wcag": "1.2.1, 1.2.3",
+   "manual_test": "Video-only content needs a transcript or an audio-described track."
+  },
+  {
+   "id": "M40",
+   "group": "Videos and multimedia",
+   "text": "Important visual information is available in narration, audio description, or accompanying text.",
+   "coverage": "partial",
+   "rules": [
+    "html5_video_audio",
+    "youtube_video",
+    "audio_video"
+   ],
+   "wcag": "1.2.3, 1.2.5",
+   "manual_test": "Turn the picture off: everything important shown on screen must still be understood from narration, description or text."
+  },
+  {
+   "id": "M41",
+   "group": "Videos and multimedia",
+   "text": "Media controls work with a keyboard.",
+   "coverage": "partial",
+   "rules": [
+    "html5_video_audio",
+    "youtube_video",
+    "audio_video",
+    "input_button_name_missing"
+   ],
+   "wcag": "2.1.1, 4.1.2",
+   "manual_test": "Operate play, pause, volume, captions and full screen with the keyboard; controls need names."
+  },
+  {
+   "id": "M42",
+   "group": "Videos and multimedia",
+   "text": "Media does not autoplay unexpectedly.",
+   "coverage": "automated",
+   "rules": [
+    "media_autoplay",
+    "autoplay_carousel",
+    "reduced_motion_missing",
+    "meta_refresh"
+   ],
+   "wcag": "1.4.2, 2.2.2",
+   "manual_test": "Load the page: nothing may start playing or moving by itself for more than 3 seconds without a pause or mute control."
+  },
+  {
+   "id": "M43",
+   "group": "Zoom and responsive design",
+   "text": "Content remains usable at 200% zoom.",
+   "coverage": "partial",
+   "rules": [
+    "viewport_zoom_blocked",
+    "inline_spacing_important",
+    "text_spacing_clipped"
+   ],
+   "wcag": "1.4.4",
+   "manual_test": "Zoom the browser to 200%; all content and functions must remain usable with no overlap or clipping."
+  },
+  {
+   "id": "M44",
+   "group": "Zoom and responsive design",
+   "text": "Content reflows without loss of information at 400% zoom.",
+   "coverage": "partial",
+   "rules": [
+    "viewport_zoom_blocked",
+    "orientation_locked",
+    "text_spacing_clipped"
+   ],
+   "wcag": "1.4.10",
+   "manual_test": "At 400% zoom (a 320 px wide viewport) content must reflow into one column with no loss."
+  },
+  {
+   "id": "M45",
+   "group": "Zoom and responsive design",
+   "text": "Horizontal scrolling is not required for standard content such as text. Tables and images are exceptions.",
+   "coverage": "manual",
+   "rules": [],
+   "wcag": "1.4.10",
+   "manual_test": "At 400% zoom, text must not need horizontal scrolling; tables, maps and images may."
+  },
+  {
+   "id": "M46",
+   "group": "Dynamic content and modals",
+   "text": "Modal dialogs receive focus when opened.",
+   "coverage": "partial",
+   "rules": [
+    "dialog_name_missing"
+   ],
+   "wcag": "2.4.3, 4.1.2",
+   "manual_test": "Open each dialog with the keyboard; focus must move into it (usually to its heading or first control)."
+  },
+  {
+   "id": "M47",
+   "group": "Dynamic content and modals",
+   "text": "Focus remains inside the modal until closed.",
+   "coverage": "partial",
+   "rules": [
+    "dialog_name_missing"
+   ],
+   "wcag": "2.1.2, 2.4.3",
+   "manual_test": "While the dialog is open Tab must stay inside it and Escape must close it."
+  },
+  {
+   "id": "M48",
+   "group": "Dynamic content and modals",
+   "text": "Focus returns to the triggering element when the modal closes.",
+   "coverage": "manual",
+   "rules": [],
+   "wcag": "2.4.3",
+   "manual_test": "After closing, focus must return to the button or link that opened the dialog."
+  },
+  {
+   "id": "M49",
+   "group": "Dynamic content and modals",
+   "text": "Status messages and alerts are announced to assistive technologies.",
+   "coverage": "partial",
+   "rules": [
+    "status_role_missing"
+   ],
+   "wcag": "4.1.3",
+   "manual_test": "Trigger toasts, form errors and loading updates with the screen reader running; each must be announced (role=status, role=alert or aria-live)."
+  },
+  {
+   "id": "M50",
+   "group": "Best practices",
+   "text": "Content is written in plain language whenever possible.",
+   "coverage": "manual",
+   "rules": [],
+   "wcag": "3.1.5",
+   "manual_test": "Read the content aloud or run a readability check; prefer short sentences, common words and defined terms."
+  }
+ ],
+ "tools": [
+  {
+   "name": "axe DevTools",
+   "maker": "Deque",
+   "kind": "automated",
+   "link": "https://www.deque.com/axe/devtools/",
+   "open_source": "Engine only: axe-core (MPL-2.0), https://github.com/dequelabs/axe-core. The DevTools extension itself is Deque's product.",
+   "use": "Run on each rendered page. It reads the live DOM and computed styles, so it finds runtime issues this source scan cannot see. 15 of its static rules are built into this scan (rules with source axe-core in the catalog). Open-source route: axe-core in a test run (for example Playwright with @axe-core/playwright)."
+  },
+  {
+   "name": "WAVE",
+   "maker": "WebAIM",
+   "kind": "automated",
+   "link": "https://wave.webaim.org/",
+   "open_source": "No. The engine is closed; only the rule catalog is public. Closest open-source option: axe-core or Accessibility Insights.",
+   "use": "The rule set this scan is built on. Run the browser extension on the rendered page to see results in context."
+  },
+  {
+   "name": "Accessibility Insights for Web",
+   "maker": "Microsoft",
+   "kind": "automated + guided manual",
+   "link": "https://accessibilityinsights.io/downloads/",
+   "open_source": "Yes, free and open source (MIT), https://github.com/microsoft/accessibility-insights-web.",
+   "use": "Chrome and Edge extension for Windows, macOS and Linux. FastPass runs axe-core and shows tab stops; Assessment walks through the manual checks (keyboard, focus order, headings, landmarks, color) and is the closest match to this checklist's manual items. A separate Windows app covers desktop apps."
+  },
+  {
+   "name": "ANDI",
+   "maker": "SSA.gov",
+   "kind": "inspector",
+   "link": "https://www.ssa.gov/accessibility/andi/help/install.html",
+   "open_source": "Yes, Apache-2.0, https://github.com/SSAgov/ANDI (help pages are in andi/help). Can be self-hosted from the repository.",
+   "use": "A bookmarklet (favelet) you drag to the bookmarks bar. Modules: fANDI focusable elements, gANDI graphics and images, lANDI links and buttons, tANDI tables, sANDI page structure, cANDI color contrast, hANDI hidden content, iANDI iframes. Select an element to see the accessible name and description a screen reader receives; use it to settle name and label findings."
+  },
+  {
+   "name": "WebAIM Contrast Checker",
+   "maker": "WebAIM",
+   "kind": "contrast (web)",
+   "link": "https://webaim.org/resources/contrastchecker/",
+   "open_source": "No. It has a free JSON API (append &api to a permalink) and a bookmarklet with eyedroppers.",
+   "use": "Checks text (4.5:1, 3:1 large) and graphics or UI components (3:1) with an alpha value for the foreground. Each contrast error in this report has a verify link that opens the checker with its colors. WebAIM's link contrast checker covers 'links are distinguishable from surrounding text'."
+  },
+  {
+   "name": "Colour Contrast Analyser (CCA)",
+   "maker": "Vispero",
+   "kind": "contrast (app)",
+   "link": "https://vispero.com/lp/color-contrast-checker/",
+   "open_source": "Yes, GPL-3.0, https://github.com/ThePacielloGroup/CCAe (version 3.5.5, Windows and macOS).",
+   "use": "Desktop app with eyedroppers for foreground and background, so it works on focus indicators, gradients, images, PDFs and slides. Shows WCAG 2.0, 2.1 and 2.2 results and accepts HEX, RGB, HSV and HSL values."
+  },
+  {
+   "name": "Other open-source contrast helpers",
+   "maker": "various",
+   "kind": "contrast (browser)",
+   "link": "https://github.com/gdkraus/color-contrast-chrome",
+   "open_source": "Not verified by the maintainers of this skill beyond the repository pages: gdkraus/color-contrast-chrome (Chrome extension, last updated 2020), mindscreen/caat-color-contrast-bookmarklet (bookmarklet), liamdebeasi/contrast (web app).",
+   "use": "Fallbacks only; prefer the WebAIM checker, CCA or the contrast module in ANDI, which are maintained."
+  }
+ ]
+}

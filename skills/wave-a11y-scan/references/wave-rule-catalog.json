@@ -1613,5 +1613,538 @@
                 "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc4.1.2"
             }
         ]
+    },
+    {
+        "name": "viewport_zoom_blocked",
+        "title": "Zoom blocked by viewport meta",
+        "type": "error",
+        "summary": "The viewport meta tag disables zoom (user-scalable=no) or caps it below 200% (maximum-scale).",
+        "guidelines": [
+            {
+                "name": "1.4.4 Resize Text (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.4.4"
+            },
+            {
+                "name": "1.4.10 Reflow (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.4.10"
+            }
+        ],
+        "source": "mass-web-checklist"
+    },
+    {
+        "name": "media_autoplay",
+        "title": "Media autoplays",
+        "type": "alert",
+        "summary": "A &lt;video&gt; or &lt;audio&gt; element has the autoplay attribute. Audio that plays automatically for more than 3 seconds needs a way to pause or mute it.",
+        "guidelines": [
+            {
+                "name": "1.4.2 Audio Control (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.4.2"
+            },
+            {
+                "name": "2.2.2 Pause, Stop, Hide (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.2.2"
+            }
+        ],
+        "source": "mass-web-checklist"
+    },
+    {
+        "name": "h1_multiple",
+        "title": "Multiple H1 headings",
+        "type": "alert",
+        "summary": "The page has more than one &lt;h1&gt;. A single H1 that names the page is the checklist expectation.",
+        "guidelines": [
+            {
+                "name": "1.3.1 Info and Relationships (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.3.1"
+            },
+            {
+                "name": "2.4.6 Headings and Labels (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.4.6"
+            }
+        ],
+        "source": "mass-web-checklist"
+    },
+    {
+        "name": "iframe_title_missing",
+        "title": "Missing iframe title",
+        "type": "error",
+        "summary": "An &lt;iframe&gt; has no title or accessible name.",
+        "guidelines": [
+            {
+                "name": "4.1.2 Name, Role, Value (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc4.1.2"
+            },
+            {
+                "name": "2.4.1 Bypass Blocks (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.4.1"
+            }
+        ],
+        "source": "mass-web-checklist"
+    },
+    {
+        "name": "focus_outline_removed",
+        "title": "Focus outline removed",
+        "type": "alert",
+        "summary": "CSS removes the focus outline and sets no other visible focus style (box-shadow, border, background). Confirm focus is still visible.",
+        "guidelines": [
+            {
+                "name": "2.4.7 Focus Visible (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.4.7"
+            },
+            {
+                "name": "1.4.11 Non-text Contrast (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.4.11"
+            }
+        ],
+        "source": "mass-web-checklist"
+    },
+    {
+        "name": "dialog_name_missing",
+        "title": "Dialog without a name",
+        "type": "alert",
+        "summary": "A dialog (&lt;dialog&gt; or role=dialog\/alertdialog) has no aria-label or aria-labelledby.",
+        "guidelines": [
+            {
+                "name": "4.1.2 Name, Role, Value (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc4.1.2"
+            }
+        ],
+        "source": "mass-web-checklist"
+    },
+    {
+        "name": "video_captions_missing",
+        "title": "Video without captions track",
+        "type": "alert",
+        "summary": "A &lt;video&gt; has no &lt;track kind=\"captions\"&gt;. Captions may be burned into the video or supplied by a player; confirm.",
+        "guidelines": [
+            {
+                "name": "1.2.2 Captions (Prerecorded) (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.2.2"
+            }
+        ],
+        "source": "axe-core"
+    },
+    {
+        "name": "id_duplicate",
+        "title": "Duplicate id",
+        "type": "alert",
+        "summary": "The same id is used on more than one element in a file. Broken label and ARIA references follow from this.",
+        "guidelines": [
+            {
+                "name": "4.1.2 Name, Role, Value (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc4.1.2"
+            }
+        ],
+        "source": "axe-core"
+    },
+    {
+        "name": "aria_role_invalid",
+        "title": "Invalid ARIA role",
+        "type": "error",
+        "summary": "The role attribute holds a value that is not a valid ARIA role.",
+        "guidelines": [
+            {
+                "name": "4.1.2 Name, Role, Value (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc4.1.2"
+            }
+        ],
+        "source": "axe-core"
+    },
+    {
+        "name": "aria_attr_invalid",
+        "title": "Invalid ARIA attribute",
+        "type": "error",
+        "summary": "An attribute starting with aria- is not a defined ARIA attribute (often a typo).",
+        "guidelines": [
+            {
+                "name": "4.1.2 Name, Role, Value (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc4.1.2"
+            }
+        ],
+        "source": "axe-core"
+    },
+    {
+        "name": "aria_required_attr",
+        "title": "Required ARIA attribute missing",
+        "type": "error",
+        "summary": "An element with an ARIA role lacks an attribute that role requires (for example aria-checked on role=checkbox).",
+        "guidelines": [
+            {
+                "name": "4.1.2 Name, Role, Value (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc4.1.2"
+            }
+        ],
+        "source": "axe-core"
+    },
+    {
+        "name": "aria_name_missing",
+        "title": "ARIA control without a name",
+        "type": "error",
+        "summary": "An element with an ARIA role such as button, tab, checkbox or textbox has no accessible name.",
+        "guidelines": [
+            {
+                "name": "4.1.2 Name, Role, Value (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc4.1.2"
+            }
+        ],
+        "source": "axe-core"
+    },
+    {
+        "name": "aria_hidden_focusable",
+        "title": "Focusable content inside aria-hidden",
+        "type": "error",
+        "summary": "An element with aria-hidden=\"true\" contains something that can still receive keyboard focus.",
+        "guidelines": [
+            {
+                "name": "4.1.2 Name, Role, Value (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc4.1.2"
+            }
+        ],
+        "source": "axe-core"
+    },
+    {
+        "name": "nested_interactive",
+        "title": "Nested interactive controls",
+        "type": "error",
+        "summary": "A link or button is placed inside another link or button, so screen readers may not announce it.",
+        "guidelines": [
+            {
+                "name": "4.1.2 Name, Role, Value (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc4.1.2"
+            }
+        ],
+        "source": "axe-core"
+    },
+    {
+        "name": "input_button_name_missing",
+        "title": "Input button without a name",
+        "type": "error",
+        "summary": "An &lt;input type=\"button\"&gt; has no value, aria-label or title.",
+        "guidelines": [
+            {
+                "name": "4.1.2 Name, Role, Value (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc4.1.2"
+            }
+        ],
+        "source": "axe-core"
+    },
+    {
+        "name": "role_img_alt_missing",
+        "title": "role=img without a name",
+        "type": "error",
+        "summary": "An element with role=\"img\" (including an svg) has no aria-label, aria-labelledby or title.",
+        "guidelines": [
+            {
+                "name": "1.1.1 Non-text Content (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.1.1"
+            }
+        ],
+        "source": "axe-core"
+    },
+    {
+        "name": "label_in_name_mismatch",
+        "title": "Visible text not in accessible name",
+        "type": "alert",
+        "summary": "The aria-label of a link or button does not contain its visible text, which breaks voice control.",
+        "guidelines": [
+            {
+                "name": "2.5.3 Label in Name (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.5.3"
+            }
+        ],
+        "source": "axe-core"
+    },
+    {
+        "name": "scope_attr_invalid",
+        "title": "Invalid scope attribute",
+        "type": "error",
+        "summary": "scope on a table cell is not col, row, colgroup or rowgroup, or is used on a td.",
+        "guidelines": [
+            {
+                "name": "1.3.1 Info and Relationships (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.3.1"
+            }
+        ],
+        "source": "axe-core"
+    },
+    {
+        "name": "main_missing",
+        "title": "No main landmark",
+        "type": "alert",
+        "summary": "The page has no &lt;main&gt; or role=\"main\".",
+        "guidelines": [
+            {
+                "name": "1.3.1 Info and Relationships (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.3.1"
+            },
+            {
+                "name": "2.4.1 Bypass Blocks (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.4.1"
+            }
+        ],
+        "source": "axe-core"
+    },
+    {
+        "name": "main_multiple",
+        "title": "More than one main landmark",
+        "type": "alert",
+        "summary": "The page has more than one &lt;main&gt; or role=\"main\".",
+        "guidelines": [
+            {
+                "name": "1.3.1 Info and Relationships (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.3.1"
+            }
+        ],
+        "source": "axe-core"
+    },
+    {
+        "name": "inline_spacing_important",
+        "title": "Text spacing locked with !important",
+        "type": "alert",
+        "summary": "An inline style sets letter-, word- or line-spacing with !important, which stops users applying their own text spacing.",
+        "guidelines": [
+            {
+                "name": "1.4.12 Text Spacing (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.4.12"
+            }
+        ],
+        "source": "axe-core"
+    },
+    {
+        "name": "target_size_small",
+        "title": "Small target size",
+        "type": "alert",
+        "summary": "An interactive element declares a width or height under 24 CSS pixels (WCAG 2.2 target size).",
+        "guidelines": [
+            {
+                "name": "2.5.8 Target Size (Minimum) (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.5.8"
+            }
+        ],
+        "source": "wcag-2.2"
+    },
+    {
+        "name": "focus_obscured_risk",
+        "title": "Fixed or sticky element may cover focus",
+        "type": "alert",
+        "summary": "A fixed or sticky header, footer or panel can hide the element that has keyboard focus.",
+        "guidelines": [
+            {
+                "name": "2.4.11 Focus Not Obscured (Minimum) (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.4.11"
+            }
+        ],
+        "source": "wcag-2.2"
+    },
+    {
+        "name": "auth_autocomplete_off",
+        "title": "Password field blocks autofill",
+        "type": "alert",
+        "summary": "autocomplete=off on a password field stops password managers, which makes sign-in a memory test.",
+        "guidelines": [
+            {
+                "name": "3.3.8 Accessible Authentication (Minimum) (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc3.3.8"
+            }
+        ],
+        "source": "wcag-2.2"
+    },
+    {
+        "name": "auth_paste_blocked",
+        "title": "Paste handler on an input",
+        "type": "alert",
+        "summary": "An input has an onPaste handler; pasting into login fields must not be blocked.",
+        "guidelines": [
+            {
+                "name": "3.3.8 Accessible Authentication (Minimum) (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc3.3.8"
+            }
+        ],
+        "source": "wcag-2.2"
+    },
+    {
+        "name": "captcha_present",
+        "title": "CAPTCHA present",
+        "type": "alert",
+        "summary": "A CAPTCHA is present; it needs a non-cognitive alternative and a text alternative.",
+        "guidelines": [
+            {
+                "name": "3.3.8 Accessible Authentication (Minimum) (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc3.3.8"
+            },
+            {
+                "name": "1.1.1 Non-text Content (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.1.1"
+            }
+        ],
+        "source": "wcag-2.2"
+    },
+    {
+        "name": "dragging_alternative",
+        "title": "Drag interaction",
+        "type": "alert",
+        "summary": "Drag and drop is used; a single-pointer or keyboard alternative must exist.",
+        "guidelines": [
+            {
+                "name": "2.5.7 Dragging Movements (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.5.7"
+            }
+        ],
+        "source": "wcag-2.2"
+    },
+    {
+        "name": "autocomplete_missing",
+        "title": "Personal-data field without autocomplete",
+        "type": "alert",
+        "summary": "A field that collects personal data has no autocomplete token.",
+        "guidelines": [
+            {
+                "name": "1.3.5 Identify Input Purpose (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.3.5"
+            }
+        ],
+        "source": "wcag-2.1"
+    },
+    {
+        "name": "text_spacing_clipped",
+        "title": "Fixed height clips text",
+        "type": "alert",
+        "summary": "A container with a fixed height and overflow hidden can cut off text when users change text spacing.",
+        "guidelines": [
+            {
+                "name": "1.4.12 Text Spacing (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.4.12"
+            }
+        ],
+        "source": "wcag-2.1"
+    },
+    {
+        "name": "hover_without_focus",
+        "title": "Hover-only content",
+        "type": "alert",
+        "summary": "Content appears on mouse hover with no keyboard focus equivalent.",
+        "guidelines": [
+            {
+                "name": "1.4.13 Content on Hover or Focus (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.4.13"
+            },
+            {
+                "name": "2.1.1 Keyboard (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.1.1"
+            }
+        ],
+        "source": "wcag-2.1"
+    },
+    {
+        "name": "orientation_locked",
+        "title": "Orientation locked in CSS",
+        "type": "alert",
+        "summary": "CSS hides or rotates content for one device orientation.",
+        "guidelines": [
+            {
+                "name": "1.3.4 Orientation (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.3.4"
+            }
+        ],
+        "source": "wcag-2.1"
+    },
+    {
+        "name": "autoplay_carousel",
+        "title": "Auto-advancing carousel",
+        "type": "alert",
+        "summary": "A carousel or slider auto-plays; it needs a pause, stop or hide control.",
+        "guidelines": [
+            {
+                "name": "2.2.2 Pause, Stop, Hide (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.2.2"
+            }
+        ],
+        "source": "wcag-2.1"
+    },
+    {
+        "name": "reduced_motion_missing",
+        "title": "Animation without reduced-motion support",
+        "type": "alert",
+        "summary": "CSS animations exist but no prefers-reduced-motion rule is present in the scanned CSS.",
+        "guidelines": [
+            {
+                "name": "2.2.2 Pause, Stop, Hide (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.2.2"
+            },
+            {
+                "name": "2.3.3 Animation from Interactions (Level AAA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.3.3"
+            }
+        ],
+        "source": "wcag-2.1"
+    },
+    {
+        "name": "click_no_keyboard",
+        "title": "Click handler without keyboard access",
+        "type": "error",
+        "summary": "A non-interactive element (div, span, li...) has an onClick handler but cannot be focused or operated with the keyboard.",
+        "guidelines": [
+            {
+                "name": "2.1.1 Keyboard (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.1.1"
+            },
+            {
+                "name": "4.1.2 Name, Role, Value (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc4.1.2"
+            }
+        ],
+        "source": "react-mui"
+    },
+    {
+        "name": "icon_button_name_missing",
+        "title": "Icon button without a name",
+        "type": "error",
+        "summary": "An IconButton, Fab or ToggleButton holds only an icon and has no aria-label.",
+        "guidelines": [
+            {
+                "name": "4.1.2 Name, Role, Value (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc4.1.2"
+            },
+            {
+                "name": "1.1.1 Non-text Content (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.1.1"
+            }
+        ],
+        "source": "react-mui"
+    },
+    {
+        "name": "status_role_missing",
+        "title": "Status message without live region",
+        "type": "alert",
+        "summary": "A toast, snackbar or notification container has no role=status, role=alert or aria-live, so screen readers may not announce it.",
+        "guidelines": [
+            {
+                "name": "4.1.3 Status Messages (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc4.1.3"
+            }
+        ],
+        "source": "react-mui"
+    },
+    {
+        "name": "datagrid_review",
+        "title": "Data grid to review",
+        "type": "alert",
+        "summary": "A data grid component is used; keyboard navigation, headers and names must be tested in the browser.",
+        "guidelines": [
+            {
+                "name": "2.1.1 Keyboard (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.1.1"
+            },
+            {
+                "name": "1.3.1 Info and Relationships (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.3.1"
+            },
+            {
+                "name": "4.1.2 Name, Role, Value (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc4.1.2"
+            }
+        ],
+        "source": "react-mui"
     }
 ]

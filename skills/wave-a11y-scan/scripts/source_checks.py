@@ -15,6 +15,26 @@ LANDMARKS = [("header", {"header"}, "banner"), ("nav", {"nav"}, "navigation"), (
              ("aside", {"aside"}, "complementary"), ("footer", {"footer"}, "contentinfo"), ("region", set(), "region")]
 MOUNT_IDS = {"root", "app", "__next", "___gatsby", "svelte", "__nuxt"}
 
+
+VALID_ROLES = set("""alert alertdialog application article banner blockquote button caption cell checkbox code columnheader combobox complementary contentinfo
+definition deletion dialog directory document emphasis feed figure form generic grid gridcell group heading img insertion link list listbox listitem log main
+marquee math menu menubar menuitem menuitemcheckbox menuitemradio meter navigation none note option paragraph presentation progressbar radio radiogroup region
+row rowgroup rowheader scrollbar search searchbox separator slider spinbutton status strong subscript superscript switch tab table tablist tabpanel term textbox
+timer toolbar tooltip tree treegrid treeitem doc-abstract doc-acknowledgments doc-afterword doc-appendix doc-backlink doc-biblioentry doc-bibliography
+doc-biblioref doc-chapter doc-colophon doc-conclusion doc-cover doc-credit doc-credits doc-dedication doc-endnote doc-endnotes doc-epigraph doc-epilogue
+doc-errata doc-example doc-footnote doc-foreword doc-glossary doc-glossref doc-index doc-introduction doc-noteref doc-notice doc-pagebreak doc-pagelist
+doc-part doc-preface doc-prologue doc-pullquote doc-qna doc-subtitle doc-tip doc-toc graphics-document graphics-object graphics-symbol text""".split())
+VALID_ARIA = set("""activedescendant atomic autocomplete braillelabel brailleroledescription busy checked colcount colindex colindextext colspan controls current
+describedby description details disabled dropeffect errormessage expanded flowto grabbed haspopup hidden invalid keyshortcuts label labelledby level live modal
+multiline multiselectable orientation owns placeholder posinset pressed readonly relevant required roledescription rowcount rowindex rowindextext rowspan
+selected setsize sort valuemax valuemin valuenow valuetext""".split())
+REQUIRED_ARIA = {"checkbox": "aria-checked", "switch": "aria-checked", "radio": "aria-checked", "menuitemcheckbox": "aria-checked",
+                 "menuitemradio": "aria-checked", "slider": "aria-valuenow", "scrollbar": "aria-valuenow", "combobox": "aria-expanded", "heading": "aria-level"}
+NAME_FROM_CONTENT = {"button", "link", "menuitem", "menuitemcheckbox", "menuitemradio", "tab", "treeitem", "checkbox", "radio", "switch", "tooltip"}
+NAME_FROM_AUTHOR = {"textbox", "combobox", "listbox", "searchbox", "slider", "spinbutton", "progressbar", "meter"}
+NATIVE_NAMED = {"a", "button", "input", "select", "textarea", "summary", "img", "meter", "progress", "li", "option", "details", "svg", "h1", "h2", "h3", "h4", "h5", "h6"}
+FOCUSABLE_TAGS = {"button", "select", "textarea", "summary"}
+
 IMPLEMENTED = ["alt_missing", "alt_link_missing", "alt_spacer_missing", "alt_input_missing", "alt_area_missing", "alt_map_missing",
                "label_missing", "label_empty", "label_multiple", "aria_reference_broken", "aria_menu_broken", "title_invalid", "language_missing",
                "meta_refresh", "heading_empty", "button_empty", "link_empty", "link_skip_broken", "th_empty", "blink", "marquee", "contrast",
@@ -26,7 +46,15 @@ IMPLEMENTED = ["alt_missing", "alt_link_missing", "alt_spacer_missing", "alt_inp
                "alt", "alt_null", "alt_spacer", "alt_link", "alt_input", "alt_map", "alt_area", "figure", "label", "fieldset", "link_skip",
                "link_skip_target", "lang", "h1", "h2", "h3", "h4", "h5", "h6", "ol", "ul", "dl", "header", "nav", "search", "main", "aside",
                "footer", "region", "table_data", "table_caption", "th", "th_col", "th_row", "iframe", "aria", "aria_label", "aria_describedby",
-               "aria_live_region", "aria_menu", "aria_button", "aria_expanded", "aria_haspopup", "aria_tabindex", "aria_hidden"]
+               "aria_live_region", "aria_menu", "aria_button", "aria_expanded", "aria_haspopup", "aria_tabindex", "aria_hidden",
+               # added from the Mass.gov web testing checklist (not WAVE rules)
+               "viewport_zoom_blocked", "media_autoplay", "h1_multiple", "iframe_title_missing", "focus_outline_removed", "dialog_name_missing",
+               # added from axe-core (also used by Accessibility Insights)
+               "video_captions_missing", "id_duplicate", "aria_role_invalid", "aria_attr_invalid", "aria_required_attr", "aria_name_missing", "aria_hidden_focusable", "nested_interactive", "input_button_name_missing", "role_img_alt_missing", "label_in_name_mismatch", "scope_attr_invalid", "main_missing", "main_multiple", "inline_spacing_important",
+               # WCAG 2.2, WCAG 2.1 and React / Material-UI checks
+               "target_size_small", "focus_obscured_risk", "auth_autocomplete_off", "auth_paste_blocked", "captcha_present", "dragging_alternative",
+               "autocomplete_missing", "text_spacing_clipped", "hover_without_focus", "autoplay_carousel", "orientation_locked", "reduced_motion_missing",
+               "click_no_keyboard", "icon_button_name_missing", "status_role_missing", "datagrid_review"]
 
 
 class Project:
@@ -144,6 +172,14 @@ def check_file(root, styles_pool, ext, is_html_like, project, display_text=""):
     for e in T("meta"):
         if (static(e.attrs.get("http-equiv")) or "").lower() == "refresh":
             add("error", "meta_refresh", e)
+    for e in T("meta"):
+        if (static(e.attrs.get("name")) or "").lower() == "viewport":
+            c = (static(e.attrs.get("content")) or "").lower().replace(" ", "")
+            ms = re.search(r"maximum-scale=([0-9.]+)", c)
+            if re.search(r"user-scalable=(no|0)", c):
+                add("error", "viewport_zoom_blocked", e, note="user-scalable=no stops pinch zoom")
+            elif ms and float(ms[1]) < 2:
+                add("error", "viewport_zoom_blocked", e, note=f"maximum-scale={ms[1]} limits zoom below 200%")
     for e in T("blink"):
         add("error", "blink", e)
     for e in T("marquee"):
@@ -357,6 +393,10 @@ def check_file(root, styles_pool, ext, is_html_like, project, display_text=""):
             add("alert", "heading_missing", T("body")[0] if T("body") else htmls[0])
         elif not any(h.tag == "h1" or h.attrs.get("aria-level") == "1" for h in heads):
             add("alert", "h1_missing", T("body")[0] if T("body") else htmls[0])
+        else:
+            h1s = [h for h in heads if h.tag == "h1" or h.attrs.get("aria-level") == "1"]
+            for extra_h1 in h1s[1:]:
+                add("alert", "h1_multiple", extra_h1, note=f"{len(h1s)} H1 headings on the page")
         if not lm:
             add("alert", "region_missing", T("body")[0] if T("body") else htmls[0])
     for t in ("ol", "ul", "dl", "iframe"):
@@ -399,7 +439,12 @@ def check_file(root, styles_pool, ext, is_html_like, project, display_text=""):
                 add("alert", "title_redundant", e)
     for e in T("video", "audio"):
         add("alert", "html5_video_audio", e)
+        if "autoplay" in e.attrs and static(e.attrs.get("autoplay")) not in ("false",):
+            add("alert", "media_autoplay", e)
     for e in T("iframe"):
+        if not e.spread and "title" not in e.attrs and not (e.attrs.get("aria-label") or "").strip() \
+                and not (e.attrs.get("aria-labelledby") or "").strip() and static(e.attrs.get("aria-hidden")) != "true":
+            add("error", "iframe_title_missing", e)
         if re.search(r"youtube|youtu\.be", static(e.attrs.get("src")) or ""):
             add("alert", "youtube_video", e)
     for e in T("object", "embed"):
@@ -407,6 +452,164 @@ def check_file(root, styles_pool, ext, is_html_like, project, display_text=""):
         add("alert", "flash" if flash else "plugin", e)
     for e in T("applet"):
         add("alert", "applet", e)
+
+    for e in (x for x in els if not x.comp and not x.spread):
+        st = static(e.attrs.get("style")) or ""
+        if re.search(r"outline(-style|-width)?\s*:\s*(none|0(px)?)\b", st, re.I) and not re.search(r"box-shadow|border|background", st, re.I):
+            add("alert", "focus_outline_removed", e, note="inline style removes the outline")
+        role = static(e.attrs.get("role")) or ""
+        if (e.tag == "dialog" or role in ("dialog", "alertdialog")) and not (e.attrs.get("aria-label") or "").strip() \
+                and not (e.attrs.get("aria-labelledby") or "").strip():
+            add("alert", "dialog_name_missing", e)
+
+    # ---------- axe-core checks (static subset)
+    plain = [x for x in els if not x.comp and not x.spread]
+    seen_ids = {}
+    for e in plain:
+        i = static(e.attrs.get("id"))
+        if i and i.strip() and DYN not in i:
+            seen_ids.setdefault(i, []).append(e)
+    for i, group in seen_ids.items():
+        for dup in group[1:]:
+            add("alert", "id_duplicate", dup, note=f'id="{i}" is also used on line {group[0].line}; ignore if the elements are in alternative template branches')
+    for e in plain:
+        role = static(e.attrs.get("role")) or ""
+        if role.strip() and DYN not in role:
+            bad = [r for r in role.lower().split() if r not in VALID_ROLES]
+            if bad:
+                add("error", "aria_role_invalid", e, note="unknown role: " + ", ".join(bad))
+        for k in e.attrs:
+            if k.startswith("aria-") and DYN not in k and k[5:] not in VALID_ARIA:
+                add("error", "aria_attr_invalid", e, note=f"unknown attribute {k}")
+        r0 = role.lower().split()[0] if role.strip() and DYN not in role else ""
+        if r0 in REQUIRED_ARIA and e.tag != "input" and not (REQUIRED_ARIA[r0] in e.attrs or (r0 == "heading" and e.tag in ("h1", "h2", "h3", "h4", "h5", "h6"))):
+            add("error", "aria_required_attr", e, note=f"role={r0} needs {REQUIRED_ARIA[r0]}")
+        if r0 in (NAME_FROM_CONTENT | NAME_FROM_AUTHOR) and e.tag not in NATIVE_NAMED and not e.dyn:
+            if r0 in NAME_FROM_CONTENT:
+                state = name_state(e)
+            else:
+                has = (e.attrs.get("aria-labelledby") or "").strip() or e.attrs.get("aria-label") is not None or e.attrs.get("title") is not None
+                state = "named" if has else "empty"
+            if state == "empty":
+                add("error", "aria_name_missing", e, note=f"role={r0} has no accessible name")
+        if r0 == "img" and e.tag not in ("img", "svg") and name_state(e) == "empty":
+            add("error", "role_img_alt_missing", e)
+        elif e.tag == "svg" and r0 == "img" and name_state(e) == "empty":
+            add("error", "role_img_alt_missing", e)
+        if static(e.attrs.get("aria-hidden")) == "true" and not e.dyn:
+            for d in [e] + list(e.walk()):
+                if d.comp or d.spread or d.dyn or "disabled" in d.attrs or "inert" in d.attrs:
+                    continue
+                ti = static(d.attrs.get("tabindex"))
+                focus = (d.tag == "a" and "href" in d.attrs) or d.tag in FOCUSABLE_TAGS or (d.tag == "input" and static(d.attrs.get("type")) != "hidden") \
+                    or (ti is not None and re.fullmatch(r"-?\d+", ti.strip() or "x") and int(ti) >= 0)
+                if focus and ti is not None and re.fullmatch(r"-\d+", ti.strip()):
+                    focus = False
+                if focus:
+                    add("error", "aria_hidden_focusable", d, note="focusable element inside aria-hidden=true")
+                    break
+        interactive = (e.tag == "a" and "href" in e.attrs) or e.tag == "button" or r0 in ("button", "link")
+        if interactive:
+            anc = next((a for a in _ancestors(e) if (a.tag == "a" and "href" in a.attrs) or a.tag == "button"), None)
+            if anc is not None and not anc.comp:
+                add("error", "nested_interactive", e, note=f"inside <{anc.tag}> on line {anc.line}")
+        if e.tag == "input" and (static(e.attrs.get("type")) or "").lower() == "button" and not e.dyn:
+            if not any((e.attrs.get(k) or "").strip() for k in ("value", "aria-label", "aria-labelledby", "title")):
+                add("error", "input_button_name_missing", e)
+        al = static(e.attrs.get("aria-label"))
+        if al and al.strip() and (interactive or (e.tag == "input" and (static(e.attrs.get("type")) or "") in ("button", "submit", "reset"))):
+            vis, unk = info(e)
+            norm = lambda s: re.sub(r"[^\w]+", " ", s.lower()).strip()
+            if vis and not unk and norm(vis) and norm(vis) not in norm(al):
+                add("alert", "label_in_name_mismatch", e, note=f'visible text "{vis[:40]}" is not part of aria-label "{al[:40]}"')
+        if e.tag in ("th", "td") and "scope" in e.attrs:
+            sv = (static(e.attrs.get("scope")) or "").lower().strip()
+            if sv and (sv not in ("col", "row", "colgroup", "rowgroup") or e.tag == "td"):
+                add("error", "scope_attr_invalid", e, note=f'scope="{sv}"' + (" on a td" if e.tag == "td" else ""))
+        st = static(e.attrs.get("style")) or ""
+        if re.search(r"(letter-spacing|line-height|word-spacing)\s*:[^;]*!important", st, re.I):
+            add("alert", "inline_spacing_important", e)
+    for v in T("video"):
+        kids = list(v.walk())
+        if not v.comp and not v.dyn and not any(k.comp or k.dyn for k in kids) and not any(
+                k.tag == "track" and (static(k.attrs.get("kind")) or "subtitles").lower() in ("captions", "subtitles") for k in kids):
+            add("alert", "video_captions_missing", v)
+    if is_doc and is_html_like and not has_comp and not any(e.dyn for e in T("body")) and not any(e.id in MOUNT_IDS and not e.children for e in els):
+        mains = [e for e in els if e.tag == "main" or e.attrs.get("role") == "main"]
+        if not mains:
+            add("alert", "main_missing", T("body")[0] if T("body") else htmls[0])
+        for extra_main in mains[1:]:
+            add("alert", "main_multiple", extra_main)
+
+    # ---------- WCAG 2.2, WCAG 2.1 and React / Material-UI checks (static; anything decided at runtime is skipped)
+    def css_px(v):
+        m = re.fullmatch(r"\s*(\d+(?:\.\d+)?)(px)?\s*(!important)?\s*", v or "")
+        return float(m[1]) if m else None
+
+    for e in plain:
+        tag, typ = e.tag, (static(e.attrs.get("type")) or "").lower()
+        role = (static(e.attrs.get("role")) or "").lower()
+        try:
+            cs = styler.cs(e)
+        except Exception:
+            cs = {}
+        control = tag == "button" or role == "button" or (tag == "input" and typ in ("button", "submit", "reset", "image"))
+        if control or (tag == "a" and "href" in e.attrs and e.closest("p", "li", "td") is None):
+            sizes = [css_px(cs.get(k)) for k in ("width", "height")]
+            sizes = [s for s in sizes if s is not None]
+            if sizes and min(sizes) < 24:
+                add("alert", "target_size_small", e, note=f"declared size {min(sizes):g}px is under 24px; fine if the 24px spacing exception applies")
+        pos = (cs.get("position") or "").lower() if isinstance(cs.get("position"), str) else ""
+        if pos in ("fixed", "sticky") and tag in ("header", "nav", "footer", "div", "aside", "section") and not e.closest("dialog"):
+            add("alert", "focus_obscured_risk", e, note=f"position: {pos}; check that keyboard focus is never hidden behind it")
+        ov = (cs.get("overflow") or "").lower() if isinstance(cs.get("overflow"), str) else ""
+        if ov == "hidden" and css_px(cs.get("height")) is not None and _txt(e):
+            add("alert", "text_spacing_clipped", e, note="fixed height with overflow hidden clips text when users increase text spacing")
+        if tag in ("input", "textarea") and typ not in ("hidden", "checkbox", "radio", "submit", "button", "reset", "image", "file", "range", "color"):
+            ac = static(e.attrs.get("autocomplete"))
+            ident = " ".join(filter(None, [static(e.attrs.get("name")), static(e.attrs.get("id")), typ])).lower()
+            if typ == "password" and ac is not None and ac.strip().lower() == "off":
+                add("alert", "auth_autocomplete_off", e, note="autocomplete=off on a password field blocks password managers (3.3.8)")
+            if "autocomplete" not in e.attrs and not e.dyn and re.search(
+                    r"(^|[^a-z])(e-?mail|tel|phone|mobile|password|username|user-?name|first-?name|last-?name|full-?name|given-?name|family-?name|zip|postal|street|address|city|birth)", ident):
+                add("alert", "autocomplete_missing", e, note="personal-data field has no autocomplete token")
+            if "onpaste" in e.attrs and (typ in ("password", "text", "email", "") or tag == "textarea"):
+                add("alert", "auth_paste_blocked", e, note="onPaste handler present; confirm it does not call preventDefault (pasting must be allowed)")
+        if "draggable" in e.attrs and (static(e.attrs.get("draggable")) or "") in ("true", "") or any(k in e.attrs for k in ("ondragstart", "ondrop")):
+            add("alert", "dragging_alternative", e, note="drag interaction: confirm a click or keyboard alternative exists")
+        if ("onmouseenter" in e.attrs or "onmouseover" in e.attrs) and not any(k in e.attrs for k in ("onfocus", "onfocusin", "onkeydown")):
+            add("alert", "hover_without_focus", e, note="shows content on hover with no focus equivalent; it must also be dismissible and hoverable")
+        hint = " ".join(e.classes) + " " + (e.id or "")
+        if re.search(r"captcha", hint + " " + (static(e.attrs.get("src")) or ""), re.I) and tag != "script":
+            add("alert", "captcha_present", e, note="CAPTCHA: needs an alternative that is not a cognitive test, and a text alternative")
+        if re.search(r"(^|[\s_-])(toast|snackbar|notification|flash-?message|alert-?(box|message))", hint, re.I) and not e.closest("dialog") \
+                and role not in ("alert", "status", "log", "alertdialog") and "aria-live" not in e.attrs:
+            add("alert", "status_role_missing", e, note="message container has no role=status, role=alert or aria-live")
+        if tag in ("div", "span", "li", "td", "p", "section", "article", "img", "svg", "label", "h1", "h2", "h3", "h4", "h5", "h6") \
+                and "onclick" in e.attrs and role not in ("presentation", "none"):
+            keyed = any(k in e.attrs for k in ("onkeydown", "onkeyup", "onkeypress"))
+            focusable = "tabindex" in e.attrs and (static(e.attrs.get("tabindex")) or "0").strip() != "-1"
+            if not (keyed and focusable) and not (e.closest("button") or e.closest("a")) and not (tag == "label"):
+                add("error", "click_no_keyboard", e, note="click handler on a non-interactive element with " + (
+                    "no tabindex" if not focusable else "no key handler") + "; use a <button> or add role, tabindex and a key handler")
+    for e in els:                      # components from React UI libraries
+        if not e.comp or e.spread:
+            continue
+        nm = e.tag
+        if re.search(r"(^|\.)(IconButton|Fab|ToggleButton)$", nm) and name_state(e) == "empty":
+            add("error", "icon_button_name_missing", e, note=f"<{nm}> has only an icon and no aria-label")
+        if re.search(r"(^|\.)(Dialog|Modal|Drawer|Popup)$", nm) and not (e.attrs.get("aria-label") or "").strip() \
+                and not (e.attrs.get("aria-labelledby") or "").strip():
+            add("alert", "dialog_name_missing", e, note=f"<{nm}> has no aria-label or aria-labelledby")
+        if re.search(r"(^|\.)(AgGridReact|DataGrid|DataGridPro|DataGridPremium|MUIDataTable|MaterialTable|DataTable|Grid ?Table)$", nm):
+            add("alert", "datagrid_review", e, note=f"<{nm}>: check keyboard navigation, column headers and accessible names in the browser")
+        if re.search(r"(^|\.)(Carousel|Slider|Swiper|Slick|AliceCarousel)$", nm) and any(
+                k in e.attrs for k in ("autoplay", "autoplayspeed", "autoplayinterval", "interval")) and static(e.attrs.get("autoplay")) != "false":
+            add("alert", "autoplay_carousel", e, note="auto-advancing content needs a pause control (2.2.2)")
+        if re.search(r"(^|\.)(Draggable|Droppable|DragDropContext|SortableContext|Sortable|DndContext)$", nm):
+            add("alert", "dragging_alternative", e, note=f"<{nm}>: confirm a non-drag alternative (buttons or keyboard) exists")
+        if re.search(r"re-?captcha", nm, re.I):
+            add("alert", "captcha_present", e, note="CAPTCHA: needs an alternative that is not a cognitive test")
 
     # ---------- ARIA
     for e in els:
@@ -442,6 +645,7 @@ def check_file(root, styles_pool, ext, is_html_like, project, display_text=""):
 
     # ---------- text style alerts and contrast (resolved from CSS in source)
     undetermined = checked = 0
+    skipped_contrast = []
     for e in els:
         if e.comp or e.tag in NOT_TEXT or e.closest("script", "style", "noscript", "option", "svg"):
             continue
@@ -461,6 +665,7 @@ def check_file(root, styles_pool, ext, is_html_like, project, display_text=""):
         fg, bg, fw = styler.fg(e), styler.bg(e), styler.fw(e)
         if styler.unknown_chain(e) or fs == UNK or fw == UNK or fg == UNK or bg == UNK or (fg == "none" and not is_doc):
             undetermined += 1
+            skipped_contrast.append({"line": e.line, "sel": e.tag + ("#" + e.id if e.id and DYN not in e.id else ""), "text": txt[:40]})
             continue
         if fg == "none":
             fg = (0, 0, 0, 1.0)
@@ -472,8 +677,8 @@ def check_file(root, styles_pool, ext, is_html_like, project, display_text=""):
         need = 3 if large else 4.5
         checked += 1
         if r < need:
-            add("contrast", "contrast", e, ratio=round(r, 2), min=need, fg=_hex(eff), bg=_hex(bg), size=f"{fs:g}px", text=txt[:40])
-    return out, {"checkedForContrast": checked, "contrastUndetermined": undetermined, "elements": len(els), "isDocument": is_doc}
+            add("contrast", "contrast", e, ratio=int(r * 100) / 100, min=need, fg=_hex(eff), bg=_hex(bg), size=f"{fs:g}px", text=txt[:40])
+    return out, {"checkedForContrast": checked, "contrastUndetermined": undetermined, "contrastSkipped": skipped_contrast, "elements": len(els), "isDocument": is_doc}
 
 
 def _ancestors(el):

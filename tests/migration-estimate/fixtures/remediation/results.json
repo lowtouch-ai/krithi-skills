@@ -1,0 +1,920 @@
+{
+ "root": "fixture",
+ "scanned_at": "2026-11-11T13:33:21+05:30",
+ "files_scanned": 4,
+ "css_files": 0,
+ "skipped": [],
+ "per_file": {
+  "axe.html": {
+   "error": 12,
+   "contrast": 0,
+   "alert": 9,
+   "feature": 1,
+   "structure": 5,
+   "aria": 21
+  },
+  "checklist.html": {
+   "error": 2,
+   "contrast": 0,
+   "alert": 6,
+   "feature": 1,
+   "structure": 5,
+   "aria": 3
+  },
+  "violations.html": {
+   "error": 7,
+   "contrast": 1,
+   "alert": 10,
+   "feature": 0,
+   "structure": 2,
+   "aria": 3
+  },
+  "violations.jsx": {
+   "error": 5,
+   "contrast": 1,
+   "alert": 5,
+   "feature": 1,
+   "structure": 4,
+   "aria": 5
+  }
+ },
+ "meta": {
+  "checkedForContrast": 29,
+  "contrastUndetermined": 10
+ },
+ "contrast_skipped": {
+  "violations.jsx": [
+   {
+    "line": 8,
+    "sel": "main",
+    "text": "const x: Array< string> = [];"
+   },
+   {
+    "line": 9,
+    "sel": "h1",
+    "text": "Shop"
+   },
+   {
+    "line": 10,
+    "sel": "h3",
+    "text": "Skipped level"
+   },
+   {
+    "line": 15,
+    "sel": "a",
+    "text": "Click here"
+   },
+   {
+    "line": 20,
+    "sel": "label",
+    "text": "Other"
+   },
+   {
+    "line": 22,
+    "sel": "p",
+    "text": "Tiny"
+   },
+   {
+    "line": 23,
+    "sel": "ul",
+    "text": ""
+   },
+   {
+    "line": 23,
+    "sel": "a",
+    "text": ""
+   },
+   {
+    "line": 24,
+    "sel": "div",
+    "text": "x"
+   },
+   {
+    "line": 27,
+    "sel": "button",
+    "text": "Save"
+   }
+  ]
+ },
+ "results": {
+  "error": {
+   "button_empty": [
+    {
+     "file": "axe.html",
+     "line": 19,
+     "sel": "input",
+     "html": "<input type=\"button\">"
+    },
+    {
+     "file": "violations.html",
+     "line": 10,
+     "sel": "button",
+     "html": "<button>"
+    },
+    {
+     "file": "violations.jsx",
+     "line": 16,
+     "sel": "button",
+     "html": "<button>"
+    },
+    {
+     "file": "violations.jsx",
+     "line": 25,
+     "sel": "button",
+     "html": "<button type=\"button\" onClick={close}>"
+    }
+   ],
+   "aria_role_invalid": [
+    {
+     "file": "axe.html",
+     "line": 9,
+     "sel": "div",
+     "html": "<div role=\"buton\">",
+     "note": "unknown role: buton"
+    }
+   ],
+   "aria_attr_invalid": [
+    {
+     "file": "axe.html",
+     "line": 10,
+     "sel": "div",
+     "html": "<div aria-labell=\"x\">",
+     "note": "unknown attribute aria-labell"
+    }
+   ],
+   "aria_required_attr": [
+    {
+     "file": "axe.html",
+     "line": 11,
+     "sel": "div",
+     "html": "<div role=\"checkbox\">",
+     "note": "role=checkbox needs aria-checked"
+    }
+   ],
+   "aria_name_missing": [
+    {
+     "file": "axe.html",
+     "line": 13,
+     "sel": "div",
+     "html": "<div role=\"button\">",
+     "note": "role=button has no accessible name"
+    },
+    {
+     "file": "axe.html",
+     "line": 14,
+     "sel": "div",
+     "html": "<div role=\"textbox\">",
+     "note": "role=textbox has no accessible name"
+    }
+   ],
+   "aria_hidden_focusable": [
+    {
+     "file": "axe.html",
+     "line": 16,
+     "sel": "a",
+     "html": "<a href=\"/x\">",
+     "note": "focusable element inside aria-hidden=true"
+    }
+   ],
+   "nested_interactive": [
+    {
+     "file": "axe.html",
+     "line": 18,
+     "sel": "button",
+     "html": "<button>",
+     "note": "inside <a> on line 18"
+    }
+   ],
+   "input_button_name_missing": [
+    {
+     "file": "axe.html",
+     "line": 19,
+     "sel": "input",
+     "html": "<input type=\"button\">"
+    }
+   ],
+   "role_img_alt_missing": [
+    {
+     "file": "axe.html",
+     "line": 21,
+     "sel": "svg",
+     "html": "<svg role=\"img\">"
+    }
+   ],
+   "scope_attr_invalid": [
+    {
+     "file": "axe.html",
+     "line": 25,
+     "sel": "th",
+     "html": "<th scope=\"column\">",
+     "note": "scope=\"column\""
+    },
+    {
+     "file": "axe.html",
+     "line": 25,
+     "sel": "td",
+     "html": "<td scope=\"row\">",
+     "note": "scope=\"row\" on a td"
+    }
+   ],
+   "viewport_zoom_blocked": [
+    {
+     "file": "checklist.html",
+     "line": 5,
+     "sel": "meta",
+     "html": "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=no\">",
+     "note": "user-scalable=no stops pinch zoom"
+    }
+   ],
+   "iframe_title_missing": [
+    {
+     "file": "checklist.html",
+     "line": 15,
+     "sel": "iframe",
+     "html": "<iframe src=\"/embed\">"
+    }
+   ],
+   "language_missing": [
+    {
+     "file": "violations.html",
+     "line": 2,
+     "sel": "html",
+     "html": "<html>"
+    }
+   ],
+   "title_invalid": [
+    {
+     "file": "violations.html",
+     "line": 3,
+     "sel": "title",
+     "html": "<title>",
+     "note": "title=\"Untitled\""
+    }
+   ],
+   "alt_missing": [
+    {
+     "file": "violations.html",
+     "line": 6,
+     "sel": "img",
+     "html": "<img src=\"a.png\">"
+    },
+    {
+     "file": "violations.jsx",
+     "line": 11,
+     "sel": "img",
+     "html": "<img src=\"a.png\" />"
+    }
+   ],
+   "label_missing": [
+    {
+     "file": "violations.html",
+     "line": 11,
+     "sel": "input#n",
+     "html": "<input type=\"text\" id=\"n\">"
+    },
+    {
+     "file": "violations.jsx",
+     "line": 18,
+     "sel": "input#name",
+     "html": "<input type=\"text\" id=\"name\" />"
+    }
+   ],
+   "link_empty": [
+    {
+     "file": "violations.html",
+     "line": 9,
+     "sel": "a",
+     "html": "<a href=\"/x\">"
+    },
+    {
+     "file": "violations.jsx",
+     "line": 14,
+     "sel": "a",
+     "html": "<a href=\"/x\">"
+    }
+   ],
+   "aria_reference_broken": [
+    {
+     "file": "violations.html",
+     "line": 16,
+     "sel": "div",
+     "html": "<div role=\"button\" aria-labelledby=\"gone\">",
+     "attr": "aria-labelledby"
+    }
+   ]
+  },
+  "contrast": {
+   "contrast": [
+    {
+     "file": "violations.html",
+     "line": 13,
+     "sel": "p",
+     "html": "<p style=\"color:#aaa;background:#fff\">",
+     "ratio": 2.32,
+     "min": 4.5,
+     "fg": "#aaaaaa",
+     "bg": "#ffffff",
+     "size": "16px",
+     "text": "Low contrast text"
+    },
+    {
+     "file": "violations.jsx",
+     "line": 21,
+     "sel": "p",
+     "html": "<p style={{ color: \"#aaa\", backgroundColor: \"#fff\" }}>",
+     "ratio": 2.32,
+     "min": 4.5,
+     "fg": "#aaaaaa",
+     "bg": "#ffffff",
+     "size": "16px",
+     "text": "Low contrast"
+    }
+   ]
+  },
+  "alert": {
+   "link_redundant": [
+    {
+     "file": "axe.html",
+     "line": 16,
+     "sel": "a",
+     "html": "<a href=\"/x\">"
+    },
+    {
+     "file": "axe.html",
+     "line": 17,
+     "sel": "a",
+     "html": "<a href=\"/x\" tabindex=\"-1\">"
+    }
+   ],
+   "html5_video_audio": [
+    {
+     "file": "axe.html",
+     "line": 27,
+     "sel": "video",
+     "html": "<video src=\"a.mp4\">"
+    },
+    {
+     "file": "axe.html",
+     "line": 28,
+     "sel": "video",
+     "html": "<video src=\"b.mp4\">"
+    },
+    {
+     "file": "checklist.html",
+     "line": 17,
+     "sel": "video",
+     "html": "<video src=\"v.mp4\" autoplay>"
+    }
+   ],
+   "id_duplicate": [
+    {
+     "file": "axe.html",
+     "line": 8,
+     "sel": "p#dup",
+     "html": "<p id=\"dup\">",
+     "note": "id=\"dup\" is also used on line 8; ignore if the elements are in alternative template branches"
+    }
+   ],
+   "label_in_name_mismatch": [
+    {
+     "file": "axe.html",
+     "line": 23,
+     "sel": "button",
+     "html": "<button aria-label=\"Send\">",
+     "note": "visible text \"Submit\" is not part of aria-label \"Send\""
+    }
+   ],
+   "inline_spacing_important": [
+    {
+     "file": "axe.html",
+     "line": 26,
+     "sel": "p",
+     "html": "<p style=\"line-height:1 !important\">"
+    }
+   ],
+   "video_captions_missing": [
+    {
+     "file": "axe.html",
+     "line": 27,
+     "sel": "video",
+     "html": "<video src=\"a.mp4\">"
+    },
+    {
+     "file": "checklist.html",
+     "line": 17,
+     "sel": "video",
+     "html": "<video src=\"v.mp4\" autoplay>"
+    }
+   ],
+   "main_multiple": [
+    {
+     "file": "axe.html",
+     "line": 7,
+     "sel": "main",
+     "html": "<main>"
+    }
+   ],
+   "h1_multiple": [
+    {
+     "file": "checklist.html",
+     "line": 14,
+     "sel": "h1",
+     "html": "<h1>",
+     "note": "2 H1 headings on the page"
+    }
+   ],
+   "media_autoplay": [
+    {
+     "file": "checklist.html",
+     "line": 17,
+     "sel": "video",
+     "html": "<video src=\"v.mp4\" autoplay>"
+    }
+   ],
+   "dialog_name_missing": [
+    {
+     "file": "checklist.html",
+     "line": 18,
+     "sel": "div",
+     "html": "<div role=\"dialog\">"
+    }
+   ],
+   "alt_suspicious": [
+    {
+     "file": "violations.html",
+     "line": 7,
+     "sel": "img",
+     "html": "<img src=\"b.png\" alt=\"image\">",
+     "alt": "image"
+    },
+    {
+     "file": "violations.jsx",
+     "line": 12,
+     "sel": "img",
+     "html": "<img src=\"b.png\" alt=\"image\" />",
+     "alt": "image"
+    }
+   ],
+   "label_orphaned": [
+    {
+     "file": "violations.html",
+     "line": 12,
+     "sel": "label",
+     "html": "<label for=\"missing\">"
+    }
+   ],
+   "link_suspicious": [
+    {
+     "file": "violations.html",
+     "line": 8,
+     "sel": "a",
+     "html": "<a href=\"#nowhere\">",
+     "text": "Click here"
+    },
+    {
+     "file": "violations.jsx",
+     "line": 15,
+     "sel": "a",
+     "html": "<a href=\"/y\">",
+     "text": "Click here"
+    }
+   ],
+   "link_internal_broken": [
+    {
+     "file": "violations.html",
+     "line": 8,
+     "sel": "a",
+     "html": "<a href=\"#nowhere\">",
+     "target": "#nowhere"
+    }
+   ],
+   "heading_skipped": [
+    {
+     "file": "violations.html",
+     "line": 5,
+     "sel": "h4",
+     "html": "<h4>",
+     "from": "h2",
+     "to": "h4"
+    },
+    {
+     "file": "violations.jsx",
+     "line": 10,
+     "sel": "h3",
+     "html": "<h3>",
+     "from": "h1",
+     "to": "h3"
+    }
+   ],
+   "h1_missing": [
+    {
+     "file": "violations.html",
+     "line": 4,
+     "sel": "body",
+     "html": "<body>"
+    }
+   ],
+   "region_missing": [
+    {
+     "file": "violations.html",
+     "line": 4,
+     "sel": "body",
+     "html": "<body>"
+    }
+   ],
+   "table_layout": [
+    {
+     "file": "violations.html",
+     "line": 15,
+     "sel": "table",
+     "html": "<table>"
+    }
+   ],
+   "main_missing": [
+    {
+     "file": "violations.html",
+     "line": 4,
+     "sel": "body",
+     "html": "<body>"
+    }
+   ],
+   "text_small": [
+    {
+     "file": "violations.html",
+     "line": 14,
+     "sel": "p",
+     "html": "<p style=\"font-size:9px\">",
+     "size": "9px"
+    },
+    {
+     "file": "violations.jsx",
+     "line": 22,
+     "sel": "p",
+     "html": "<p style={{ fontSize: 9 }}>",
+     "size": "9px"
+    }
+   ],
+   "tabindex": [
+    {
+     "file": "violations.jsx",
+     "line": 24,
+     "sel": "div",
+     "html": "<div role=\"button\" aria-labelledby=\"gone\" tabIndex={3}>"
+    }
+   ],
+   "focus_outline_removed": [
+    {
+     "file": "checklist.html",
+     "line": 7,
+     "sel": "a:focus",
+     "html": "a:focus { outline: none; }",
+     "note": "CSS removes the focus outline and sets no other focus style"
+    }
+   ]
+  },
+  "feature": {
+   "lang": [
+    {
+     "file": "axe.html",
+     "line": 2,
+     "sel": "html",
+     "html": "<html lang=\"en\">"
+    },
+    {
+     "file": "checklist.html",
+     "line": 2,
+     "sel": "html",
+     "html": "<html lang=\"en\">"
+    }
+   ],
+   "alt": [
+    {
+     "file": "violations.jsx",
+     "line": 13,
+     "sel": "img",
+     "html": "<img src={src} alt={desc} />"
+    }
+   ]
+  },
+  "structure": {
+   "h1": [
+    {
+     "file": "axe.html",
+     "line": 6,
+     "sel": "h1",
+     "html": "<h1>"
+    },
+    {
+     "file": "checklist.html",
+     "line": 13,
+     "sel": "h1",
+     "html": "<h1>"
+    },
+    {
+     "file": "checklist.html",
+     "line": 14,
+     "sel": "h1",
+     "html": "<h1>"
+    },
+    {
+     "file": "violations.jsx",
+     "line": 9,
+     "sel": "h1",
+     "html": "<h1>"
+    }
+   ],
+   "main": [
+    {
+     "file": "axe.html",
+     "line": 5,
+     "sel": "main",
+     "html": "<main>"
+    },
+    {
+     "file": "axe.html",
+     "line": 7,
+     "sel": "main",
+     "html": "<main>"
+    },
+    {
+     "file": "checklist.html",
+     "line": 12,
+     "sel": "main",
+     "html": "<main>"
+    },
+    {
+     "file": "violations.jsx",
+     "line": 8,
+     "sel": "main",
+     "html": "<main>"
+    }
+   ],
+   "table_data": [
+    {
+     "file": "axe.html",
+     "line": 25,
+     "sel": "table",
+     "html": "<table>"
+    }
+   ],
+   "th": [
+    {
+     "file": "axe.html",
+     "line": 25,
+     "sel": "th",
+     "html": "<th scope=\"column\">"
+    }
+   ],
+   "iframe": [
+    {
+     "file": "checklist.html",
+     "line": 15,
+     "sel": "iframe",
+     "html": "<iframe src=\"/embed\">"
+    },
+    {
+     "file": "checklist.html",
+     "line": 16,
+     "sel": "iframe",
+     "html": "<iframe src=\"/embed2\" title=\"Map of offices\">"
+    }
+   ],
+   "h2": [
+    {
+     "file": "violations.html",
+     "line": 5,
+     "sel": "h2",
+     "html": "<h2>"
+    }
+   ],
+   "h4": [
+    {
+     "file": "violations.html",
+     "line": 5,
+     "sel": "h4",
+     "html": "<h4>"
+    }
+   ],
+   "h3": [
+    {
+     "file": "violations.jsx",
+     "line": 10,
+     "sel": "h3",
+     "html": "<h3>"
+    }
+   ],
+   "ul": [
+    {
+     "file": "violations.jsx",
+     "line": 23,
+     "sel": "ul",
+     "html": "<ul>"
+    }
+   ]
+  },
+  "aria": {
+   "aria_tabindex": [
+    {
+     "file": "axe.html",
+     "line": 17,
+     "sel": "a",
+     "html": "<a href=\"/x\" tabindex=\"-1\">"
+    }
+   ],
+   "aria": [
+    {
+     "file": "axe.html",
+     "line": 9,
+     "sel": "div",
+     "html": "<div role=\"buton\">"
+    },
+    {
+     "file": "axe.html",
+     "line": 10,
+     "sel": "div",
+     "html": "<div aria-labell=\"x\">"
+    },
+    {
+     "file": "axe.html",
+     "line": 11,
+     "sel": "div",
+     "html": "<div role=\"checkbox\">"
+    },
+    {
+     "file": "axe.html",
+     "line": 12,
+     "sel": "div",
+     "html": "<div role=\"checkbox\" aria-checked=\"false\" aria-label=\"ok\">"
+    },
+    {
+     "file": "axe.html",
+     "line": 13,
+     "sel": "div",
+     "html": "<div role=\"button\">"
+    },
+    {
+     "file": "axe.html",
+     "line": 14,
+     "sel": "div",
+     "html": "<div role=\"textbox\">"
+    },
+    {
+     "file": "axe.html",
+     "line": 15,
+     "sel": "div",
+     "html": "<div role=\"textbox\" aria-label=\"Search\">"
+    },
+    {
+     "file": "axe.html",
+     "line": 16,
+     "sel": "div",
+     "html": "<div aria-hidden=\"true\">"
+    },
+    {
+     "file": "axe.html",
+     "line": 17,
+     "sel": "div",
+     "html": "<div aria-hidden=\"true\">"
+    },
+    {
+     "file": "axe.html",
+     "line": 21,
+     "sel": "svg",
+     "html": "<svg role=\"img\">"
+    },
+    {
+     "file": "axe.html",
+     "line": 22,
+     "sel": "svg",
+     "html": "<svg role=\"img\">"
+    },
+    {
+     "file": "axe.html",
+     "line": 23,
+     "sel": "button",
+     "html": "<button aria-label=\"Send\">"
+    },
+    {
+     "file": "axe.html",
+     "line": 24,
+     "sel": "button",
+     "html": "<button aria-label=\"Submit form\">"
+    },
+    {
+     "file": "checklist.html",
+     "line": 18,
+     "sel": "div",
+     "html": "<div role=\"dialog\">"
+    },
+    {
+     "file": "checklist.html",
+     "line": 19,
+     "sel": "div",
+     "html": "<div role=\"dialog\" aria-label=\"Settings\">"
+    },
+    {
+     "file": "violations.html",
+     "line": 16,
+     "sel": "div",
+     "html": "<div role=\"button\" aria-labelledby=\"gone\">"
+    },
+    {
+     "file": "violations.jsx",
+     "line": 17,
+     "sel": "button",
+     "html": "<button aria-label={label}>"
+    },
+    {
+     "file": "violations.jsx",
+     "line": 24,
+     "sel": "div",
+     "html": "<div role=\"button\" aria-labelledby=\"gone\" tabIndex={3}>"
+    }
+   ],
+   "aria_label": [
+    {
+     "file": "axe.html",
+     "line": 12,
+     "sel": "div",
+     "html": "<div role=\"checkbox\" aria-checked=\"false\" aria-label=\"ok\">"
+    },
+    {
+     "file": "axe.html",
+     "line": 15,
+     "sel": "div",
+     "html": "<div role=\"textbox\" aria-label=\"Search\">"
+    },
+    {
+     "file": "axe.html",
+     "line": 23,
+     "sel": "button",
+     "html": "<button aria-label=\"Send\">"
+    },
+    {
+     "file": "axe.html",
+     "line": 24,
+     "sel": "button",
+     "html": "<button aria-label=\"Submit form\">"
+    },
+    {
+     "file": "checklist.html",
+     "line": 19,
+     "sel": "div",
+     "html": "<div role=\"dialog\" aria-label=\"Settings\">"
+    },
+    {
+     "file": "violations.html",
+     "line": 16,
+     "sel": "div",
+     "html": "<div role=\"button\" aria-labelledby=\"gone\">"
+    },
+    {
+     "file": "violations.jsx",
+     "line": 17,
+     "sel": "button",
+     "html": "<button aria-label={label}>"
+    },
+    {
+     "file": "violations.jsx",
+     "line": 24,
+     "sel": "div",
+     "html": "<div role=\"button\" aria-labelledby=\"gone\" tabIndex={3}>"
+    }
+   ],
+   "aria_button": [
+    {
+     "file": "axe.html",
+     "line": 13,
+     "sel": "div",
+     "html": "<div role=\"button\">"
+    },
+    {
+     "file": "violations.html",
+     "line": 16,
+     "sel": "div",
+     "html": "<div role=\"button\" aria-labelledby=\"gone\">"
+    },
+    {
+     "file": "violations.jsx",
+     "line": 24,
+     "sel": "div",
+     "html": "<div role=\"button\" aria-labelledby=\"gone\" tabIndex={3}>"
+    }
+   ],
+   "aria_hidden": [
+    {
+     "file": "axe.html",
+     "line": 16,
+     "sel": "div",
+     "html": "<div aria-hidden=\"true\">"
+    },
+    {
+     "file": "axe.html",
+     "line": 17,
+     "sel": "div",
+     "html": "<div aria-hidden=\"true\">"
+    }
+   ]
+  }
+ }
+}

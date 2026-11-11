@@ -11,11 +11,12 @@ Do these in a fresh pass. If your environment has sub-agents, give the audit to 
 3. **Confidence re-check.** Re-verify every Confidence & Open Questions item at 95% or more. Confirm it, or downgrade it with a reason.
 4. **Features.** Enumerate features independently of the PRDs (routes and controllers, pages and templates, scheduled jobs and workers, reports and exports, CLI commands, stored procedures, outbound integrations) and confirm each maps to a story. `estimate.py --inventory` checks modules and manifest integrations mechanically; features are checked by you.
 5. **Gap percentage.** Estimate, 0-100, how much of the PRD set is not reliably backed by the code (REQ's `gap_percentage`). **If it is over 30, rework**: read the missed areas now, fold them in, fix every mismatch and downgraded confidence, add or split stories, re-run `estimate.py`, then re-assess. The final gap percentage must be 30 or less.
-6. **Stories and sprints.** Confirm every detailed PRD has stories and that `estimate.py`'s `total_stories` equals the stories you wrote.
+6. **Architecture fit.** Compare the PRDs with `references/target-architecture.md` and the inventory's `target_signals`: every legacy screen group maps to Next.js, every endpoint group to FastAPI, every scheduled, long-running or event-driven job to an Airflow DAG story, caches and sessions to Redis, files to MinIO, secrets to Vault; tenancy only when the application is multi-tenant; the AI stack only when it has AI agents (and Open WebUI never). Every deviation has a reason. The foundation stories exist. Record gaps and fix them.
+7. **Stories and sprints.** Confirm every detailed PRD has stories and that `estimate.py`'s `total_stories` equals the stories you wrote.
 
 ## Template
 
-`estimate.py --review` requires the headings below, a `Final total sprints: N` line matching the computed total, and a `Gap percentage (final): N` line of 30 or less.
+`estimate.py --review` requires the headings below (including Architecture fit), a `Final total sprints: N` line matching the computed total, and a `Gap percentage (final): N` line of 30 or less.
 
 ```markdown
 # Estimate review: {Application name}
@@ -35,6 +36,13 @@ Reviewed {YYYY-MM-DD}. Inventory: `{absolute inventory.json path}` ({N} modules,
 {One row per mismatch, or one row: "None found."}
 
 Confidence items at 95% or more: {N} re-checked, {N} confirmed, {N} downgraded ({item: new %, reason}).
+
+## Architecture fit
+- **Target:** standard architecture (FastAPI, PostgreSQL, Redis, Next.js, Airflow){; plus the AI stack}.
+- **Signals from the inventory:** AI agents {yes/no}, background jobs {yes/no, N jobs, N DAG stories}, caches {yes/no}, file storage {yes/no}, multi-tenant {yes/no}; each mapped.
+- **Screens to Next.js:** {N} of {N}. **Endpoint groups to FastAPI:** {N} of {N}. **Jobs to DAGs:** {N} of {N}.
+- **Foundation stories present:** {list, or what was added}
+- **Deviations:** {each with its reason, or "none"}
 
 ## Stories and sprint count
 - {N} detailed PRDs, each with at least one story.

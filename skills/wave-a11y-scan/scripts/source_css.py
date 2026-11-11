@@ -450,3 +450,44 @@ def lum(c):
 def ratio(a, b):
     l1, l2 = lum(a), lum(b)
     return (max(l1, l2) + 0.05) / (min(l1, l2) + 0.05)
+
+
+FOCUS_SEL = re.compile(r":focus(?!-visible\s*\)?\s*:not)", re.I)
+OUTLINE_OFF = re.compile(r"(?:^|;)\s*outline(?:-style|-width)?\s*:\s*(?:none|0(?:px)?)\s*(?:!important)?\s*(?:;|$)", re.I)
+FOCUS_ALT = re.compile(r"(?:^|;)\s*(?:box-shadow|border(?:-[a-z]+)?|background(?:-color)?|text-decoration|outline(?:-color|-offset)?)\s*:", re.I)
+
+
+def focus_outline_removals(css, line_offset=0):
+    """Rules whose selector targets :focus / :focus-visible, turn the outline off and set no other visible change
+    (box-shadow, border, background, text-decoration). Returns [(line, selector, rule text)]."""
+    out = []
+    clean = strip_comments(css)
+    for m in re.finditer(r"([^{}@;]+)\{([^{}]*)\}", clean):
+        sel, body = m[1].strip(), m[2]
+        if not FOCUS_SEL.search(sel) or not OUTLINE_OFF.search(";" + body):
+            continue
+        others = re.sub(r"(?:^|;)\s*outline(?:-style|-width)?\s*:[^;]*", ";", ";" + body, flags=re.I)
+        if FOCUS_ALT.search(others):
+            continue
+        line = clean.count("\n", 0, m.start(1) + (len(m[1]) - len(m[1].lstrip()))) + 1 + line_offset
+        out.append((line, sel, re.sub(r"\s+", " ", m[0].strip())))
+    return out
+
+
+def css_motion_orientation(css, line_offset=0):
+    """Returns (animations, orientation_locks, has_reduced_motion). animations: [(line, text)] for animation / @keyframes
+    (transitions alone are not reported); orientation_locks: [(line, text)] for @media (orientation: ...) blocks that hide or rotate content."""
+    clean = strip_comments(css)
+    line = lambda pos: clean.count("\n", 0, pos) + 1 + line_offset
+    anims = [(line(m.start()), re.sub(r"\s+", " ", clean[m.start():m.start() + 80]).strip())
+             for m in re.finditer(r"@keyframes\s+[\w-]+|(?<![\w-])animation(?:-name)?\s*:\s*(?!none)[^;}]+", clean)]
+    locks = []
+    for m in re.finditer(r"@media[^{]*orientation\s*:\s*(?:portrait|landscape)[^{]*\{", clean):
+        depth, p = 1, m.end()
+        while p < len(clean) and depth:
+            depth += {"{": 1, "}": -1}.get(clean[p], 0)
+            p += 1
+        body = clean[m.end():p]
+        if re.search(r"display\s*:\s*none|transform\s*:\s*rotate\(\s*-?90deg", body):
+            locks.append((line(m.start()), re.sub(r"\s+", " ", clean[m.start():m.start() + 100]).strip()))
+    return anims, locks, "prefers-reduced-motion" in clean

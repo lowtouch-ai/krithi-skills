@@ -13,6 +13,10 @@ A PRD that covers a parent path covers all modules under it. Test, build, vendor
 docs folders are skipped. Integrations: databases, queues, cloud SDKs, identity, payments, messaging and
 similar, detected from dependency manifests and docker-compose files. estimate.py --inventory requires each
 module to be covered by a PRD (or listed as out of scope) and each integration to be named in a PRD.
+
+target_signals: facts that decide which parts of the standard target architecture apply (references/target-architecture.md):
+AI agents, background or scheduled jobs, caches, file storage and multi-tenancy, found in manifests and (for jobs and
+tenancy) in source text. estimate.py --inventory requires the PRDs to map each signal that is present.
 """
 import argparse, datetime, json, os, re, subprocess, sys
 from pathlib import Path
@@ -79,6 +83,25 @@ INTEGRATIONS = {
     "File transfer (FTP/SFTP)": (["FTP", "SFTP"], [r"\bftp", r"sftp", r"paramiko", r"ssh2", r"jsch"]),
     "Scheduler / batch jobs": (["scheduler", "cron", "batch"], [r"quartz", r"hangfire", r"node-cron", r"apscheduler", r"spring-batch", r"airflow", r"bull\b", r"agenda"]),
 }
+# target_signals: key -> (manifest patterns, source-text patterns). Matched case-insensitively.
+SIGNALS = {
+    "ai_agents": ([r"langchain", r"langgraph", r"llama[-_]?index", r"\bautogen", r"crewai", r"semantic[-_]kernel", r"openai", r"anthropic",
+                   r"ollama", r"transformers", r"sentence[-_]transformers", r"pgvector", r"chromadb", r"pinecone", r"weaviate", r"qdrant",
+                   r"faiss", r"\bmcp\b", r"google-generativeai", r"vertexai", r"bedrock"],
+                  [r"\bAgentExecutor\b", r"\bStateGraph\b", r"\bChatOpenAI\b", r"chat\.completions", r"messages\.create\(", r"\bReAct\b"]),
+    "background_jobs": ([r"quartz", r"hangfire", r"node-cron", r"apscheduler", r"spring-batch", r"airflow", r"\bbull\b", r"\bagenda\b",
+                         r"\bcelery\b", r"sidekiq", r"\brq\b", r"dramatiq", r"resque", r"delayed_job", r"bee-queue", r"\bbullmq"],
+                        [r"@Scheduled\b", r"@EnableScheduling", r"\bcrontab\b", r"\bBackgroundService\b", r"\bIHostedService\b",
+                         r"schedule\.every\(", r"cron\.schedule\(", r"@(shared_)?task\b", r"@app\.task", r"\bJob\s*implements\s*Job\b",
+                         r"\bTimerTrigger\b", r"\bsetInterval\(", r"\bTask Scheduler\b"]),
+    "caches": ([r"redis", r"memcache", r"ehcache", r"caffeine", r"node-cache", r"lru-cache", r"cachetools", r"flask-caching", r"django-redis"], []),
+    "file_storage": ([r"\bmulter\b", r"formidable", r"commons-fileupload", r"minio", r"azure-storage-blob", r"@azure/storage-blob",
+                      r"django-storages", r"flask-uploads", r"s3", r"gcs", r"google-cloud-storage"],
+                     [r"multipart/form-data", r"\bUploadFile\b", r"\bHttpPostedFile\b", r"\bMultipartFile\b", r"enctype=[\"']multipart"]),
+    "multi_tenant": ([r"django-tenants", r"django-tenant-schemas", r"multitenan"], [r"\btenant_?id\b", r"\bX-Tenant-Id\b", r"\bTenantContext\b", r"\bcurrent_tenant\b"]),
+}
+SIGNAL_SRC_MAX = 300_000
+SIGNAL_SRC_EVIDENCE = 25
 LANG = {".py": "Python", ".js": "JavaScript", ".jsx": "JavaScript", ".mjs": "JavaScript", ".cjs": "JavaScript", ".ts": "TypeScript",
         ".tsx": "TypeScript", ".java": "Java", ".kt": "Kotlin", ".scala": "Scala", ".go": "Go", ".rb": "Ruby", ".php": "PHP",
         ".cs": "C#", ".vb": "VB.NET", ".cpp": "C++", ".cc": "C++", ".c": "C", ".rs": "Rust", ".swift": "Swift", ".dart": "Dart",
@@ -199,11 +222,40 @@ def main() -> int:
             if any(re.search(pt, text) for pt in pats):
                 found.setdefault(name, {"name": name, "aliases": aliases, "evidence": []})["evidence"].append(mf.as_posix())
 
+    signals = {k: {"present": False, "evidence": []} for k in SIGNALS}
+    for mf in manifests:
+        try:
+            text = (root / mf).read_text(encoding="utf-8", errors="replace").lower() if (root / mf).stat().st_size <= MAX_BYTES else ""
+        except OSError:
+            continue
+        for k, (mpats, _s) in SIGNALS.items():
+            hit = [pt for pt in mpats if re.search(pt, text)]
+            if hit:
+                signals[k]["present"] = True
+                signals[k]["evidence"].append(f"{mf.as_posix()} ({hit[0].strip(chr(92)+'b')})")
+    src_pats = {k: [re.compile(pt, re.I) for pt in spats] for k, (_m, spats) in SIGNALS.items() if spats}
+    for d, files in per_dir.items():
+        for f in files:
+            if not src_pats or Path(f).suffix.lower() in (".html", ".htm", ".css", ".sql"):
+                continue
+            fp = root / d / f
+            try:
+                if fp.stat().st_size > SIGNAL_SRC_MAX:
+                    continue
+                text = fp.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            for k, pats in src_pats.items():
+                if len(signals[k]["evidence"]) < SIGNAL_SRC_EVIDENCE and any(p.search(text) for p in pats):
+                    signals[k]["present"] = True
+                    signals[k]["evidence"].append((d / f).as_posix())
+
     out = {"ok": True, "root": str(root), "generated": datetime.datetime.now().isoformat(timespec="seconds"),
            "languages": dict(sorted(langs.items(), key=lambda kv: -kv[1])),
            "source_files": sum(m["files"] for m in mod_out), "source_lines": sum(m["lines"] for m in mod_out),
            "modules": mod_out, "manifests": [m.as_posix() for m in manifests],
            "integrations": sorted(found.values(), key=lambda x: x["name"]),
+           "target_signals": signals,
            "note": "Heuristic. Integrations come from dependency manifests only; also look for integrations called "
                    "over plain HTTP, files, stored procedures or environment variables when reading the code."}
 
