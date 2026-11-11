@@ -25,12 +25,12 @@ for _stream in (sys.stdout, sys.stderr):      # never crash on characters the co
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from source_checks import IMPLEMENTED, Project, check_file  # noqa: E402
-from source_css import focus_outline_removals, parse_css  # noqa: E402
+from source_css import css_motion_orientation, focus_outline_removals, parse_css  # noqa: E402
 from source_parser import El, parse, static  # noqa: E402
 
 SKILL = HERE.parent
 CATALOG = json.loads((SKILL / "references" / "wave-rule-catalog.json").read_text(encoding="utf-8"))
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 
 CATEGORIES = [  # (key, report label, how to read it)
     ("error", "Errors", "Fail. Problems that will block some users."),
@@ -43,7 +43,8 @@ CATEGORIES = [  # (key, report label, how to read it)
 LABEL = {k: l for k, l, _ in CATEGORIES}
 RULES = {r["name"]: r for r in CATALOG}
 CHECKLIST = json.loads((SKILL / "references" / "mass-web-checklist.json").read_text(encoding="utf-8"))
-VERSION_NOTE = "includes the Mass.gov web testing checklist"
+EXTRA = json.loads((SKILL / "references" / "extra-checks.json").read_text(encoding="utf-8"))
+VERSION_NOTE = "includes the Mass.gov web testing checklist and WCAG 2.2 checks"
 
 # Success criteria added after WCAG 2.0. Revised Section 508 (E205.4) incorporates WCAG 2.0 A and AA only.
 WCAG_21_PLUS = {"1.3.4", "1.3.5", "1.4.10", "1.4.11", "1.4.12", "1.4.13", "2.1.4", "2.2.6", "2.3.3", "2.5.1", "2.5.2", "2.5.3",
@@ -256,13 +257,30 @@ def scan_all(paths, include_tests=False):
                 {"file": rel, "line": line, "sel": sel, "html": rule_text, "note": "CSS removes the focus outline and sets no other focus style"})
             per_file.setdefault(rel, {k: 0 for k, _, _ in CATEGORIES})["alert"] += 1
 
+    sheets = []                                # (relative path, css text, line offset)
     for c in css_files:
         txt = read(c)
         if txt:
             add_focus(rel_of(c), focus_outline_removals(txt))
+            sheets.append((rel_of(c), txt, 0))
     for f, e, text, tree, styles in parsed:
         for css, line in styles:
             add_focus(rel_of(f), focus_outline_removals(css, (line or 1) - 1))
+            sheets.append((rel_of(f), css, (line or 1) - 1))
+    motion = [(rel, *css_motion_orientation(css, off)) for rel, css, off in sheets]
+    reduced_anywhere = any(m[3] for m in motion)
+    seen_motion = set()
+    for rel, anims, locks, _ in motion:
+        if anims and not reduced_anywhere and rel not in seen_motion:
+            seen_motion.add(rel)
+            line, txt = anims[0]
+            findings["alert"].setdefault("reduced_motion_missing", []).append(
+                {"file": rel, "line": line, "sel": "css", "html": txt, "note": f"{len(anims)} animation rule(s) in this file and no prefers-reduced-motion rule in any scanned CSS"})
+            per_file.setdefault(rel, {k: 0 for k, _, _ in CATEGORIES})["alert"] += 1
+        for line, txt in locks:
+            findings["alert"].setdefault("orientation_locked", []).append(
+                {"file": rel, "line": line, "sel": "css", "html": txt, "note": "orientation media query hides or rotates content"})
+            per_file.setdefault(rel, {k: 0 for k, _, _ in CATEGORIES})["alert"] += 1
     return {"root": str(root), "scanned_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"), "files_scanned": len(parsed),
             "css_files": len(css_files), "skipped": [(str(a), b) for a, b in skipped], "per_file": per_file,
             "meta": dict(meta), "contrast_skipped": skipped_contrast, "results": findings}
@@ -284,12 +302,12 @@ def sc_rollup(scan):
     return dict(sorted(roll.items(), key=lambda kv: [int(p) for p in kv[0].split(".")]))
 
 
-def checklist_status(scan):
+def checklist_status(scan, items=None):
     """Per item of the Mass.gov checklist: what the scanner found for the rules it maps to. A clean result is never a pass."""
     r = scan["results"]
     n = lambda rid: sum(len(r.get(k, {}).get(rid, [])) for k in ("error", "contrast", "alert"))
     out = []
-    for it in CHECKLIST["items"]:
+    for it in (items if items is not None else CHECKLIST["items"]):
         found = {}
         for rid in it["rules"]:
             if rid == "@errors":
@@ -310,7 +328,7 @@ def checklist_status(scan):
 def build_md(scan, a):
     r, c = scan["results"], counts(scan)
     o = [f"# Accessibility scan report{': ' + a.title if a.title else ''}", "",
-         f"Generated {dt.date.today().isoformat()} by wave-a11y-scan {VERSION}. Static analysis of source code against WCAG 2.x A/AA, with a Section 508 mapping.", "",
+         f"Generated {dt.date.today().isoformat()} by wave-a11y-scan {VERSION}. Static analysis of source code against WCAG 2.2 A/AA, with a Section 508 mapping.", "",
          "## How to read this report", "",
          "- **Errors** and **Contrast Errors** are failures. **Alerts** need a person to confirm. Features, Structure and ARIA are informational.",
          "- This is a source-code scan. Anything decided only at runtime (expressions, props, content from other files, utility-class styling) is skipped, not guessed.",
@@ -370,6 +388,20 @@ def build_md(scan, a):
             o += [f"### {group}", "", "| # | Check | Coverage | Scan result | WCAG | How to test manually |", "|---|---|---|---|---|---|"]
         o.append(f"| {i['id']} | {i['text']} | {label[i['coverage']]} | {i['state']} | {i['wcag'] or '–'} | {i['manual_test']} |")
         nxt = cl[cl.index(i) + 1] if cl.index(i) + 1 < len(cl) else None
+        if nxt is None or nxt["group"] != group:
+            o.append("")
+    ex = scan["extra"]
+    ecov = Counter(i["coverage"] for i in ex)
+    o += [f"## {EXTRA['title']}", "",
+          f"Beyond the Mass.gov list, these criteria and patterns also need attention: the WCAG 2.2 additions, other WCAG 2.1 criteria that source code can show, and patterns common in React and Material-UI code. Checked by the scan: {ecov['automated']} items. Partly checked: {ecov['partial']}. Manual only: {ecov['manual']}. Total: {len(ex)}.", ""]
+    o += [f"- {x}" for x in EXTRA["notes"]] + [""]
+    group = None
+    for i in ex:
+        if i["group"] != group:
+            group = i["group"]
+            o += [f"### {group}", "", "| # | SC | Check | Coverage | Scan result | How to test manually |", "|---|---|---|---|---|---|"]
+        o.append(f"| {i['id']} | {i['sc']} | {i['text']} | {label[i['coverage']]} | {i['state']} | {i['manual_test']} |")
+        nxt = ex[ex.index(i) + 1] if ex.index(i) + 1 < len(ex) else None
         if nxt is None or nxt["group"] != group:
             o.append("")
     cs = scan.get("contrast_skipped", {})
@@ -463,6 +495,7 @@ def main():
         print("scan: no markup files found (looked for .html, .jsx, .tsx, .vue, .svelte, .astro and common template types). No report written.", file=sys.stderr)
         return 3
     scan["checklist"] = checklist_status(scan)
+    scan["extra"] = checklist_status(scan, EXTRA["items"])
     c = counts(scan)
     print(f"  {scan['files_scanned']} files  " + "  ".join(f"{LABEL[k]}={c[k]}" for k in c), file=sys.stderr)
     out = Path(a.out)

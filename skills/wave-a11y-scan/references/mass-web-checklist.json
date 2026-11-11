@@ -54,7 +54,8 @@
    "text": "Interactive elements (buttons, form fields, icons, keyboard focus indicator) meet color contrast.",
    "coverage": "partial",
    "rules": [
-    "focus_outline_removed"
+    "focus_outline_removed",
+    "target_size_small"
    ],
    "wcag": "1.4.11, 2.4.7",
    "manual_test": "Check borders of inputs and buttons, icons and the focus indicator are at least 3:1 against adjacent colors (WebAIM's checker has a graphics and UI components result). Use the Colour Contrast Analyser eyedropper on the focus ring."
@@ -237,7 +238,8 @@
     "select_missing_label",
     "id_duplicate",
     "aria_name_missing",
-    "input_button_name_missing"
+    "input_button_name_missing",
+    "icon_button_name_missing"
    ],
    "wcag": "1.3.1, 4.1.2",
    "manual_test": "Tab to each field with the screen reader and confirm it announces its label, type and state. ANDI's focusable-elements module shows each field's accessible name and description."
@@ -286,7 +288,10 @@
    "rules": [
     "event_handler",
     "javascript_jumpmenu",
-    "tabindex"
+    "tabindex",
+    "click_no_keyboard",
+    "hover_without_focus",
+    "dragging_alternative"
    ],
    "wcag": "2.1.1",
    "manual_test": "Complete the whole form with Tab, Shift+Tab, Space, Enter and arrow keys only."
@@ -299,7 +304,11 @@
    "rules": [
     "event_handler",
     "javascript_jumpmenu",
-    "tabindex"
+    "tabindex",
+    "click_no_keyboard",
+    "hover_without_focus",
+    "dragging_alternative",
+    "datagrid_review"
    ],
    "wcag": "2.1.1",
    "manual_test": "Unplug the mouse and use every feature: menus, tabs, accordions, sliders, drag and drop alternatives."
@@ -310,7 +319,8 @@
    "text": "Keyboard focus is always visible.",
    "coverage": "partial",
    "rules": [
-    "focus_outline_removed"
+    "focus_outline_removed",
+    "focus_obscured_risk"
    ],
    "wcag": "2.4.7",
    "manual_test": "Tab through the page and confirm a visible focus indicator on every control, including inside dialogs and menus. Accessibility Insights' Assessment (or FastPass tab stops) shows the tab order visually."
@@ -362,7 +372,8 @@
     "alt_link_missing",
     "label_in_name_mismatch",
     "aria_name_missing",
-    "nested_interactive"
+    "nested_interactive",
+    "icon_button_name_missing"
    ],
    "wcag": "2.4.4, 2.4.9",
    "manual_test": "Open the links list (NVDA: Insert+F7); each link must make sense out of context. ANDI's links/buttons module shows the accessible name of each link."
@@ -502,7 +513,10 @@
    "text": "Media does not autoplay unexpectedly.",
    "coverage": "automated",
    "rules": [
-    "media_autoplay"
+    "media_autoplay",
+    "autoplay_carousel",
+    "reduced_motion_missing",
+    "meta_refresh"
    ],
    "wcag": "1.4.2, 2.2.2",
    "manual_test": "Load the page: nothing may start playing or moving by itself for more than 3 seconds without a pause or mute control."
@@ -514,7 +528,8 @@
    "coverage": "partial",
    "rules": [
     "viewport_zoom_blocked",
-    "inline_spacing_important"
+    "inline_spacing_important",
+    "text_spacing_clipped"
    ],
    "wcag": "1.4.4",
    "manual_test": "Zoom the browser to 200%; all content and functions must remain usable with no overlap or clipping."
@@ -525,7 +540,9 @@
    "text": "Content reflows without loss of information at 400% zoom.",
    "coverage": "partial",
    "rules": [
-    "viewport_zoom_blocked"
+    "viewport_zoom_blocked",
+    "orientation_locked",
+    "text_spacing_clipped"
    ],
    "wcag": "1.4.10",
    "manual_test": "At 400% zoom (a 320 px wide viewport) content must reflow into one column with no loss."
@@ -574,8 +591,10 @@
    "id": "M49",
    "group": "Dynamic content and modals",
    "text": "Status messages and alerts are announced to assistive technologies.",
-   "coverage": "manual",
-   "rules": [],
+   "coverage": "partial",
+   "rules": [
+    "status_role_missing"
+   ],
    "wcag": "4.1.3",
    "manual_test": "Trigger toasts, form errors and loading updates with the screen reader running; each must be announced (role=status, role=alert or aria-live)."
   },

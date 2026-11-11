@@ -33,6 +33,9 @@ expect = {
                  "aria_hidden_focusable", "nested_interactive", "input_button_name_missing", "role_img_alt_missing", "label_in_name_mismatch",
                  "scope_attr_invalid", "main_multiple", "inline_spacing_important"},
     "checklist.html": {"viewport_zoom_blocked", "focus_outline_removed", "h1_multiple", "iframe_title_missing", "media_autoplay", "dialog_name_missing"},
+    "wcag22.jsx": {"target_size_small", "focus_obscured_risk", "auth_autocomplete_off", "auth_paste_blocked", "captcha_present", "dragging_alternative",
+                   "autocomplete_missing", "text_spacing_clipped", "hover_without_focus", "orientation_locked", "reduced_motion_missing",
+                   "click_no_keyboard", "icon_button_name_missing", "status_role_missing", "datagrid_review", "dialog_name_missing"},
 }
 for f, rules in expect.items():
     miss = rules - by_file.get(f, set())
@@ -62,9 +65,16 @@ for rid, want in (("aria_name_missing", 2), ("aria_hidden_focusable", 1), ("inpu
     got = sum(1 for r, _ in ax if r == rid)
     if got != want:
         problems.append(f"axe.html: expected {want} x {rid}, got {got} (the labelled, tabindex=-1, titled and captioned variants are fine)")
+w22 = [rid for cat in res.values() for rid, inst in cat.items() for i in inst if i["file"] == "wcag22.jsx"]
+for rid, want in (("target_size_small", 1), ("click_no_keyboard", 1), ("icon_button_name_missing", 1), ("dialog_name_missing", 1),
+                  ("autocomplete_missing", 1), ("status_role_missing", 1), ("auth_autocomplete_off", 1)):
+    if w22.count(rid) != want:
+        problems.append(f"wcag22.jsx: expected {want} x {rid}, got {w22.count(rid)} (the 44px button, keyboard div, labelled IconButton, named Dialog, autocomplete=email and role=status variants are fine)")
 report = (out / "ok/report.md").read_text(encoding="utf-8") if (out / "ok/report.md").exists() else ""
 if "## Mass.gov Web Testing Checklist" not in report or len(__import__("re").findall(r"^\| M\d\d \|", report, __import__("re").M)) != 50:
     problems.append("report.md must hold the Mass.gov checklist section with all 50 items")
+if "## Additional WCAG 2.2, WCAG 2.1 and React checks" not in report or len(__import__("re").findall(r"^\| W\d\d \|", report, __import__("re").M)) != 21:
+    problems.append("report.md must hold the additional WCAG 2.2 section with all 21 items")
 if "webaim.org/resources/contrastchecker/?fcolor=" not in report or "| Open source |" not in report:
     problems.append("report.md must hold WebAIM verify links for contrast errors and the tools table with an Open source column")
 print("OK" if not problems else "PROBLEMS: " + "; ".join(problems))

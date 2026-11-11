@@ -50,7 +50,11 @@ IMPLEMENTED = ["alt_missing", "alt_link_missing", "alt_spacer_missing", "alt_inp
                # added from the Mass.gov web testing checklist (not WAVE rules)
                "viewport_zoom_blocked", "media_autoplay", "h1_multiple", "iframe_title_missing", "focus_outline_removed", "dialog_name_missing",
                # added from axe-core (also used by Accessibility Insights)
-               "video_captions_missing", "id_duplicate", "aria_role_invalid", "aria_attr_invalid", "aria_required_attr", "aria_name_missing", "aria_hidden_focusable", "nested_interactive", "input_button_name_missing", "role_img_alt_missing", "label_in_name_mismatch", "scope_attr_invalid", "main_missing", "main_multiple", "inline_spacing_important"]
+               "video_captions_missing", "id_duplicate", "aria_role_invalid", "aria_attr_invalid", "aria_required_attr", "aria_name_missing", "aria_hidden_focusable", "nested_interactive", "input_button_name_missing", "role_img_alt_missing", "label_in_name_mismatch", "scope_attr_invalid", "main_missing", "main_multiple", "inline_spacing_important",
+               # WCAG 2.2, WCAG 2.1 and React / Material-UI checks
+               "target_size_small", "focus_obscured_risk", "auth_autocomplete_off", "auth_paste_blocked", "captcha_present", "dragging_alternative",
+               "autocomplete_missing", "text_spacing_clipped", "hover_without_focus", "autoplay_carousel", "orientation_locked", "reduced_motion_missing",
+               "click_no_keyboard", "icon_button_name_missing", "status_role_missing", "datagrid_review"]
 
 
 class Project:
@@ -536,6 +540,76 @@ def check_file(root, styles_pool, ext, is_html_like, project, display_text=""):
             add("alert", "main_missing", T("body")[0] if T("body") else htmls[0])
         for extra_main in mains[1:]:
             add("alert", "main_multiple", extra_main)
+
+    # ---------- WCAG 2.2, WCAG 2.1 and React / Material-UI checks (static; anything decided at runtime is skipped)
+    def css_px(v):
+        m = re.fullmatch(r"\s*(\d+(?:\.\d+)?)(px)?\s*(!important)?\s*", v or "")
+        return float(m[1]) if m else None
+
+    for e in plain:
+        tag, typ = e.tag, (static(e.attrs.get("type")) or "").lower()
+        role = (static(e.attrs.get("role")) or "").lower()
+        try:
+            cs = styler.cs(e)
+        except Exception:
+            cs = {}
+        control = tag == "button" or role == "button" or (tag == "input" and typ in ("button", "submit", "reset", "image"))
+        if control or (tag == "a" and "href" in e.attrs and e.closest("p", "li", "td") is None):
+            sizes = [css_px(cs.get(k)) for k in ("width", "height")]
+            sizes = [s for s in sizes if s is not None]
+            if sizes and min(sizes) < 24:
+                add("alert", "target_size_small", e, note=f"declared size {min(sizes):g}px is under 24px; fine if the 24px spacing exception applies")
+        pos = (cs.get("position") or "").lower() if isinstance(cs.get("position"), str) else ""
+        if pos in ("fixed", "sticky") and tag in ("header", "nav", "footer", "div", "aside", "section") and not e.closest("dialog"):
+            add("alert", "focus_obscured_risk", e, note=f"position: {pos}; check that keyboard focus is never hidden behind it")
+        ov = (cs.get("overflow") or "").lower() if isinstance(cs.get("overflow"), str) else ""
+        if ov == "hidden" and css_px(cs.get("height")) is not None and _txt(e):
+            add("alert", "text_spacing_clipped", e, note="fixed height with overflow hidden clips text when users increase text spacing")
+        if tag in ("input", "textarea") and typ not in ("hidden", "checkbox", "radio", "submit", "button", "reset", "image", "file", "range", "color"):
+            ac = static(e.attrs.get("autocomplete"))
+            ident = " ".join(filter(None, [static(e.attrs.get("name")), static(e.attrs.get("id")), typ])).lower()
+            if typ == "password" and ac is not None and ac.strip().lower() == "off":
+                add("alert", "auth_autocomplete_off", e, note="autocomplete=off on a password field blocks password managers (3.3.8)")
+            if "autocomplete" not in e.attrs and not e.dyn and re.search(
+                    r"(^|[^a-z])(e-?mail|tel|phone|mobile|password|username|user-?name|first-?name|last-?name|full-?name|given-?name|family-?name|zip|postal|street|address|city|birth)", ident):
+                add("alert", "autocomplete_missing", e, note="personal-data field has no autocomplete token")
+            if "onpaste" in e.attrs and (typ in ("password", "text", "email", "") or tag == "textarea"):
+                add("alert", "auth_paste_blocked", e, note="onPaste handler present; confirm it does not call preventDefault (pasting must be allowed)")
+        if "draggable" in e.attrs and (static(e.attrs.get("draggable")) or "") in ("true", "") or any(k in e.attrs for k in ("ondragstart", "ondrop")):
+            add("alert", "dragging_alternative", e, note="drag interaction: confirm a click or keyboard alternative exists")
+        if ("onmouseenter" in e.attrs or "onmouseover" in e.attrs) and not any(k in e.attrs for k in ("onfocus", "onfocusin", "onkeydown")):
+            add("alert", "hover_without_focus", e, note="shows content on hover with no focus equivalent; it must also be dismissible and hoverable")
+        hint = " ".join(e.classes) + " " + (e.id or "")
+        if re.search(r"captcha", hint + " " + (static(e.attrs.get("src")) or ""), re.I) and tag != "script":
+            add("alert", "captcha_present", e, note="CAPTCHA: needs an alternative that is not a cognitive test, and a text alternative")
+        if re.search(r"(^|[\s_-])(toast|snackbar|notification|flash-?message|alert-?(box|message))", hint, re.I) and not e.closest("dialog") \
+                and role not in ("alert", "status", "log", "alertdialog") and "aria-live" not in e.attrs:
+            add("alert", "status_role_missing", e, note="message container has no role=status, role=alert or aria-live")
+        if tag in ("div", "span", "li", "td", "p", "section", "article", "img", "svg", "label", "h1", "h2", "h3", "h4", "h5", "h6") \
+                and "onclick" in e.attrs and role not in ("presentation", "none"):
+            keyed = any(k in e.attrs for k in ("onkeydown", "onkeyup", "onkeypress"))
+            focusable = "tabindex" in e.attrs and (static(e.attrs.get("tabindex")) or "0").strip() != "-1"
+            if not (keyed and focusable) and not (e.closest("button") or e.closest("a")) and not (tag == "label"):
+                add("error", "click_no_keyboard", e, note="click handler on a non-interactive element with " + (
+                    "no tabindex" if not focusable else "no key handler") + "; use a <button> or add role, tabindex and a key handler")
+    for e in els:                      # components from React UI libraries
+        if not e.comp or e.spread:
+            continue
+        nm = e.tag
+        if re.search(r"(^|\.)(IconButton|Fab|ToggleButton)$", nm) and name_state(e) == "empty":
+            add("error", "icon_button_name_missing", e, note=f"<{nm}> has only an icon and no aria-label")
+        if re.search(r"(^|\.)(Dialog|Modal|Drawer|Popup)$", nm) and not (e.attrs.get("aria-label") or "").strip() \
+                and not (e.attrs.get("aria-labelledby") or "").strip():
+            add("alert", "dialog_name_missing", e, note=f"<{nm}> has no aria-label or aria-labelledby")
+        if re.search(r"(^|\.)(AgGridReact|DataGrid|DataGridPro|DataGridPremium|MUIDataTable|MaterialTable|DataTable|Grid ?Table)$", nm):
+            add("alert", "datagrid_review", e, note=f"<{nm}>: check keyboard navigation, column headers and accessible names in the browser")
+        if re.search(r"(^|\.)(Carousel|Slider|Swiper|Slick|AliceCarousel)$", nm) and any(
+                k in e.attrs for k in ("autoplay", "autoplayspeed", "autoplayinterval", "interval")) and static(e.attrs.get("autoplay")) != "false":
+            add("alert", "autoplay_carousel", e, note="auto-advancing content needs a pause control (2.2.2)")
+        if re.search(r"(^|\.)(Draggable|Droppable|DragDropContext|SortableContext|Sortable|DndContext)$", nm):
+            add("alert", "dragging_alternative", e, note=f"<{nm}>: confirm a non-drag alternative (buttons or keyboard) exists")
+        if re.search(r"re-?captcha", nm, re.I):
+            add("alert", "captcha_present", e, note="CAPTCHA: needs an alternative that is not a cognitive test")
 
     # ---------- ARIA
     for e in els:

@@ -472,3 +472,22 @@ def focus_outline_removals(css, line_offset=0):
         line = clean.count("\n", 0, m.start(1) + (len(m[1]) - len(m[1].lstrip()))) + 1 + line_offset
         out.append((line, sel, re.sub(r"\s+", " ", m[0].strip())))
     return out
+
+
+def css_motion_orientation(css, line_offset=0):
+    """Returns (animations, orientation_locks, has_reduced_motion). animations: [(line, text)] for animation / @keyframes
+    (transitions alone are not reported); orientation_locks: [(line, text)] for @media (orientation: ...) blocks that hide or rotate content."""
+    clean = strip_comments(css)
+    line = lambda pos: clean.count("\n", 0, pos) + 1 + line_offset
+    anims = [(line(m.start()), re.sub(r"\s+", " ", clean[m.start():m.start() + 80]).strip())
+             for m in re.finditer(r"@keyframes\s+[\w-]+|(?<![\w-])animation(?:-name)?\s*:\s*(?!none)[^;}]+", clean)]
+    locks = []
+    for m in re.finditer(r"@media[^{]*orientation\s*:\s*(?:portrait|landscape)[^{]*\{", clean):
+        depth, p = 1, m.end()
+        while p < len(clean) and depth:
+            depth += {"{": 1, "}": -1}.get(clean[p], 0)
+            p += 1
+        body = clean[m.end():p]
+        if re.search(r"display\s*:\s*none|transform\s*:\s*rotate\(\s*-?90deg", body):
+            locks.append((line(m.start()), re.sub(r"\s+", " ", clean[m.start():m.start() + 100]).strip()))
+    return anims, locks, "prefers-reduced-motion" in clean

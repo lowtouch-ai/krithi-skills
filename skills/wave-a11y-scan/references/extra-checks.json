@@ -1,0 +1,248 @@
+{
+ "source": "WCAG 2.2 and WCAG 2.1 success criteria, plus patterns common in React and Material-UI code",
+ "title": "Additional WCAG 2.2, WCAG 2.1 and React checks",
+ "notes": [
+  "WCAG 2.2 (October 2023) adds nine success criteria; 4.1.1 Parsing was removed. WCAG 2.2 AA is the current target for most public-sector sites.",
+  "Section 508 (revised) incorporates WCAG 2.0 only, so criteria added in 2.1 and 2.2 are marked 'not required by 508' in this report; they are still needed for WCAG 2.2 AA conformance.",
+  "These rows are in addition to the Mass.gov checklist. The same rule applies: no findings is not a pass."
+ ],
+ "items": [
+  {
+   "id": "W01",
+   "group": "WCAG 2.2 criteria",
+   "sc": "2.5.8",
+   "text": "Pointer targets are at least 24 by 24 CSS pixels, or have enough spacing.",
+   "coverage": "partial",
+   "rules": [
+    "target_size_small"
+   ],
+   "manual_test": "Measure small icon buttons, close buttons, pagination and table actions in the browser; use axe DevTools target-size (WCAG 2.2 ruleset) or Accessibility Insights."
+  },
+  {
+   "id": "W02",
+   "group": "WCAG 2.2 criteria",
+   "sc": "2.4.11",
+   "text": "Focused elements are not hidden by sticky headers, footers or cookie banners.",
+   "coverage": "partial",
+   "rules": [
+    "focus_obscured_risk"
+   ],
+   "manual_test": "Tab through a long page with sticky elements and confirm each focused control is at least partly visible; also check at 200% and 400% zoom."
+  },
+  {
+   "id": "W03",
+   "group": "WCAG 2.2 criteria",
+   "sc": "3.3.8",
+   "text": "Authentication does not need a memory or cognitive test: paste and password managers work, and any CAPTCHA has an alternative.",
+   "coverage": "partial",
+   "rules": [
+    "auth_autocomplete_off",
+    "auth_paste_blocked",
+    "captcha_present"
+   ],
+   "manual_test": "On login, reset and sign-up forms paste a password, use a password manager and complete the flow without solving a puzzle or retyping characters."
+  },
+  {
+   "id": "W04",
+   "group": "WCAG 2.2 criteria",
+   "sc": "3.3.7",
+   "text": "Information already entered in a multi-step process is not requested again.",
+   "coverage": "manual",
+   "rules": [],
+   "manual_test": "Complete wizards and checkouts; data entered earlier must be pre-filled or selectable, except where re-entry is essential (such as confirming a password)."
+  },
+  {
+   "id": "W05",
+   "group": "WCAG 2.2 criteria",
+   "sc": "2.5.7",
+   "text": "Drag and drop has a single-pointer alternative.",
+   "coverage": "partial",
+   "rules": [
+    "dragging_alternative"
+   ],
+   "manual_test": "For every drag interaction (sorting, file upload, boards) confirm a click, button or keyboard alternative exists."
+  },
+  {
+   "id": "W06",
+   "group": "WCAG 2.2 criteria",
+   "sc": "3.2.6",
+   "text": "Help (contact, chat, FAQ) is in the same place on every page.",
+   "coverage": "manual",
+   "rules": [],
+   "manual_test": "Compare the position of help or contact links across several pages."
+  },
+  {
+   "id": "W07",
+   "group": "WCAG 2.2 criteria",
+   "sc": "2.4.12",
+   "text": "Focus is not entirely hidden behind author content (2.4.11 is AA; 2.4.12 enhanced is AAA).",
+   "coverage": "manual",
+   "rules": [],
+   "manual_test": "Covered by W02; check overlays, drawers and chat widgets too."
+  },
+  {
+   "id": "W08",
+   "group": "WCAG 2.1 criteria",
+   "sc": "1.3.5",
+   "text": "Fields that collect personal data have an autocomplete token.",
+   "coverage": "partial",
+   "rules": [
+    "autocomplete_missing"
+   ],
+   "manual_test": "Check name, email, phone, address and password fields use valid autocomplete values (jsx-a11y autocomplete-valid or axe autocomplete-valid)."
+  },
+  {
+   "id": "W09",
+   "group": "WCAG 2.1 criteria",
+   "sc": "1.4.12",
+   "text": "Text stays readable when line, letter, word and paragraph spacing is increased.",
+   "coverage": "partial",
+   "rules": [
+    "text_spacing_clipped",
+    "inline_spacing_important"
+   ],
+   "manual_test": "Apply the WCAG text spacing bookmarklet or Accessibility Insights check and confirm no text is clipped or overlaps."
+  },
+  {
+   "id": "W10",
+   "group": "WCAG 2.1 criteria",
+   "sc": "1.4.13",
+   "text": "Content shown on hover or focus (tooltips, menus) can be dismissed, hovered over and stays until dismissed.",
+   "coverage": "partial",
+   "rules": [
+    "hover_without_focus"
+   ],
+   "manual_test": "Hover and focus each tooltip or popover: Escape must close it, the pointer can move onto it, and it does not vanish on its own."
+  },
+  {
+   "id": "W11",
+   "group": "WCAG 2.1 criteria",
+   "sc": "1.3.4",
+   "text": "Content is not locked to portrait or landscape.",
+   "coverage": "partial",
+   "rules": [
+    "orientation_locked"
+   ],
+   "manual_test": "Rotate a device or emulator; all content and functions must remain."
+  },
+  {
+   "id": "W12",
+   "group": "WCAG 2.1 criteria",
+   "sc": "1.4.4",
+   "text": "Text can be resized to 200% without assistive technology.",
+   "coverage": "partial",
+   "rules": [
+    "viewport_zoom_blocked"
+   ],
+   "manual_test": "See M43 and M44."
+  },
+  {
+   "id": "W13",
+   "group": "WCAG 2.1 criteria",
+   "sc": "2.2.1, 2.2.2",
+   "text": "Time limits, auto-refresh, carousels and moving content can be paused, stopped or extended.",
+   "coverage": "partial",
+   "rules": [
+    "meta_refresh",
+    "autoplay_carousel",
+    "media_autoplay",
+    "marquee",
+    "blink"
+   ],
+   "manual_test": "Wait on each page; session timeouts must warn and allow extension, and moving content longer than 5 seconds needs a pause control."
+  },
+  {
+   "id": "W14",
+   "group": "WCAG 2.1 criteria",
+   "sc": "2.3.3",
+   "text": "Animation respects the reduced-motion setting.",
+   "coverage": "partial",
+   "rules": [
+    "reduced_motion_missing"
+   ],
+   "manual_test": "Turn on 'reduce motion' in the operating system; parallax, large transitions and auto-playing animation must stop or simplify."
+  },
+  {
+   "id": "W15",
+   "group": "WCAG 2.1 criteria",
+   "sc": "2.5.3",
+   "text": "The accessible name of a control contains its visible label.",
+   "coverage": "partial",
+   "rules": [
+    "label_in_name_mismatch"
+   ],
+   "manual_test": "Use voice control and say the visible label; ANDI's links/buttons module shows the accessible name."
+  },
+  {
+   "id": "W16",
+   "group": "React and Material-UI patterns",
+   "sc": "2.1.1, 4.1.2",
+   "text": "Clickable divs and spans are real buttons or have a role, tabindex and key handler.",
+   "coverage": "partial",
+   "rules": [
+    "click_no_keyboard",
+    "event_handler",
+    "tabindex"
+   ],
+   "manual_test": "Tab to every clickable thing and activate it with Enter or Space."
+  },
+  {
+   "id": "W17",
+   "group": "React and Material-UI patterns",
+   "sc": "4.1.2",
+   "text": "Icon-only buttons (IconButton, Fab, ToggleButton) have an accessible name.",
+   "coverage": "partial",
+   "rules": [
+    "icon_button_name_missing",
+    "button_empty",
+    "link_empty"
+   ],
+   "manual_test": "Tab to each icon button with a screen reader; it must announce its purpose, not just 'button'."
+  },
+  {
+   "id": "W18",
+   "group": "React and Material-UI patterns",
+   "sc": "4.1.2, 2.4.3",
+   "text": "Dialogs, modals and drawers have a name and manage focus (move in, trap, return).",
+   "coverage": "partial",
+   "rules": [
+    "dialog_name_missing"
+   ],
+   "manual_test": "See M46 to M48. Check Escape closes the dialog and the background is inert."
+  },
+  {
+   "id": "W19",
+   "group": "React and Material-UI patterns",
+   "sc": "4.1.3",
+   "text": "Toasts, snackbars and inline notifications are announced.",
+   "coverage": "partial",
+   "rules": [
+    "status_role_missing"
+   ],
+   "manual_test": "Trigger each message with a screen reader running; it must be announced without moving focus."
+  },
+  {
+   "id": "W20",
+   "group": "React and Material-UI patterns",
+   "sc": "2.1.1, 1.3.1, 4.1.2",
+   "text": "Data grids (ag-Grid, MUI DataGrid) are keyboard operable with headers and names.",
+   "coverage": "partial",
+   "rules": [
+    "datagrid_review"
+   ],
+   "manual_test": "Navigate cells with arrow keys, edit, sort and select rows by keyboard; check header and cell announcements."
+  },
+  {
+   "id": "W21",
+   "group": "React and Material-UI patterns",
+   "sc": "1.3.1, 2.4.3",
+   "text": "No duplicate ids and no positive tabindex values.",
+   "coverage": "automated",
+   "rules": [
+    "id_duplicate",
+    "tabindex"
+   ],
+   "manual_test": "Confirm tab order still follows reading order after removing tabindex values."
+  }
+ ]
+}

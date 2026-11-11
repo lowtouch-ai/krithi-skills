@@ -1910,5 +1910,241 @@
             }
         ],
         "source": "axe-core"
+    },
+    {
+        "name": "target_size_small",
+        "title": "Small target size",
+        "type": "alert",
+        "summary": "An interactive element declares a width or height under 24 CSS pixels (WCAG 2.2 target size).",
+        "guidelines": [
+            {
+                "name": "2.5.8 Target Size (Minimum) (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.5.8"
+            }
+        ],
+        "source": "wcag-2.2"
+    },
+    {
+        "name": "focus_obscured_risk",
+        "title": "Fixed or sticky element may cover focus",
+        "type": "alert",
+        "summary": "A fixed or sticky header, footer or panel can hide the element that has keyboard focus.",
+        "guidelines": [
+            {
+                "name": "2.4.11 Focus Not Obscured (Minimum) (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.4.11"
+            }
+        ],
+        "source": "wcag-2.2"
+    },
+    {
+        "name": "auth_autocomplete_off",
+        "title": "Password field blocks autofill",
+        "type": "alert",
+        "summary": "autocomplete=off on a password field stops password managers, which makes sign-in a memory test.",
+        "guidelines": [
+            {
+                "name": "3.3.8 Accessible Authentication (Minimum) (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc3.3.8"
+            }
+        ],
+        "source": "wcag-2.2"
+    },
+    {
+        "name": "auth_paste_blocked",
+        "title": "Paste handler on an input",
+        "type": "alert",
+        "summary": "An input has an onPaste handler; pasting into login fields must not be blocked.",
+        "guidelines": [
+            {
+                "name": "3.3.8 Accessible Authentication (Minimum) (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc3.3.8"
+            }
+        ],
+        "source": "wcag-2.2"
+    },
+    {
+        "name": "captcha_present",
+        "title": "CAPTCHA present",
+        "type": "alert",
+        "summary": "A CAPTCHA is present; it needs a non-cognitive alternative and a text alternative.",
+        "guidelines": [
+            {
+                "name": "3.3.8 Accessible Authentication (Minimum) (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc3.3.8"
+            },
+            {
+                "name": "1.1.1 Non-text Content (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.1.1"
+            }
+        ],
+        "source": "wcag-2.2"
+    },
+    {
+        "name": "dragging_alternative",
+        "title": "Drag interaction",
+        "type": "alert",
+        "summary": "Drag and drop is used; a single-pointer or keyboard alternative must exist.",
+        "guidelines": [
+            {
+                "name": "2.5.7 Dragging Movements (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.5.7"
+            }
+        ],
+        "source": "wcag-2.2"
+    },
+    {
+        "name": "autocomplete_missing",
+        "title": "Personal-data field without autocomplete",
+        "type": "alert",
+        "summary": "A field that collects personal data has no autocomplete token.",
+        "guidelines": [
+            {
+                "name": "1.3.5 Identify Input Purpose (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.3.5"
+            }
+        ],
+        "source": "wcag-2.1"
+    },
+    {
+        "name": "text_spacing_clipped",
+        "title": "Fixed height clips text",
+        "type": "alert",
+        "summary": "A container with a fixed height and overflow hidden can cut off text when users change text spacing.",
+        "guidelines": [
+            {
+                "name": "1.4.12 Text Spacing (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.4.12"
+            }
+        ],
+        "source": "wcag-2.1"
+    },
+    {
+        "name": "hover_without_focus",
+        "title": "Hover-only content",
+        "type": "alert",
+        "summary": "Content appears on mouse hover with no keyboard focus equivalent.",
+        "guidelines": [
+            {
+                "name": "1.4.13 Content on Hover or Focus (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.4.13"
+            },
+            {
+                "name": "2.1.1 Keyboard (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.1.1"
+            }
+        ],
+        "source": "wcag-2.1"
+    },
+    {
+        "name": "orientation_locked",
+        "title": "Orientation locked in CSS",
+        "type": "alert",
+        "summary": "CSS hides or rotates content for one device orientation.",
+        "guidelines": [
+            {
+                "name": "1.3.4 Orientation (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.3.4"
+            }
+        ],
+        "source": "wcag-2.1"
+    },
+    {
+        "name": "autoplay_carousel",
+        "title": "Auto-advancing carousel",
+        "type": "alert",
+        "summary": "A carousel or slider auto-plays; it needs a pause, stop or hide control.",
+        "guidelines": [
+            {
+                "name": "2.2.2 Pause, Stop, Hide (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.2.2"
+            }
+        ],
+        "source": "wcag-2.1"
+    },
+    {
+        "name": "reduced_motion_missing",
+        "title": "Animation without reduced-motion support",
+        "type": "alert",
+        "summary": "CSS animations exist but no prefers-reduced-motion rule is present in the scanned CSS.",
+        "guidelines": [
+            {
+                "name": "2.2.2 Pause, Stop, Hide (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.2.2"
+            },
+            {
+                "name": "2.3.3 Animation from Interactions (Level AAA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.3.3"
+            }
+        ],
+        "source": "wcag-2.1"
+    },
+    {
+        "name": "click_no_keyboard",
+        "title": "Click handler without keyboard access",
+        "type": "error",
+        "summary": "A non-interactive element (div, span, li...) has an onClick handler but cannot be focused or operated with the keyboard.",
+        "guidelines": [
+            {
+                "name": "2.1.1 Keyboard (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.1.1"
+            },
+            {
+                "name": "4.1.2 Name, Role, Value (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc4.1.2"
+            }
+        ],
+        "source": "react-mui"
+    },
+    {
+        "name": "icon_button_name_missing",
+        "title": "Icon button without a name",
+        "type": "error",
+        "summary": "An IconButton, Fab or ToggleButton holds only an icon and has no aria-label.",
+        "guidelines": [
+            {
+                "name": "4.1.2 Name, Role, Value (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc4.1.2"
+            },
+            {
+                "name": "1.1.1 Non-text Content (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.1.1"
+            }
+        ],
+        "source": "react-mui"
+    },
+    {
+        "name": "status_role_missing",
+        "title": "Status message without live region",
+        "type": "alert",
+        "summary": "A toast, snackbar or notification container has no role=status, role=alert or aria-live, so screen readers may not announce it.",
+        "guidelines": [
+            {
+                "name": "4.1.3 Status Messages (Level AA)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc4.1.3"
+            }
+        ],
+        "source": "react-mui"
+    },
+    {
+        "name": "datagrid_review",
+        "title": "Data grid to review",
+        "type": "alert",
+        "summary": "A data grid component is used; keyboard navigation, headers and names must be tested in the browser.",
+        "guidelines": [
+            {
+                "name": "2.1.1 Keyboard (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc2.1.1"
+            },
+            {
+                "name": "1.3.1 Info and Relationships (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc1.3.1"
+            },
+            {
+                "name": "4.1.2 Name, Role, Value (Level A)",
+                "link": "https:\/\/webaim.org\/standards\/wcag\/checklist#sc4.1.2"
+            }
+        ],
+        "source": "react-mui"
     }
 ]
