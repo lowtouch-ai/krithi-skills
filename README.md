@@ -315,6 +315,8 @@ Run it once the implementation is done and tested. It reviews every change again
 $skill-installer install https://github.com/lowtouch-ai/krithi-skills/tree/main/skills/prepare-pr
 ```
 
+Then restart Codex. Codex loads skills at startup, so `$prepare-pr` is not available in a session that was already open when you installed it.
+
 ### Test
 
 Open Codex in the repository where you finished the work and run:
