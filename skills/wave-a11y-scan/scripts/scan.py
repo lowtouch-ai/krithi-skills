@@ -25,12 +25,12 @@ for _stream in (sys.stdout, sys.stderr):      # never crash on characters the co
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from source_checks import IMPLEMENTED, Project, check_file  # noqa: E402
-from source_css import parse_css  # noqa: E402
+from source_css import focus_outline_removals, parse_css  # noqa: E402
 from source_parser import El, parse, static  # noqa: E402
 
 SKILL = HERE.parent
 CATALOG = json.loads((SKILL / "references" / "wave-rule-catalog.json").read_text(encoding="utf-8"))
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 CATEGORIES = [  # (key, report label, how to read it)
     ("error", "Errors", "Fail. Problems that will block some users."),
@@ -42,6 +42,8 @@ CATEGORIES = [  # (key, report label, how to read it)
 ]
 LABEL = {k: l for k, l, _ in CATEGORIES}
 RULES = {r["name"]: r for r in CATALOG}
+CHECKLIST = json.loads((SKILL / "references" / "mass-web-checklist.json").read_text(encoding="utf-8"))
+VERSION_NOTE = "includes the Mass.gov web testing checklist"
 
 # Success criteria added after WCAG 2.0. Revised Section 508 (E205.4) incorporates WCAG 2.0 A and AA only.
 WCAG_21_PLUS = {"1.3.4", "1.3.5", "1.4.10", "1.4.11", "1.4.12", "1.4.13", "2.1.4", "2.2.6", "2.3.3", "2.5.1", "2.5.2", "2.5.3",
@@ -217,6 +219,7 @@ def scan_all(paths, include_tests=False):
         parsed.append((f, e, text, tree, styles))
     findings = {k: {} for k, _, _ in CATEGORIES}
     per_file, meta = {}, Counter()
+    skipped_contrast = {}
     for f, e, text, tree, styles in parsed:
         is_doc = any(True for x in tree.walk() if x.tag == "html")
         pool = build_pool(f, text, root, styles, css_by_name, is_doc)
@@ -239,9 +242,30 @@ def scan_all(paths, include_tests=False):
         per_file[rel] = {k: cnt.get(k, 0) for k, _, _ in CATEGORIES}
         meta["checkedForContrast"] += m["checkedForContrast"]
         meta["contrastUndetermined"] += m["contrastUndetermined"]
+        if m["contrastSkipped"]:
+            skipped_contrast[rel] = m["contrastSkipped"]
+    def rel_of(f):
+        try:
+            return str(Path(f).resolve().relative_to(root)).replace("\\", "/")
+        except ValueError:
+            return str(f)
+
+    def add_focus(rel, hits):                 # CSS is not part of the element tree, so these findings are added here
+        for line, sel, rule_text in hits:
+            findings["alert"].setdefault("focus_outline_removed", []).append(
+                {"file": rel, "line": line, "sel": sel, "html": rule_text, "note": "CSS removes the focus outline and sets no other focus style"})
+            per_file.setdefault(rel, {k: 0 for k, _, _ in CATEGORIES})["alert"] += 1
+
+    for c in css_files:
+        txt = read(c)
+        if txt:
+            add_focus(rel_of(c), focus_outline_removals(txt))
+    for f, e, text, tree, styles in parsed:
+        for css, line in styles:
+            add_focus(rel_of(f), focus_outline_removals(css, (line or 1) - 1))
     return {"root": str(root), "scanned_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"), "files_scanned": len(parsed),
             "css_files": len(css_files), "skipped": [(str(a), b) for a, b in skipped], "per_file": per_file,
-            "meta": dict(meta), "results": findings}
+            "meta": dict(meta), "contrast_skipped": skipped_contrast, "results": findings}
 
 
 def counts(scan):
@@ -258,6 +282,29 @@ def sc_rollup(scan):
                 e["fail" if k != "alert" else "review"] += len(inst)
                 e["rules"].add(rid)
     return dict(sorted(roll.items(), key=lambda kv: [int(p) for p in kv[0].split(".")]))
+
+
+def checklist_status(scan):
+    """Per item of the Mass.gov checklist: what the scanner found for the rules it maps to. A clean result is never a pass."""
+    r = scan["results"]
+    n = lambda rid: sum(len(r.get(k, {}).get(rid, [])) for k in ("error", "contrast", "alert"))
+    out = []
+    for it in CHECKLIST["items"]:
+        found = {}
+        for rid in it["rules"]:
+            if rid == "@errors":
+                found["errors and contrast errors"] = sum(len(v) for k in ("error", "contrast") for v in r.get(k, {}).values())
+            elif n(rid):
+                found[rid] = n(rid)
+        total = sum(found.values())
+        if it["coverage"] == "manual":
+            state = "Manual test needed"
+        elif total:
+            state = f"{total} finding{'s' if total != 1 else ''}: " + ", ".join(f"`{k}` {v}" for k, v in found.items())
+        else:
+            state = "No findings in scanned source" + ("; manual test still needed" if it["coverage"] == "partial" else "")
+        out.append({**it, "findings": total, "detail": found, "state": state})
+    return out
 
 
 def build_md(scan, a):
@@ -300,13 +347,40 @@ def build_md(scan, a):
                 for i in shown:
                     extra = ""
                     if k == "contrast":
-                        extra = f" — ratio {i['ratio']}:1 (needs {i['min']}:1), text {i['fg']} on {i['bg']}, {i['size']}"
+                        extra = (f" — ratio {i['ratio']}:1 (needs {i['min']}:1), text {i['fg']} on {i['bg']}, {i['size']}; "
+                                 f"[verify](https://webaim.org/resources/contrastchecker/?fcolor={i['fg'].lstrip('#')}&bcolor={i['bg'].lstrip('#')})")
                     elif i.get("note"):
                         extra = f" — {i['note']}"
                     o.append(f"- `{i['file']}:{i['line']}`{extra}  \n  `{(i['html'] or '')[:120]}`")
                 if len(shown) < len(inst):
                     o.append(f"- … {len(inst) - len(shown)} more (limited by --max-instances; omit it to list all)")
                 o.append("")
+    cl = scan["checklist"]
+    cov = Counter(i["coverage"] for i in cl)
+    o += [f"## {CHECKLIST['title']}", "",
+          f"Source: <{CHECKLIST['source']}>. Each checklist item is mapped to the scanner rules that check it in source code. The checklist is a test script for a person; this table shows what the scan already covered and what is still left for manual testing.", "",
+          f"- Checked by the scan: {cov['automated']} items. Partly checked: {cov['partial']}. Manual only: {cov['manual']}. Total: {len(cl)}.",
+          "- **No findings is not a pass.** Items marked *partly* or *manual* always need testing in a browser with a keyboard and a screen reader."]
+    o += [f"- {x}" for x in CHECKLIST["notes"]] + [""]
+    label = {"automated": "Scan", "partial": "Partly", "manual": "Manual"}
+    group = None
+    for i in cl:
+        if i["group"] != group:
+            group = i["group"]
+            o += [f"### {group}", "", "| # | Check | Coverage | Scan result | WCAG | How to test manually |", "|---|---|---|---|---|---|"]
+        o.append(f"| {i['id']} | {i['text']} | {label[i['coverage']]} | {i['state']} | {i['wcag'] or '–'} | {i['manual_test']} |")
+        nxt = cl[cl.index(i) + 1] if cl.index(i) + 1 < len(cl) else None
+        if nxt is None or nxt["group"] != group:
+            o.append("")
+    cs = scan.get("contrast_skipped", {})
+    if cs:
+        o += ["## Contrast checks left for a person", "",
+              "The scan could not work out the colors of these text elements (values from runtime code, utility classes, gradients, images or other files). "
+              "Check them in the browser with the WebAIM contrast checker or the Vispero Colour Contrast Analyser. 4.5:1 for normal text, 3:1 for large text.", "",
+              "| File | Elements | Lines |", "|---|---:|---|"]
+        o += [f"| `{f}` | {len(v)} | {', '.join(str(x['line']) for x in v)} |" for f, v in sorted(cs.items())] + [""]
+    o += ["## Tools to use with this report", "", "| Tool | Kind | Open source | How to use it |", "|---|---|---|---|"]
+    o += [f"| [{x['name']}]({x['link']}) ({x['maker']}) | {x['kind']} | {x['open_source']} | {x['use']} |" for x in CHECKLIST["tools"]] + [""]
     und = scan["meta"].get("contrastUndetermined", 0)
     chk = scan["meta"].get("checkedForContrast", 0)
     impl = set(IMPLEMENTED)
@@ -321,7 +395,12 @@ def build_md(scan, a):
 
 def build_html(md_text):
     """Small Markdown-subset renderer (headings, tables, lists, code, bold/italic) so the report has no dependencies."""
-    inline = lambda s: re.sub(r"_(.+?)_", r"<em>\1</em>", re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", re.sub(r"`([^`]+)`", r"<code>\1</code>", html.escape(s, quote=False))))
+    def inline(s):
+        s = re.sub(r"`([^`]+)`", r"<code>\1</code>", html.escape(s, quote=False))
+        s = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", s)
+        s = re.sub(r"(?<![\w/])_(.+?)_(?![\w/])", r"<em>\1</em>", s)       # underscores inside identifiers and URLs stay literal
+        s = re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)", r'<a href="\2">\1</a>', s)
+        return re.sub(r"&lt;(https?://[^\s&]+)&gt;", r'<a href="\1">\1</a>', s)
     out, tbl, ul = [], [], False
 
     def flush():
@@ -383,6 +462,7 @@ def main():
     if not scan["files_scanned"]:
         print("scan: no markup files found (looked for .html, .jsx, .tsx, .vue, .svelte, .astro and common template types). No report written.", file=sys.stderr)
         return 3
+    scan["checklist"] = checklist_status(scan)
     c = counts(scan)
     print(f"  {scan['files_scanned']} files  " + "  ".join(f"{LABEL[k]}={c[k]}" for k in c), file=sys.stderr)
     out = Path(a.out)

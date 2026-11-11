@@ -29,6 +29,10 @@ expect = {
                         "heading_skipped", "region_missing", "link_internal_broken", "h1_missing"},
     "violations.jsx": {"alt_missing", "alt_suspicious", "link_empty", "link_suspicious", "button_empty", "label_missing", "contrast",
                        "text_small", "heading_skipped", "tabindex"},
+    "axe.html": {"video_captions_missing", "id_duplicate", "aria_role_invalid", "aria_attr_invalid", "aria_required_attr", "aria_name_missing",
+                 "aria_hidden_focusable", "nested_interactive", "input_button_name_missing", "role_img_alt_missing", "label_in_name_mismatch",
+                 "scope_attr_invalid", "main_multiple", "inline_spacing_important"},
+    "checklist.html": {"viewport_zoom_blocked", "focus_outline_removed", "h1_multiple", "iframe_title_missing", "media_autoplay", "dialog_name_missing"},
 }
 for f, rules in expect.items():
     miss = rules - by_file.get(f, set())
@@ -46,6 +50,23 @@ for cat in ("error", "alert", "contrast"):
     for inst in res.get(cat, {}).values():
         if any(i["file"] == "violations.jsx" and i["line"] == 13 for i in inst):
             problems.append("violations.jsx:13 has a runtime alt and must not be reported")
+# Mass.gov checklist fixture: exact counts so false positives show up
+cl = [(rid, i["line"]) for cat in res.values() for rid, inst in cat.items() for i in inst if i["file"] == "checklist.html"]
+for rid, want in (("focus_outline_removed", 1), ("iframe_title_missing", 1), ("dialog_name_missing", 1), ("h1_multiple", 1)):
+    got = sum(1 for r, _ in cl if r == rid)
+    if got != want:
+        problems.append(f"checklist.html: expected {want} x {rid}, got {got} (button:focus has a box-shadow, the titled iframe and named dialog are fine)")
+ax = [(rid, i["line"]) for cat in res.values() for rid, inst in cat.items() for i in inst if i["file"] == "axe.html"]
+for rid, want in (("aria_name_missing", 2), ("aria_hidden_focusable", 1), ("input_button_name_missing", 1), ("role_img_alt_missing", 1),
+                  ("label_in_name_mismatch", 1), ("video_captions_missing", 1), ("aria_required_attr", 1), ("nested_interactive", 1)):
+    got = sum(1 for r, _ in ax if r == rid)
+    if got != want:
+        problems.append(f"axe.html: expected {want} x {rid}, got {got} (the labelled, tabindex=-1, titled and captioned variants are fine)")
+report = (out / "ok/report.md").read_text(encoding="utf-8") if (out / "ok/report.md").exists() else ""
+if "## Mass.gov Web Testing Checklist" not in report or len(__import__("re").findall(r"^\| M\d\d \|", report, __import__("re").M)) != 50:
+    problems.append("report.md must hold the Mass.gov checklist section with all 50 items")
+if "webaim.org/resources/contrastchecker/?fcolor=" not in report or "| Open source |" not in report:
+    problems.append("report.md must hold WebAIM verify links for contrast errors and the tools table with an Open source column")
 print("OK" if not problems else "PROBLEMS: " + "; ".join(problems))
 
 # error handling: readable failures, bad options rejected

@@ -163,7 +163,7 @@ Files the skill wrote into your projects (`security-audit/`) are not removed wit
 
 ## wave-a11y-scan
 
-WAVE-style accessibility scan of a project's source code (HTML, templates, JSX/TSX, Vue, Svelte, Astro) with a client-ready report (WCAG 2.x, Section 508 note). Findings carry file and line. It needs only Python 3; no browser or install. Automated checks do not prove code is accessible; manual keyboard and screen-reader testing is still required. Details: [`SKILL.md`](skills/wave-a11y-scan/SKILL.md).
+WAVE-style accessibility scan of a project's source code (HTML, templates, JSX/TSX, Vue, Svelte, Astro) with a client-ready report (WCAG 2.x, Section 508 note). The report also covers the [Mass.gov web testing checklist](https://accessibility.mass.gov/testing-checklists/web-testing-checklist/): each of its 50 items is marked as checked by the scan, partly checked, or manual-only, with a manual test for the rest. It also adds a static subset of axe-core rules, lists contrast checks left for a person, and points to the tools Mass.gov recommends (axe DevTools, WAVE, Accessibility Insights, ANDI, contrast checkers). Findings carry file and line. It needs only Python 3; no browser or install. Automated checks do not prove code is accessible; manual keyboard and screen-reader testing is still required. Details: [`SKILL.md`](skills/wave-a11y-scan/SKILL.md).
 
 ### Install
 

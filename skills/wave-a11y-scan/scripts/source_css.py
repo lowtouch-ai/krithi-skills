@@ -450,3 +450,25 @@ def lum(c):
 def ratio(a, b):
     l1, l2 = lum(a), lum(b)
     return (max(l1, l2) + 0.05) / (min(l1, l2) + 0.05)
+
+
+FOCUS_SEL = re.compile(r":focus(?!-visible\s*\)?\s*:not)", re.I)
+OUTLINE_OFF = re.compile(r"(?:^|;)\s*outline(?:-style|-width)?\s*:\s*(?:none|0(?:px)?)\s*(?:!important)?\s*(?:;|$)", re.I)
+FOCUS_ALT = re.compile(r"(?:^|;)\s*(?:box-shadow|border(?:-[a-z]+)?|background(?:-color)?|text-decoration|outline(?:-color|-offset)?)\s*:", re.I)
+
+
+def focus_outline_removals(css, line_offset=0):
+    """Rules whose selector targets :focus / :focus-visible, turn the outline off and set no other visible change
+    (box-shadow, border, background, text-decoration). Returns [(line, selector, rule text)]."""
+    out = []
+    clean = strip_comments(css)
+    for m in re.finditer(r"([^{}@;]+)\{([^{}]*)\}", clean):
+        sel, body = m[1].strip(), m[2]
+        if not FOCUS_SEL.search(sel) or not OUTLINE_OFF.search(";" + body):
+            continue
+        others = re.sub(r"(?:^|;)\s*outline(?:-style|-width)?\s*:[^;]*", ";", ";" + body, flags=re.I)
+        if FOCUS_ALT.search(others):
+            continue
+        line = clean.count("\n", 0, m.start(1) + (len(m[1]) - len(m[1].lstrip()))) + 1 + line_offset
+        out.append((line, sel, re.sub(r"\s+", " ", m[0].strip())))
+    return out
