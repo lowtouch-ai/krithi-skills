@@ -13,7 +13,7 @@ Reads source files, applies the WAVE rule set (110 items, six categories) plus 2
 
 ```bash
 python3 <skill-dir>/scripts/scan.py                                   # full scan of the current directory
-python3 <skill-dir>/scripts/scan.py PATH [PATH ...] --out ./a11y-report --title "Client name"
+python3 <skill-dir>/scripts/scan.py PATH [PATH ...] --out docs/a11y-report --title "Client name"
 ```
 
 `PATH` is a file or a directory (scanned recursively); the default is the current directory. `<skill-dir>` is usually `~/.codex/skills/wave-a11y-scan`.
@@ -22,7 +22,7 @@ Options (all optional; the defaults give the full report): `--format md,html,jso
 
 The Markdown and HTML reports contain every finding and every table row; nothing is cut off with "see JSON". `results.json` holds the same findings in machine-readable form.
 
-Outputs in `--out`: `report.md`, `report.html` (hand to the client), and `results.json` with every finding (file, line, selector, snippet, contrast colors and ratios).
+Outputs go to `docs/a11y-report/` in the scanned repository (created if missing; change it with `--out`) and are meant to be committed with the repo: `report.md`, `report.html` (hand to the client), and `results.json` with every finding (file, line, selector, snippet, contrast colors and ratios).
 
 Scanned: `.html .htm .jsx .tsx .vue .svelte .astro` and common template types (`.php .erb .ejs .hbs .njk .liquid .twig .jinja .cshtml .razor`), plus `.js` files that import React. Skipped: `node_modules`, build output (`dist`, `build`, `.next`, `.nuxt`, `out`), `vendor`, tests and stories, minified files, files over 1 MB.
 

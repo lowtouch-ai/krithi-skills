@@ -54,7 +54,7 @@ MARKUP_EXT = {".html", ".htm", ".xhtml", ".jsx", ".tsx", ".vue", ".svelte", ".as
 JS_MAYBE_JSX = {".js", ".mjs"}
 HTML_LIKE = MARKUP_EXT - {".jsx", ".tsx", ".vue", ".svelte", ".astro"}
 SKIP_DIRS = {"node_modules", ".git", "dist", "build", ".next", ".nuxt", ".output", "out", "coverage", "vendor", "__pycache__", ".venv", "venv",
-             ".svelte-kit", "target", "obj", "storybook-static", ".cache", ".turbo", "bower_components", "__tests__", "__snapshots__"}
+             ".svelte-kit", "target", "obj", "storybook-static", ".cache", ".turbo", "bower_components", "__tests__", "__snapshots__", "a11y-report"}
 SKIP_NAME = re.compile(r"\.(test|spec|stories|story|min)\.|\.min\.|\.d\.ts$")
 GLOBAL_CSS = {"global", "globals", "index", "app", "main", "style", "styles", "base", "reset", "normalize"}
 MAX_BYTES = 1_000_000
@@ -443,7 +443,7 @@ def build_html(md_text):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("paths", nargs="*", default=["."], help="source files or directories (default: the current directory, a full scan)")
-    ap.add_argument("--out", default="a11y-report")
+    ap.add_argument("--out", default="docs/a11y-report", help="output folder (default: docs/a11y-report, created if missing)")
     ap.add_argument("--format", default="md,html,json")
     ap.add_argument("--title", default="", help="Client or project name for the report heading")
     ap.add_argument("--max-instances", type=int, default=0, help="examples listed per rule in md/html (0 = all, the default)")

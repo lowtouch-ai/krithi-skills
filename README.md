@@ -205,7 +205,7 @@ $skill-installer install https://github.com/lowtouch-ai/krithi-skills/tree/main/
 rm -rf ~/.codex/skills/wave-a11y-scan
 ```
 
-Files the skill wrote into your projects (`a11y-report/`) are not removed with the skill.
+Files the skill wrote into your projects (`docs/a11y-report/`) are not removed with the skill.
 
 ## plan-builder
 
