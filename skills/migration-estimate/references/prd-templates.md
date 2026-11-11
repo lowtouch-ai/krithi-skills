@@ -1,6 +1,6 @@
 # PRD templates
 
-These follow Kriti-REQ's PRD content contract (`kriti_req` in `agent_workflows`: `_default_scan_prompt_body` and the design doc `Kriti-REQ_PRD.md`), so a PRD from this skill reads like one from Krithi. The estimate adds two things REQ does not have: **Source coverage** and **Stories**.
+These follow Kriti-REQ's PRD content contract (`kriti_req` in `agent_workflows`: `_default_scan_prompt_body` and the design doc `Kriti-REQ_PRD.md`), so a PRD from this skill reads like one from Krithi. The estimate adds things REQ does not have: **Target architecture** (high-level PRD), **Target design**, **Source coverage** and **Stories** (detailed PRDs). The target is always Krithi's standard architecture in `references/target-architecture.md` unless the user said otherwise; read it before writing.
 
 All files go in `docs/migration-estimate/` at the root of the repository being estimated. `estimate.py` checks the headings below, so keep them exactly as written. The "(checked ...)" notes explain the template; leave them out of the files. Replace every `{...}`.
 
@@ -18,7 +18,7 @@ All files go in `docs/migration-estimate/` at the root of the repository being e
 # High-level PRD: {Application name}
 
 ## Overview
-{What the application does, for whom, and what the migration or modernisation is for, in plain English. Target platform if the user gave one; otherwise "Target platform not specified; the estimate assumes a like-for-like rebuild on a modern stack."}
+{What the application does, for whom, and what the migration or modernisation is for, in plain English. Target platform: Krithi's standard architecture (FastAPI, PostgreSQL, Redis, Next.js and Airflow, plus the AI stack when the application has AI agents) unless the user gave a different one; say which.}
 
 ## Current system
 {Languages, frameworks, size (source files and lines from the inventory), how it is layered and deployed. This is the one section where technology names are expected; still no code identifiers.}
@@ -45,6 +45,23 @@ All files go in `docs/migration-estimate/` at the root of the repository being e
 
 ## Release / Versioning Scope
 {What is on by default versus optional, plugin or disabled, where the code or config shows it.}
+
+## Target architecture   (checked: must name FastAPI, Next.js, PostgreSQL, Redis and Airflow, each as the target or in a deviation)
+{Per `references/target-architecture.md`. Technology names are expected here.}
+
+| Legacy component | Target | Notes |
+|---|---|---|
+| {e.g. server-rendered order pages} | Next.js screens | {which PRDs} |
+| {e.g. order business rules} | FastAPI service and endpoints | |
+| {e.g. Oracle schema} | PostgreSQL, one database and user for this application | |
+| {e.g. nightly export job} | Airflow DAG | {listener/responder if event-driven} |
+| {e.g. session and cache} | Redis | |
+
+- **Secrets:** Vault (AppRole); list the secrets the legacy code holds.
+- **Files:** MinIO bucket, only if the application handles files; otherwise "No file handling found."
+- **Multi-tenancy:** the tenant model if the application is multi-tenant; otherwise "Single-tenant; no tenant plumbing."
+- **AI stack:** only if the application has AI agents: map each agent, model call, vector store and tool onto agentomatic, Ollama, agentvector and agentconnector, and the Next.js UI in place of Open WebUI (not used). Otherwise "No AI agents found."
+- **Architecture deviations:** each place the application cannot follow the standard, with the reason and who approved it, or "None."
 
 ## Out of scope   (checked: backticked paths here count as covered for the coverage check)
 {Code deliberately not estimated, one bullet each with the reason, e.g. "- `legacy/reports-v1/`: not reached from any menu, route or job (verified)". "None." if nothing is excluded.}
@@ -81,6 +98,9 @@ One file per use case or feature area. `NN` is two digits and matches the id (`p
 ## Integrations
 - {External system this area uses and for what, or "None."}
 
+## Target design   (checked)
+{How this area is built on the target architecture, in short: the FastAPI endpoint groups and services, the Next.js screens (and that they follow the design system), the PostgreSQL tables, what goes in Redis, and each DAG (with its trigger: schedule, event or API) and why it is a DAG rather than a direct call. Name deviations. Plain-English prose; technology names are allowed here.}
+
 ## Source coverage   (checked: backticked folder or file paths, relative to the repo root)
 - `{path/to/module}`: {what is in it}
 
@@ -111,5 +131,9 @@ Kriti-PLAN (story breakdown and sprint planning) is not built yet, so these rule
 - **Derive stories from the PRD sections**: each distinct business rule group, permission behaviour, screen or endpoint group, scheduled job, report or export, and integration client in the PRD maps to at least one story. Split a story that spans several screens, several endpoints with different rules, or a UI plus a batch job. Merge stories that are only a field or a label.
 - **Cover what the code does, not what it could do.** Each story cites the code it re-implements (`**Source:**`). No stories for new features the client did not ask for.
 - **Include the unglamorous work** the migration needs: authentication and roles, shared layout and navigation, configuration and secrets, logging and audit, error handling, each integration client, each scheduled job, each report or export, API contracts used by other systems, and the CI pipeline and automated test harness for the new codebase.
+- **Build on the target architecture** (`references/target-architecture.md`): endpoint groups and business rules are FastAPI stories; each screen group is a Next.js story; each scheduled, long-running, batch, report or event-driven legacy job is its own Airflow DAG story (a listener plus responder pair counts as two); each integration client is a FastAPI story (or a DAG task when it is batch or event-driven); schema work for the application's own PostgreSQL database is part of the stories that use it.
+- **Foundation stories** go in a cross-cutting PRD (for example "Platform foundation"): FastAPI scaffold with request-ID logging and CI, Next.js scaffold with design-system tokens and the app shell, database and migrations, Redis conventions, Airflow DAG repository layout, Vault bootstrap, and, only when they apply, MinIO, multi-tenancy plumbing and the AI stack setup (section 8 of the reference).
+- **UI stories** carry acceptance criteria for the design system: tokens used, WCAG 2.1 AA contrast (4.5:1 text, 3:1 large text and focus rings), keyboard operable. Open WebUI is never a story; the Next.js UI is the front end even for AI applications.
+- **AI applications** (the inventory reports `ai_agents`): agent configuration, vector store and ingestion, one connector sub-app per business domain, DAG-as-tool bindings and thought streaming are stories. If there are no AI agents, add none.
 - **No stories** for QA sign-off, production deployment or data migration. They are outside the estimate and covered by the go-live allowance.
 - Number stories `S01`, `S02`, ... within each PRD with no gaps. Never write a story heading in any other form: it would not be counted.

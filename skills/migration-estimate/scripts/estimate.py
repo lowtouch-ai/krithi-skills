@@ -22,6 +22,12 @@ as out of scope. --write writes estimate-summary.md only when there are no error
 requires review.md with its sections, a "Final total sprints: N" line matching the computed total, and a
 "Gap percentage (final): N" line of 30 or less (Kriti-REQ's quality-check rework threshold).
 PRD sections follow Kriti-REQ's content contract; missing ones are errors.
+
+Target architecture (references/target-architecture.md): the high-level PRD needs a "## Target architecture" section that
+names each default layer (FastAPI, Next.js, PostgreSQL, Redis, Airflow) either as the target or in a stated deviation, and
+every detailed PRD needs a "## Target design" section. With --inventory, the signals in inventory.json must be mapped:
+AI agents -> agentomatic, file handling -> MinIO, multi-tenancy -> tenant handling (all named in Target architecture),
+and scheduled or background jobs -> a DAG in some PRD. A PRD naming Open WebUI as a target gets a warning (not used).
 Prints JSON; exit 1 on errors.
 """
 import argparse, datetime, json, math, re, subprocess, sys
@@ -38,14 +44,20 @@ NOT_IN_ESTIMATE = ["QA sign-off", "Production deployment", "Data migration"]
 HIGH_LEVEL = "00-high-level-prd.md"
 SUMMARY = "estimate-summary.md"
 REVIEW = "review.md"
-REVIEW_SECTIONS = ["Coverage against the codebase", "Implementation accuracy", "Stories and sprint count", "Gaps found and fixed", "Result"]
+REVIEW_SECTIONS = ["Coverage against the codebase", "Implementation accuracy", "Architecture fit", "Stories and sprint count", "Gaps found and fixed", "Result"]
 GAP_REWORK_THRESHOLD = 30  # Kriti-REQ's KRITI_REQ_QC_GAP_REWORK_THRESHOLD default
 
 # Kriti-REQ PRD content contract (kriti_req _default_scan_prompt_body), plus the estimate's own sections.
 HIGH_LEVEL_SECTIONS = ["Overview", "Use cases and feature areas", "Detailed PRDs", "Roles & Permissions Model", "Data Model Overview",
-                       "Non-Functional Requirements", "Release / Versioning Scope", "Out of scope", "Confidence & Open Questions"]
+                       "Non-Functional Requirements", "Release / Versioning Scope", "Target architecture", "Out of scope", "Confidence & Open Questions"]
 DETAIL_SECTIONS = ["Description", "Business Rules & Logic", "Roles & Permissions", "Key Data Involved", "Notable Constraints",
-                   "Source coverage", "Stories", "Confidence & Open Questions"]
+                   "Target design", "Source coverage", "Stories", "Confidence & Open Questions"]
+
+# The default target stack. Each layer must be named in the high-level PRD's Target architecture section, as the
+# target or in a stated deviation (a deviation that names the layer counts).
+ARCH_LAYERS = {"FastAPI": ["fastapi"], "Next.js": ["next.js", "nextjs"], "PostgreSQL": ["postgresql", "postgres"],
+               "Redis": ["redis"], "Airflow": ["airflow"]}
+FOUNDATION_WORDS = re.compile(r"foundation|platform|scaffold|cross-cutting|shared|infrastructure", re.I)
 
 PRD_ID = r"PRD-\d{2,}"
 STORY_RE = re.compile(rf"^###\s+({PRD_ID})-S(\d{{2,}})\s*:\s*(.+?)\s*$", re.M)
@@ -131,6 +143,14 @@ def parse(d: Path, inventory):
         if unscored_items(hl):
             warns.append(f"{HIGH_LEVEL}: {unscored_items(hl)} Confidence & Open Questions item(s) without 'Confidence: NN%'")
 
+    arch = section(hl, "Target architecture").lower()
+    if hl and arch:
+        for layer, names in ARCH_LAYERS.items():
+            if not any(n in arch for n in names):
+                errors.append(f"{HIGH_LEVEL}: '## Target architecture' does not name {layer}; map the application onto it or record an architecture deviation that names it")
+        if "open webui" in arch or "openwebui" in arch:
+            warns.append(f"{HIGH_LEVEL}: Target architecture mentions Open WebUI; it is not part of the target (the Next.js UI is the front end)")
+
     prds, seen_story, all_text = {}, {}, hl
     for f in sorted(d.glob("prd-*.md")):
         text = f.read_text(encoding="utf-8")
@@ -195,12 +215,27 @@ def parse(d: Path, inventory):
         for i_ in uncovered_integrations:
             errors.append(f"integration not mentioned in any PRD: {i_}")
 
+    unmapped_signals = []
+    if inventory is not None:
+        sig = inventory.get("target_signals") or {}
+        low_all = all_text.lower()
+        need = {"ai_agents": ("agentomatic", arch, "AI agents found: map them onto the AI stack (agentomatic) in Target architecture, or record a deviation naming it"),
+                "file_storage": ("minio", arch, "file handling found: map it onto MinIO in Target architecture, or record a deviation naming it"),
+                "multi_tenant": ("tenant", arch, "multi-tenancy found: describe the tenant handling in Target architecture, or record a deviation"),
+                "background_jobs": ("dag", low_all, "scheduled or background jobs found: no PRD mentions an Airflow DAG; map each job to a DAG story or record a deviation")}
+        for key, (word, where, msg) in need.items():
+            if (sig.get(key) or {}).get("present") and word not in where:
+                unmapped_signals.append(key)
+                errors.append(msg)
+    if prds and not any(FOUNDATION_WORDS.search(p["title"]) for p in prds.values()):
+        warns.append("no detailed PRD looks like platform foundation work (scaffold, CI, schema, secrets, request-ID logging); see references/target-architecture.md section 8")
+
     ordered = [prds[k] for k in sorted(prds, key=lambda x: int(x.split("-")[1]))]
     total_stories = sum(p["stories"] for p in ordered)
     total_sprints = sum(p["sprints"] for p in ordered)
     return {"app_title": app_title, "prds": ordered, "total_stories": total_stories, "total_sprints": total_sprints,
             "timelines": timelines(total_sprints), "out_of_scope": out_of_scope,
-            "uncovered_modules": uncovered_modules, "uncovered_integrations": uncovered_integrations,
+            "uncovered_modules": uncovered_modules, "uncovered_integrations": uncovered_integrations, "unmapped_signals": unmapped_signals,
             "errors": errors, "warnings": warns}
 
 
@@ -231,7 +266,8 @@ def render(r: dict, inventory_used: bool) -> str:
           "2. Each detailed PRD is converted into stories.",
           f"3. {STORIES_PER_SPRINT} stories make one sprint. Sprints are counted per PRD and rounded up, so a PRD with 6 stories is 2 sprints.",
           f"4. A sprint is {ENGINEERS} engineers. A human team takes {HUMAN_DAYS_PER_SPRINT} working days (two weeks) per sprint; with Krithi the same sprint takes {KRITHI_DAYS_PER_SPRINT} working days.",
-          "5. Sprints run one after another, so duration = total sprints x working days per sprint.", "",
+          "5. Sprints run one after another, so duration = total sprints x working days per sprint.",
+          f"6. The target is Krithi's standard architecture: FastAPI, PostgreSQL, Redis, Next.js and Airflow, with Vault for secrets, MinIO when files are stored and the AI stack when the application has AI agents. Deviations are listed in the [high-level PRD]({HIGH_LEVEL}#target-architecture).", "",
           "## Not included in this estimate", "",
           "The estimate covers **development and testing only**. These activities are not included:", ""]
     L += [f"- {x}" for x in NOT_IN_ESTIMATE]

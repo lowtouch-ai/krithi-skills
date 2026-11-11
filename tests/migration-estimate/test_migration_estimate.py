@@ -49,11 +49,15 @@ def prd(n, stories, cov, extra=""):
     pid = f"PRD-{n:02d}"
     body = "\n".join(story(pid, i) for i in range(1, stories + 1))
     req = "".join(f"## {h}\n- x `jobs`\n\n" for h in ["Description", "Business Rules & Logic", "Roles & Permissions", "Key Data Involved", "Notable Constraints"])
-    return (f"# {pid}: Area {n}\n\n{req}## Integrations\n{extra or 'None.'}\n\n## Source coverage\n" + "\n".join(f"- `{c}`: code" for c in cov) +
+    return (f"# {pid}: Area {n}\n\n{req}## Integrations\n{extra or 'None.'}\n\n## Target design\nFastAPI endpoints, Next.js screens.\n\n## Source coverage\n" + "\n".join(f"- `{c}`: code" for c in cov) +
             f"\n\n## Stories\n\n{body}\n## Dependencies\nNone.\n\n## Confidence & Open Questions\n- Rules verified. Confidence: 90%\n")
 
 
-def write_set(d: Path, sizes, cov_for=None, listed=None, hl_extra=""):
+ARCH = ("## Target architecture\nFastAPI backend, Next.js UI, PostgreSQL database, Redis cache, Airflow DAG for the nightly job. "
+        "Tenant handling follows the standard. No Open WebUI.\n\n")
+
+
+def write_set(d: Path, sizes, cov_for=None, listed=None, hl_extra="", arch=None):
     d.mkdir(parents=True, exist_ok=True)
     for f in d.glob("*.md"):
         f.unlink()
@@ -62,7 +66,7 @@ def write_set(d: Path, sizes, cov_for=None, listed=None, hl_extra=""):
     (d / "00-high-level-prd.md").write_text(
         f"# High-level PRD: Shop App\n\n## Detailed PRDs\n| ID | Title | Scope | Paths |\n|---|---|---|---|\n{rows}\n\n"
         "## Overview\nx\n\n## Use cases and feature areas\nx\n\n## Roles & Permissions Model\nx\n\n## Data Model Overview\nx\n\n"
-        "## Non-Functional Requirements\nx\n\n## Release / Versioning Scope\nx\n\n"
+        "## Non-Functional Requirements\nx\n\n## Release / Versioning Scope\nx\n\n" + (ARCH if arch is None else arch) +
         f"## Out of scope\n{hl_extra or 'None.'}\n\n## Confidence & Open Questions\n- PostgreSQL, Stripe and RabbitMQ are used. Confidence: 95%\n")
     for i, s in enumerate(sizes, 1):
         cov = (cov_for or {}).get(i, ["src/main/java/com/acme", "web", "jobs"])
@@ -122,7 +126,7 @@ expect(rc == 0, f"Out of scope path should count as covered: {r.get('errors')}")
 rc, r = run(estimate, "--dir", str(out), "--review")
 expect(rc == 1 and any("missing review.md" in e for e in r.get("errors", [])), "missing review.md must fail")
 review = ("# Estimate review: Shop App\n\n## Coverage against the codebase\nx\n\n## Implementation accuracy\nNone found.\n\n"
-          "## Stories and sprint count\n- Final total sprints: {n}\n\n## Gaps found and fixed\nNone found.\n\n"
+          "## Architecture fit\nx\n\n## Stories and sprint count\n- Final total sprints: {n}\n\n## Gaps found and fixed\nNone found.\n\n"
           "- Gap percentage (final): {g}\n\n## Result\nComplete.\n")
 (out / "review.md").write_text(review.format(n=1, g=45))
 rc, r = run(estimate, "--dir", str(out), "--review")
@@ -133,6 +137,69 @@ expect(rc == 1 and any("says 7" in e for e in r.get("errors", [])), "review tota
 (out / "review.md").write_text(review.format(n=1, g=10))
 rc, r = run(estimate, "--dir", str(out), "--inventory", inv_path, "--write", "--review")
 expect(rc == 0 and (out / "estimate-summary.md").is_file(), f"final check should pass: {r.get('errors')}")
+
+# --- target architecture checks ---------------------------------------------------------------
+rc, ai_inv = run(inventory, str(root / "tests/migration-estimate/fixtures/ai-app"), "--out", str(tmp / "ai-inv.json"))
+sig_shop = {k: v["present"] for k, v in json.loads(Path(inv_path).read_text())["target_signals"].items()}
+expect(sig_shop == {"ai_agents": False, "background_jobs": True, "caches": False, "file_storage": False, "multi_tenant": True}, f"shop-app signals wrong: {sig_shop}")
+expect(ai_inv.get("target_signals", {}).get("ai_agents", {}).get("present") is True, "ai-app must report AI agent signals")
+expect(not ai_inv.get("target_signals", {}).get("background_jobs", {}).get("present"), "ai-app has no background jobs")
+
+write_set(out, [5], arch="## Target architecture\nFastAPI backend, Next.js UI, PostgreSQL database, Airflow DAG for jobs. Tenant handling standard.\n\n")
+rc, r = run(estimate, "--dir", str(out))
+expect(rc == 1 and any("does not name Redis" in e for e in r.get("errors", [])), f"a target layer that is not named must fail: {r.get('errors')}")
+write_set(out, [5], arch="## Target architecture\nFastAPI, Next.js, PostgreSQL, Redis, Airflow. Deviation: Redis is not needed because nothing is cached.\n\n")
+rc, r = run(estimate, "--dir", str(out))
+expect(not any("does not name" in e for e in r.get("errors", [])), "a deviation that names the layer must satisfy the check")
+write_set(out, [5], arch="## Target architecture\nFastAPI, Next.js, PostgreSQL, Redis and Airflow, with Open WebUI as the chat front end.\n\n")
+rc, r = run(estimate, "--dir", str(out))
+expect(any("Open WebUI" in w for w in r.get("warnings", [])), "naming Open WebUI as a target must warn")
+# inventory signals: jobs need a DAG somewhere, tenancy must be addressed
+write_set(out, [5], arch="## Target architecture\nFastAPI, Next.js, PostgreSQL, Redis, Airflow.\n\n")
+rc, r = run(estimate, "--dir", str(out), "--inventory", inv_path)
+expect(sorted(r.get("unmapped_signals", [])) == ["background_jobs", "multi_tenant"], f"jobs and tenancy must both be unmapped: {r.get('unmapped_signals')}")
+write_set(out, [5], arch="## Target architecture\nFastAPI, Next.js, PostgreSQL, Redis, Airflow (each legacy job becomes a DAG).\n\n")
+rc, r = run(estimate, "--dir", str(out), "--inventory", inv_path)
+expect(r.get("unmapped_signals") == ["multi_tenant"], f"only tenancy should be unmapped once DAGs are named: {r.get('unmapped_signals')}")
+# AI application: must name the AI stack (agentomatic)
+ai_dir = tmp / "ai-repo" / "docs" / "migration-estimate"
+write_set(ai_dir, [5], arch="## Target architecture\nFastAPI, Next.js, PostgreSQL, Redis, Airflow.\n\n")
+rc, r = run(estimate, "--dir", str(ai_dir), "--inventory", str(tmp / "ai-inv.json"))
+expect("ai_agents" in r.get("unmapped_signals", []), f"AI agents must require the AI stack in Target architecture: {r.get('unmapped_signals')}")
+write_set(ai_dir, [5], arch="## Target architecture\nFastAPI, Next.js, PostgreSQL, Redis, Airflow. Agents run on agentomatic with agentvector for retrieval.\n\n")
+rc, r = run(estimate, "--dir", str(ai_dir), "--inventory", str(tmp / "ai-inv.json"))
+expect("ai_agents" not in r.get("unmapped_signals", []), "naming agentomatic must satisfy the AI stack check")
+# a missing Target design section is an error
+write_set(out, [5])
+f1 = out / "prd-01-area.md"
+f1.write_text(f1.read_text().replace("## Target design", "## Design"))
+rc, r = run(estimate, "--dir", str(out))
+expect(any("missing section '## Target design'" in e for e in r.get("errors", [])), "missing Target design must fail")
+
+# --- remediation estimate (accessibility report + security audit) ------------------------------
+rem = str(root / "skills/migration-estimate/scripts/remediation.py")
+rf = root / "tests/migration-estimate/fixtures/remediation"
+rout = tmp / "rem"
+rc, r = run(rem, "--a11y", str(rf / "results.json"), "--security", str(rf / "security-audit_20260101-000000.sarif"), "--out", str(rout))
+expect(rc == 0 and r.get("ok"), f"remediation should succeed: {r.get('errors')}")
+sec, a11y = r.get("security", {}), r.get("a11y", {})
+# 4 Critical (cap 3 -> 2 stories) + 1 High + 6 Medium (cap 5 -> 2) + Low in two folders (2) + 1 verification = 8 stories = 2 sprints
+expect(sec.get("stories") == 8 and sec.get("sprints") == 2 and sec.get("findings_estimated") == 13, f"security numbers wrong: {sec}")
+ne = " ".join(sec.get("not_estimated", {}))
+expect("unconfirmed" in ne and "suppressed" in ne and "informational" in ne, f"security exclusions must be listed: {sec.get('not_estimated')}")
+expect("alerts" in " ".join(a11y.get("not_estimated", {})), "accessibility alerts must be listed as not estimated")
+expect(a11y.get("stories", 0) > 1 and a11y.get("sprints") == -(-a11y.get("stories", 0) // 5), f"a11y sprints must be stories/5 rounded up: {a11y}")
+expect(r.get("combined", {}).get("sprints") == a11y.get("sprints", 0) + sec.get("sprints", 0), "combined sprints must be the sum")
+for f in ("a11y-remediation-estimate.md", "security-remediation-estimate.md", "remediation-summary.md", "remediation.json"):
+    expect((rout / f).is_file(), f"remediation output missing: {f}")
+summary = (rout / "remediation-summary.md").read_text(encoding="utf-8") if (rout / "remediation-summary.md").is_file() else ""
+expect("Krithi" in summary and "Human team" in summary, "summary must show both timelines")
+rc, r2 = run(rem, "--a11y", str(rf / "results.json"), "--security", str(rf / "security-audit_20260101-000000.sarif"), "--out", str(tmp / "rem2"),
+             "--include-alerts", "--include-unconfirmed")
+expect(r2.get("security", {}).get("findings_estimated") == 14 and r2.get("a11y", {}).get("stories", 0) > a11y.get("stories", 0),
+       f"--include-alerts/--include-unconfirmed must add findings: {r2.get('security')} {r2.get('a11y', {}).get('stories')}")
+rc, r3 = run(rem, "--a11y", str(tmp / "nope.json"))
+expect(rc == 1 and not r3.get("ok"), "a missing report must fail")
 
 print("OK" if not problems else "\n".join(problems))
 sys.exit(1 if problems else 0)

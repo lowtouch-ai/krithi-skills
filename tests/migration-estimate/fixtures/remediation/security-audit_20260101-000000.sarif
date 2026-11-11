@@ -1,0 +1,489 @@
+{
+ "version": "2.1.0",
+ "runs": [
+  {
+   "tool": {
+    "driver": {
+     "name": "appsec-static-audit",
+     "rules": [
+      {
+       "id": "INJ-1",
+       "shortDescription": {
+        "text": "SQL built from user input"
+       }
+      },
+      {
+       "id": "SEC-1",
+       "shortDescription": {
+        "text": "Hard-coded secret"
+       }
+      },
+      {
+       "id": "XSS-1",
+       "shortDescription": {
+        "text": "Unescaped output"
+       }
+      },
+      {
+       "id": "LOG-1",
+       "shortDescription": {
+        "text": "Sensitive data in logs"
+       }
+      },
+      {
+       "id": "CSRF-1",
+       "shortDescription": {
+        "text": "No CSRF token"
+       }
+      }
+     ]
+    }
+   },
+   "results": [
+    {
+     "ruleId": "INJ-1",
+     "level": "error",
+     "message": {
+      "text": "x"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "api/db.py"
+        },
+        "region": {
+         "startLine": 10
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "appsecAudit/v1": "INJ-1api/db.py10"
+     },
+     "properties": {
+      "findingId": "F",
+      "severity": "Critical",
+      "confirmed": true
+     }
+    },
+    {
+     "ruleId": "INJ-1",
+     "level": "error",
+     "message": {
+      "text": "x"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "api/db.py"
+        },
+        "region": {
+         "startLine": 11
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "appsecAudit/v1": "INJ-1api/db.py11"
+     },
+     "properties": {
+      "findingId": "F",
+      "severity": "Critical",
+      "confirmed": true
+     }
+    },
+    {
+     "ruleId": "INJ-1",
+     "level": "error",
+     "message": {
+      "text": "x"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "api/db.py"
+        },
+        "region": {
+         "startLine": 12
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "appsecAudit/v1": "INJ-1api/db.py12"
+     },
+     "properties": {
+      "findingId": "F",
+      "severity": "Critical",
+      "confirmed": true
+     }
+    },
+    {
+     "ruleId": "INJ-1",
+     "level": "error",
+     "message": {
+      "text": "x"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "api/db.py"
+        },
+        "region": {
+         "startLine": 13
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "appsecAudit/v1": "INJ-1api/db.py13"
+     },
+     "properties": {
+      "findingId": "F",
+      "severity": "Critical",
+      "confirmed": true
+     }
+    },
+    {
+     "ruleId": "SEC-1",
+     "level": "error",
+     "message": {
+      "text": "x"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "api/config.py"
+        },
+        "region": {
+         "startLine": 5
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "appsecAudit/v1": "SEC-1api/config.py5"
+     },
+     "properties": {
+      "findingId": "F",
+      "severity": "High",
+      "confirmed": true
+     }
+    },
+    {
+     "ruleId": "XSS-1",
+     "level": "warning",
+     "message": {
+      "text": "x"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "web/page0.html"
+        },
+        "region": {
+         "startLine": 3
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "appsecAudit/v1": "XSS-1web/page0.html3"
+     },
+     "properties": {
+      "findingId": "F",
+      "severity": "Medium",
+      "confirmed": true
+     }
+    },
+    {
+     "ruleId": "XSS-1",
+     "level": "warning",
+     "message": {
+      "text": "x"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "web/page1.html"
+        },
+        "region": {
+         "startLine": 3
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "appsecAudit/v1": "XSS-1web/page1.html3"
+     },
+     "properties": {
+      "findingId": "F",
+      "severity": "Medium",
+      "confirmed": true
+     }
+    },
+    {
+     "ruleId": "XSS-1",
+     "level": "warning",
+     "message": {
+      "text": "x"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "web/page2.html"
+        },
+        "region": {
+         "startLine": 3
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "appsecAudit/v1": "XSS-1web/page2.html3"
+     },
+     "properties": {
+      "findingId": "F",
+      "severity": "Medium",
+      "confirmed": true
+     }
+    },
+    {
+     "ruleId": "XSS-1",
+     "level": "warning",
+     "message": {
+      "text": "x"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "web/page3.html"
+        },
+        "region": {
+         "startLine": 3
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "appsecAudit/v1": "XSS-1web/page3.html3"
+     },
+     "properties": {
+      "findingId": "F",
+      "severity": "Medium",
+      "confirmed": true
+     }
+    },
+    {
+     "ruleId": "XSS-1",
+     "level": "warning",
+     "message": {
+      "text": "x"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "web/page4.html"
+        },
+        "region": {
+         "startLine": 3
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "appsecAudit/v1": "XSS-1web/page4.html3"
+     },
+     "properties": {
+      "findingId": "F",
+      "severity": "Medium",
+      "confirmed": true
+     }
+    },
+    {
+     "ruleId": "XSS-1",
+     "level": "warning",
+     "message": {
+      "text": "x"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "web/page5.html"
+        },
+        "region": {
+         "startLine": 3
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "appsecAudit/v1": "XSS-1web/page5.html3"
+     },
+     "properties": {
+      "findingId": "F",
+      "severity": "Medium",
+      "confirmed": true
+     }
+    },
+    {
+     "ruleId": "LOG-1",
+     "level": "note",
+     "message": {
+      "text": "x"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "jobs/run.py"
+        },
+        "region": {
+         "startLine": 9
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "appsecAudit/v1": "LOG-1jobs/run.py9"
+     },
+     "properties": {
+      "findingId": "F",
+      "severity": "Low",
+      "confirmed": true
+     }
+    },
+    {
+     "ruleId": "LOG-1",
+     "level": "note",
+     "message": {
+      "text": "x"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "api/app.py"
+        },
+        "region": {
+         "startLine": 9
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "appsecAudit/v1": "LOG-1api/app.py9"
+     },
+     "properties": {
+      "findingId": "F",
+      "severity": "Low",
+      "confirmed": true
+     }
+    },
+    {
+     "ruleId": "CSRF-1",
+     "level": "warning",
+     "message": {
+      "text": "x"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "web/form.html"
+        },
+        "region": {
+         "startLine": 2
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "appsecAudit/v1": "CSRF-1web/form.html2"
+     },
+     "properties": {
+      "findingId": "F",
+      "severity": "Medium",
+      "confirmed": false
+     }
+    },
+    {
+     "ruleId": "DKR-1",
+     "level": "note",
+     "message": {
+      "text": "x"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "Dockerfile"
+        },
+        "region": {
+         "startLine": 1
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "appsecAudit/v1": "DKR-1Dockerfile1"
+     },
+     "properties": {
+      "findingId": "F",
+      "severity": "Low",
+      "confirmed": true
+     },
+     "suppressions": [
+      {
+       "kind": "external",
+       "status": "accepted",
+       "justification": "false positive: test image"
+      }
+     ]
+    },
+    {
+     "ruleId": "INFO-1",
+     "level": "note",
+     "message": {
+      "text": "x"
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": "README.md"
+        },
+        "region": {
+         "startLine": 1
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "appsecAudit/v1": "INFO-1README.md1"
+     },
+     "properties": {
+      "findingId": "F",
+      "severity": "Info",
+      "confirmed": true
+     }
+    }
+   ],
+   "properties": {
+    "repository": "shop-app",
+    "commit": "0123456789abcdef"
+   }
+  }
+ ]
+}
