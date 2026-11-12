@@ -1,3 +1,3 @@
 interface:
-  display_name: "AppSec Static Audit"
+  display_name: "appsec-static-audit"
   short_description: "Source-code security audit with NIST 800-53, IRS Pub 1075 and EOTSS mapping and an enterprise report"
