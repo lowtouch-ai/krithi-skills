@@ -1,0 +1,3 @@
+interface:
+  display_name: "feature-estimate"
+  short_description: "Turn customer emails, meeting notes, tickets, bug reports and user stories into a requirements register, high-level and detailed PRDs and stories, and estimate sprints for a human team vs Krithi using migration-estimate's exact process and scripts; inspects the repository for the affected modules and self-reviews for coverage"

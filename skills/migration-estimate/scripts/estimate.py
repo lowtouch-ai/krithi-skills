@@ -2,7 +2,7 @@
 """Validate the migration-estimate PRDs, count stories and sprints, and write the estimate summary.
 
 Usage:
-  estimate.py [--dir docs/migration-estimate] [--inventory INVENTORY.json] [--write] [--review]
+  estimate.py [--dir docs/migration-estimate] [--inventory INVENTORY.json] [--write] [--review] [--label Migration]
 
 Reads (all under --dir, default docs/migration-estimate at the git top-level of the cwd):
   00-high-level-prd.md   lists every detailed PRD id (PRD-01, PRD-02, ...) under "## Detailed PRDs"
@@ -239,11 +239,11 @@ def parse(d: Path, inventory):
             "errors": errors, "warnings": warns}
 
 
-def render(r: dict, inventory_used: bool) -> str:
+def render(r: dict, inventory_used: bool, label: str = "Migration") -> str:
     h, k = r["timelines"]["human"], r["timelines"]["krithi"]
     today = datetime.date.today().isoformat()
     app = re.sub(r"^High-level PRD\s*:\s*", "", r["app_title"], flags=re.I)
-    L = [f"# Migration estimate: {app}", "",
+    L = [f"# {label} estimate: {app}", "",
          f"Generated {today} by `estimate.py` from the PRDs in this folder. Do not edit the numbers by hand; change the PRDs and re-run the script.", "",
          "## Headline", "",
          f"**{r['total_sprints']} sprints** ({r['total_stories']} stories across {len(r['prds'])} detailed PRDs), two engineers throughout.", "",
@@ -312,6 +312,7 @@ def main() -> int:
     ap.add_argument("--dir", help="output folder (default: <repo>/docs/migration-estimate)")
     ap.add_argument("--inventory", help="inventory.json from inventory.py, for the coverage check")
     ap.add_argument("--write", action="store_true", help=f"write {SUMMARY} when there are no errors")
+    ap.add_argument("--label", default="Migration", help="word in the summary title, '<label> estimate: <app>' (feature-estimate passes Feature)")
     ap.add_argument("--review", action="store_true", help=f"also require {REVIEW} matching the computed total")
     a = ap.parse_args()
     d = Path(a.dir).resolve() if a.dir else default_dir()
@@ -329,7 +330,7 @@ def main() -> int:
     if a.review:
         check_review(d, r["total_sprints"], r["errors"])
     if a.write and not r["errors"]:
-        (d / SUMMARY).write_text(render(r, inv is not None), encoding="utf-8")
+        (d / SUMMARY).write_text(render(r, inv is not None, a.label), encoding="utf-8")
         r["written"] = str(d / SUMMARY)
     r["ok"] = not r["errors"]
     for p in r["prds"]:
