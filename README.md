@@ -28,6 +28,7 @@ The skills in this repository are reusable building blocks for that kind of work
 | [`wave-a11y-scan`](#wave-a11y-scan) | WAVE-style accessibility scan of a project's source code with a client-ready report (WCAG 2.2, Section 508 note). |
 | [`plan-builder`](#plan-builder) | Turns a ticket (text, screenshot, HTML, Markdown, logs) into a ready-to-paste Codex Plan Mode prompt; supporting artifacts are saved under `~/.krithi/<TICKET>/` (outside the repo) and referenced by verified absolute paths; the prompt is saved under `docs/plan-prompts/`. |
 | [`migration-estimate`](#migration-estimate) | Reads a codebase and estimates migration or modernisation effort the Krithi way: high-level PRD, detailed PRDs, stories and sprints, with a human-team vs Krithi timeline side by side, an approximate go-live allowance, and a self-review for coverage; all Markdown under `docs/migration-estimate/`. It plans every migration onto Krithi's standard architecture (FastAPI, PostgreSQL, Redis, Next.js, Airflow; our AI stack when the app has AI agents). It also estimates the effort to fix an accessibility report and a security audit (`docs/remediation-estimate/`). |
+| [`feature-estimate`](#feature-estimate) | Turns customer emails, meeting notes, bug reports, tickets and user stories into a requirements register (with traceability to the input), high-level and detailed PRDs, stories and sprints, estimated for a human team vs Krithi. It follows `migration-estimate` exactly and runs its scripts; only the input and the code scope differ (documented in `references/feature-delta.md`). Writes `docs/feature-estimate/`. Needs `migration-estimate` installed. |
 | [`prepare-pr`](#prepare-pr) | Takes finished, tested work to a pull request: reviews the change (bugs, security, quality, performance, requirements) and fixes what you approve, runs the tests, updates only the docs the change affects, checks the branch name fits the work, commits only in-scope files with a detailed message, then asks before pushing and opening the PR. |
 
 In Codex, install a skill with the command in its section, then restart Codex. Skills are installed as folders under `~/.codex/skills/` (or `$CODEX_HOME/skills/` if you set `CODEX_HOME`).
@@ -311,6 +312,48 @@ rm -rf ~/.codex/skills/migration-estimate
 ```
 
 Files the skill wrote (`docs/migration-estimate/` in your projects and `~/.krithi/migration-estimate/`) are not removed with the skill.
+
+## feature-estimate
+
+Estimates the effort to build what a customer asked for: emails and threads, meeting notes and transcripts, bug reports, enhancement tickets, user stories and other feedback. It saves each input, extracts a requirements register (assumptions, open questions, and a quote tracing every requirement to its source), inspects the repository for the modules, integrations, APIs and data the changes touch, and then runs **exactly** the `migration-estimate` process: high-level PRD in Kriti-REQ's format, detailed PRDs, stories, sprints (5 stories = 1 sprint of 2 engineers; 10 working days for a human team vs 2 with Krithi), about 20% go-live allowance, and a self-review with rework above a 30% gap.
+
+**One set of rules.** The skill contains no estimation logic. Its `estimate.py` and `inventory.py` run `migration-estimate`'s scripts (only the output folder and the summary title differ), so the two cannot produce different numbers. The one new check, `requirements.py`, confirms every requirement is covered by a story (or marked out of scope or deferred with a reason) and every story traces to a requirement; it never changes a count. The intentional differences are listed in [`feature-delta.md`](skills/feature-estimate/references/feature-delta.md): customer input instead of the codebase as the requirement, reading only the affected code, no foundation stories the application already has, building in the application's existing architecture (recorded as architecture deviations where it differs from Krithi's standard), and a `Requirements coverage` section in the review. `tests/feature-estimate/test_feature_estimate.py` runs the same PRDs through both skills and fails if anything differs.
+
+### Install
+
+`feature-estimate` uses `migration-estimate`'s scripts, so install both:
+
+```
+$skill-installer install https://github.com/lowtouch-ai/krithi-skills/tree/main/skills/migration-estimate
+```
+
+```
+$skill-installer install https://github.com/lowtouch-ai/krithi-skills/tree/main/skills/feature-estimate
+```
+
+### Test
+
+Open Codex at the root of the application repository and run, pasting or attaching the customer input:
+
+```
+$feature-estimate estimate this customer request: <paste the email, notes or ticket>
+```
+
+It writes `docs/feature-estimate/`: `inputs/`, `00-requirements.md`, `00-high-level-prd.md`, one `prd-NN-<slug>.md` per feature area, `estimate-summary.md` and `review.md`. The inventory is saved under `~/.krithi/feature-estimate/<repo>/`.
+
+### Update
+
+```
+$skill-installer update https://github.com/lowtouch-ai/krithi-skills/tree/main/skills/feature-estimate
+```
+
+### Uninstall
+
+```
+rm -rf ~/.codex/skills/feature-estimate
+```
+
+Files the skill wrote (`docs/feature-estimate/` in your projects and `~/.krithi/feature-estimate/`) are not removed with the skill.
 
 ## prepare-pr
 
