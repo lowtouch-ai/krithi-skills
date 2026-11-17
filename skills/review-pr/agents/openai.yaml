@@ -1,0 +1,3 @@
+interface:
+  display_name: "review-pr"
+  short_description: "Review a PR against its requirements and the Krithi process: validated findings, process compliance table, five-factor weighted scorecard and recommendation; revise from reviewer feedback, then post the approved comment to GitHub only after confirmation"
