@@ -1,0 +1,3 @@
+interface:
+  display_name: "validate-pr"
+  short_description: "Validate a PR by testing it: test plan and Playwright tests committed to the repo, app built and launched from the exact PR commit, evidence (screenshots, traces, console and app logs) saved outside the repo per owner/repo/PR/run, triaged defects and a Passed/Failed/Blocked/Needs Manual Verification verdict; retests and reviewer-approved test commits"

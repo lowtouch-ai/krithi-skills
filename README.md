@@ -17,7 +17,7 @@ Work moves through four stages, and a human approves each one before anything me
 
 An orchestration agent routes each task to the model that suits it (Claude Code, Codex, Kimi or Gemma) and syncs status with Jira, Azure DevOps or ServiceNow. Krithi is aimed at engineering teams with a backlog and too few engineers, especially in regulated environments, for work such as legacy modernization, greenfield builds, data pipelines and platform migrations. lowtouch.ai also offers it as a managed service ([Velocity Pods](https://www.lowtouch.ai/agents/krithi/)), where its engineers run Krithi and own the review gates.
 
-The skills in this repository are reusable building blocks for that kind of work: accessibility scanning, security auditing, agent-ready documentation, ticket-to-plan prompt building, migration effort estimation, pull request preparation and pull request review.
+The skills in this repository are reusable building blocks for that kind of work: accessibility scanning, security auditing, agent-ready documentation, ticket-to-plan prompt building, migration effort estimation, pull request preparation, pull request review and pull request validation.
 
 ## Skills
 
@@ -31,6 +31,7 @@ The skills in this repository are reusable building blocks for that kind of work
 | [`feature-estimate`](#feature-estimate) | Turns customer emails, meeting notes, bug reports, tickets and user stories into a requirements register (with traceability to the input), high-level and detailed PRDs, stories and sprints, estimated for a human team vs Krithi. It follows `migration-estimate` exactly and runs its scripts; only the input and the code scope differ (documented in `references/feature-delta.md`). Writes `docs/feature-estimate/`. Needs `migration-estimate` installed. |
 | [`prepare-pr`](#prepare-pr) | Takes finished, tested work to a pull request: reviews the change (bugs, security, quality, performance, requirements) and fixes what you approve, runs the tests, updates only the docs the change affects, checks the branch name fits the work, commits only in-scope files with a detailed message, then asks before pushing and opening the PR. |
 | [`review-pr`](#review-pr) | Reviews a pull request (a workshop participant's or one Krithi generated) against its requirements and the Krithi development process: validated findings with severity, file and line and a fix; a process compliance table for the eight workflow steps; a five-factor weighted scorecard and a recommendation. Revises the review from your feedback and keeps the history, then posts the approved comment to the PR only after you confirm the exact text. |
+| [`validate-pr`](#validate-pr) | Validates a pull request by testing it: works out the requirements, writes a test plan and Playwright tests into the repository (committed to the PR only after you approve the exact diff), builds and launches the app from the PR's exact commit for any stack, runs the tests, and saves screenshots, traces, console errors and app logs outside the repository per owner/repo/PR/run. Triages each failure as an application defect, a test problem or an environment issue, and computes Passed, Failed, Blocked or Needs Manual Verification. Supports reviewer challenges, extra scenarios, reruns and retests after fixes. |
 
 In Codex, install a skill with the command in its section, then restart Codex. Skills are installed as folders under `~/.codex/skills/` (or `$CODEX_HOME/skills/` if you set `CODEX_HOME`).
 
@@ -465,6 +466,78 @@ rm -rf ~/.codex/skills/review-pr
 ```
 
 Reviews and the feedback log in `~/.krithi/reviews/` and `~/.krithi/review-pr/`, and comments already posted on PRs, are not removed with the skill.
+
+## validate-pr
+
+Validates one GitHub pull request by running it, and complements `review-pr` (which reads it). Give it the PR link. It works out the requirements and acceptance criteria (linked issue, ticket, plan-builder files, PR description, or inferred and labelled), checks out the PR's exact head commit in an isolated worktree, and reads the change, the existing tests and the repository's conventions. It writes a **test plan** (requirements, test cases with positive, negative, boundary, accessibility and regression scenarios, Required or Optional, Automated or Manual) and **Playwright tests** whose titles carry the plan's test-case IDs; `test_plan.py` checks that every requirement has a test case and every automated case has a test. It then builds and launches the application for whatever stack it finds (Node, Python, JVM, .NET, Go, Ruby, PHP, static sites; monorepos by the folder the PR changes), waits until it answers, runs the tests with screenshots and traces forced on and no retries, and collects browser console errors and application logs.
+
+Every failure is triaged as an **application defect** (with severity, requirement, expected and actual behaviour, reproduction steps and evidence), a **test-automation problem** (fixed in the test, never in the app) or an **environment issue**; defects the PR did not introduce are marked pre-existing. `verdict.py` computes the status from the evidence: **Passed**, **Failed**, **Blocked** (for example the app cannot start; the blocker, command, exit code and log tail are recorded, never a pass) or **Needs Manual Verification**. The skill never changes application code: `commit_tests.py` commits only test plans, tests, fixtures and test configuration, only the exact diff you approved, and asks again before a fast-forward push to the PR branch (fork PRs without maintainer edits get a patch instead).
+
+**Two locations.** Committable artifacts (plan, specs, fixtures, Playwright config) go in the repository, following its conventions; if adding Playwright to the app would break its rules (a type-check that includes every `.ts` file, a lockfile policy), they go in a self-contained `e2e/` package. Execution evidence goes outside the repository, one folder per run, keyed by GitHub's owner, repository and PR number, so PR #12 in two repositories and every run of one PR stay separate:
+
+```
+~/.krithi/validate-pr-artifacts/github/<owner>/<repo>/pr-<n>/run-<UTC timestamp>-<sha12>/
+    metadata.json   PR URL, repository URL, tested commit, timestamps, environment, app, tests, status
+    results/  screenshots/  traces/  logs/  defects/  report/validation-report.md
+```
+
+Set `VALIDATE_PR_ARTIFACTS` to use another location. After the report you can challenge a defect (it is re-checked against the evidence and every change is recorded with its reason), ask for more scenarios, rerun selected tests, or retest after the author pushes fixes: a retest is a new run that marks each earlier defect Resolved, Still open or Needs verification. Needs Python 3.8+, git, the `gh` CLI logged in, and the application's own toolchain; Playwright browsers are installed when missing. Details: [`SKILL.md`](skills/validate-pr/SKILL.md).
+
+### Install
+
+```
+$skill-installer install https://github.com/lowtouch-ai/krithi-skills/tree/main/skills/validate-pr
+```
+
+Then restart Codex.
+
+### Test
+
+Open Codex in a clone of the repository the PR belongs to (or anywhere, with a full PR URL) and run:
+
+```
+$validate-pr validate https://github.com/<owner>/<repo>/pull/<n>
+```
+
+With acceptance criteria, and without offering to commit the tests:
+
+```
+$validate-pr validate PR 42 no-commit; acceptance criteria: quantity 0 shows "Quantity must be at least 1"
+```
+
+After the author pushes fixes:
+
+```
+$validate-pr retest https://github.com/<owner>/<repo>/pull/<n>
+```
+
+### Update
+
+To get the latest version, use either option, then restart Codex.
+
+Option 1: ask the installer to update from the URL:
+
+```
+$skill-installer update https://github.com/lowtouch-ai/krithi-skills/tree/main/skills/validate-pr
+```
+
+Option 2: remove the installed folder and install it again:
+
+```
+rm -rf ~/.codex/skills/validate-pr
+```
+
+```
+$skill-installer install https://github.com/lowtouch-ai/krithi-skills/tree/main/skills/validate-pr
+```
+
+### Uninstall
+
+```
+rm -rf ~/.codex/skills/validate-pr
+```
+
+Validation evidence in `~/.krithi/validate-pr-artifacts/`, clones and worktrees in `~/.krithi/validate-pr/`, and test plans and tests committed to PRs are not removed with the skill.
 
 ## Uninstalling from inside Codex
 
