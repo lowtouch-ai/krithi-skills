@@ -12,9 +12,9 @@ Layout (base: $KRITHI_HOME or ~/.krithi):
 
 Usage:
   review_log.py init     --gh-repo owner/name --pr N
-  review_log.py save     --dir D --report report.md --scorecard ratings.json [--changes "what changed and why"]
+  review_log.py save     --dir D --report report.md --scorecard ratings.json [--head-sha SHA] [--changes "what changed and why"]
   review_log.py feedback --dir D --kind KIND --text "..." [--finding F2] [--factor testing] [--area "..."]
-  review_log.py approve  --dir D
+  review_log.py approve  --dir D [--auto --reason "why the gate passed"]   # --auto: approved by the skill's quality gate, no reviewer
   review_log.py history  --dir D            # Markdown "Reviewer feedback history" for the report
   review_log.py status   --dir D            # JSON: latest version, approved?, published?
 
@@ -71,7 +71,9 @@ def cmd_init(a):
     d.mkdir(parents=True, exist_ok=True)
     if not (d / "history.jsonl").exists():
         append(d, {"event": "init", "gh_repo": a.gh_repo, "pr": int(a.pr)})
-    return {"dir": str(d), "latest_version": latest_version(d), "previous_events": len(events(d)) - 1}
+    versions = [e for e in events(d) if e["event"] == "version"]
+    return {"dir": str(d), "latest_version": latest_version(d), "previous_events": len(events(d)) - 1,
+            "last_reviewed_head": versions[-1].get("head_sha") if versions else None}
 
 
 def cmd_save(a):
@@ -82,7 +84,7 @@ def cmd_save(a):
     shutil.copyfile(a.report, d / f"report-v{v}.md")
     if a.scorecard:
         shutil.copyfile(a.scorecard, d / f"scorecard-v{v}.json")
-    append(d, {"event": "version", "version": v, "changes": a.changes or "initial review"})
+    append(d, {"event": "version", "version": v, "changes": a.changes or "initial review", "head_sha": a.head_sha})
     return {"dir": str(d), "version": v, "report": str(d / f"report-v{v}.md")}
 
 
@@ -104,7 +106,10 @@ def cmd_approve(a):
     v = latest_version(d)
     if not v:
         sys.exit(json.dumps({"error": "nothing to approve: no report saved"}))
-    return {"recorded": append(d, {"event": "approved", "version": v})}
+    if a.auto and not (a.reason or "").strip():
+        sys.exit(json.dumps({"error": "--auto approval needs --reason (which gate checks passed)"}))
+    return {"recorded": append(d, {"event": "approved", "version": v, "by": "auto" if a.auto else "reviewer",
+                                   "reason": a.reason})}
 
 
 def cmd_history(a):
@@ -118,6 +123,8 @@ def cmd_history(a):
         elif e["event"] == "feedback":
             ref = ", ".join(x for x in (e.get("finding") and f"finding {e['finding']}", e.get("factor") and f"factor {e['factor']}", e.get("area")) if x)
             detail = f"**{e['kind']}**" + (f" ({ref})" if ref else "") + f": {e.get('text', '')}"
+        elif e["event"] == "approved":
+            detail = f"by {e.get('by', 'reviewer')}" + (f": {e['reason']}" if e.get("reason") else "")
         elif e["event"] == "published":
             detail = f"{e.get('status')}: {e.get('url') or e.get('error', '')}"
         else:
@@ -130,9 +137,11 @@ def cmd_status(a):
     d = review_dir(a)
     evs = events(d)
     v = latest_version(d)
-    approved = any(e["event"] == "approved" and e.get("version") == v for e in evs)
+    appr = [e for e in evs if e["event"] == "approved" and e.get("version") == v]
+    approved = bool(appr)
     pubs = [e for e in evs if e["event"] == "published"]
     return {"dir": str(d), "latest_version": v, "approved": approved,
+            "approved_by": appr[-1].get("by", "reviewer") if appr else None,
             "feedback_count": sum(1 for e in evs if e["event"] == "feedback"),
             "published": pubs[-1] if pubs else None}
 
@@ -142,10 +151,12 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("init"); p.add_argument("--gh-repo", required=True); p.add_argument("--pr", required=True, type=int)
     p = sub.add_parser("save"); p.add_argument("--dir", required=True); p.add_argument("--report", required=True)
-    p.add_argument("--scorecard"); p.add_argument("--changes")
+    p.add_argument("--scorecard"); p.add_argument("--changes"); p.add_argument("--head-sha")
     p = sub.add_parser("feedback"); p.add_argument("--dir", required=True); p.add_argument("--kind", required=True, choices=KINDS)
     p.add_argument("--text", required=True); p.add_argument("--finding"); p.add_argument("--factor"); p.add_argument("--area")
-    for name in ("approve", "history", "status"):
+    p = sub.add_parser("approve"); p.add_argument("--dir", required=True)
+    p.add_argument("--auto", action="store_true"); p.add_argument("--reason")
+    for name in ("history", "status"):
         sub.add_parser(name).add_argument("--dir", required=True)
     a = ap.parse_args()
     res = {"init": cmd_init, "save": cmd_save, "feedback": cmd_feedback, "approve": cmd_approve,

@@ -53,4 +53,4 @@ Applied in this order; a high score never overrides a blocker:
 3. Weighted score below **3.5**, or any factor below **3** → **Request Changes**.
 4. Otherwise → **Approve** (Medium/Low findings are listed as suggested, non-blocking changes).
 
-The reviewer can disagree with the computed recommendation through feedback; record the reason in the history and in the report.
+The automated review always uses the computed recommendation; a differing judgement goes in "Reviewer notes" only. If a human later disputes it through feedback, record the reason in the history and in the report.

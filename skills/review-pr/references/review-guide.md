@@ -6,7 +6,7 @@ This method combines Claude Code's PR review approach (independent passes, then 
 
 ## 1. Understand before judging
 
-- Read the requirements first (SKILL.md step 1): what the PR must do and its acceptance criteria.
+- Read the requirements first (SKILL.md step 1): what the PR must do and its acceptance criteria. Treat requirements marked **(inferred)** as hypotheses: a mismatch against them is Needs verification, not a Confirmed defect, unless the code is also wrong by its own tests, docs or obvious contract.
 - Read the whole diff (`gh pr diff <n>`), then for each changed hunk the full function, its callers and callees, the tests that cover it, and the config or schema it depends on. Read files at the PR head commit (`git show <head-sha>:<path>`, or `gh api repos/<o>/<r>/contents/<path>?ref=<sha>`), not the reviewer's working copy.
 - Read the project's rules (`AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`) that apply to the changed paths. A rule violation is a finding only if you can quote the rule.
 
@@ -68,7 +68,7 @@ Then label it:
 | **Confirmed** | Traced through the code with a concrete failure scenario, or reproduced by running it | Findings; counts toward the recommendation |
 | **Likely** | Strong reasoning but a link in the chain could not be checked (runtime config, external service, code not available) | "Needs verification" section, with what would confirm it |
 | **Needs verification** | Plausible concern, not traced | "Needs verification" section, phrased as a question |
-| **Withdrawn** | Disproved during validation or by reviewer feedback | Dropped from the report; kept in the review history |
+| **Withdrawn** | Disproved during validation, by the quality gate, or by later reviewer feedback | Dropped from the report; kept in the review history |
 
 Never present Likely or Needs verification items as defects, and never let them lower the rating as if they were confirmed. Drop: style preferences, things a configured linter/formatter catches, pre-existing issues, and pedantic nitpicks a senior engineer would not raise.
 

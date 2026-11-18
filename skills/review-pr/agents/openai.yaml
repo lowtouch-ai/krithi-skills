@@ -1,3 +1,3 @@
 interface:
   display_name: "review-pr"
-  short_description: "Review a PR against its requirements and the Krithi process: validated findings, process compliance table, five-factor weighted scorecard and recommendation; revise from reviewer feedback, then post the approved comment to GitHub only after confirmation"
+  short_description: "Fully automated PR review from just a link: infers requirements, builds and tests in a sandbox, validated findings, process compliance, five-factor scorecard and recommendation, self-checked by a quality gate; posts the comment when asked with 'post'"

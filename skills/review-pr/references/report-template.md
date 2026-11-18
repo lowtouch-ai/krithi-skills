@@ -12,8 +12,8 @@ Write for the reviewer first: every statement must be traceable to evidence (fil
 | PR | <url> (<state>, <draft?>) |
 | Author | <login> · Branch `<head>` → `<base>` |
 | Head commit reviewed | `<full sha>` |
-| Requirements source | <linked issue / ticket / plan prompt / reviewer-supplied text> |
-| Review version | v<k> · <date> · reviewer: <name if given> |
+| Requirements source | <linked issue / ticket / plan prompt / request context / PR description / inferred from the change> · confidence <High / Medium / Low> |
+| Review version | v<k> · <date> · automated review (quality gate: passed / failed) |
 | Recommendation | **<Approve / Request Changes / Needs Further Verification>** · weighted score **<x.xx> / 5** |
 
 ## Summary
@@ -52,7 +52,7 @@ Write for the reviewer first: every statement must be traceable to evidence (fil
 <Table printed by `scorecard.py --markdown`.>
 
 ## Required changes before merge
-1. <Each Confirmed Critical/High finding, and anything else the reviewer marks as required.>
+1. <Each Confirmed Critical/High finding, and each requirement Not met.>
 
 ## Suggested improvements (non-blocking)
 - <Medium/Low findings, process gaps, documentation gaps.>
@@ -63,8 +63,11 @@ Write for the reviewer first: every statement must be traceable to evidence (fil
 - Tools: <e.g. wave-a11y-scan on changed UI files, appsec-static-audit; or none>.
 - Not checked: <areas and why>.
 
-## Reviewer feedback history
-<Output of `review_log.py history`.>
+## Automated decisions
+- <Each default rule applied instead of asking: requirements source and any inferred R<k>; tickets not readable; commands run or skipped and why; files only skimmed; PR state (draft/closed); re-review of which head.>
+
+## Review history
+<Output of `review_log.py history`: versions, gate repairs, automatic approval, any later reviewer feedback.>
 ```
 
 ## GitHub comment (`comment.md`)

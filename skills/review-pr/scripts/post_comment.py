@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Prepare and post the approved review as a GitHub PR comment, posting exactly the text the reviewer approved.
+"""Prepare and post the approved review as a GitHub PR comment, posting exactly the text that was approved
+(by the reviewer, or by the automatic quality gate in SKILL.md step 8).
 
   prepare: copy the comment into the review folder as comment.md and print its SHA-256 and size.
            Show the reviewer that file's exact content; the hash identifies what they approved.
@@ -64,7 +65,7 @@ def post(a):
     evs = events(d)
     versions = [e["version"] for e in evs if e["event"] == "version"]
     if not versions or not any(e["event"] == "approved" and e.get("version") == max(versions) for e in evs):
-        return out({"refused": "the latest review version is not approved by the reviewer"}, 2)
+        return out({"refused": "the latest review version is not approved (by the reviewer or the automatic gate)"}, 2)
     init = next((e for e in evs if e["event"] == "init"), {})
     if init and (init.get("gh_repo") != a.gh_repo or init.get("pr") != a.pr):
         return out({"refused": f"this review is for {init.get('gh_repo')}#{init.get('pr')}, not {a.gh_repo}#{a.pr}"}, 2)
