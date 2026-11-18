@@ -52,6 +52,7 @@ plan = ("# Plan\n## Current architecture\nx\n## Root cause\nx\n## Files to modif
 (repo / "src/invoice.py").write_text("def total(items):\n    return sum(items)\n")
 (repo / "tests").mkdir()
 (repo / "tests/test_invoice.py").write_text("from src.invoice import total\n\ndef test_total():\n    assert total([1, 2, 3]) == 6\n")
+(repo / "pyproject.toml").write_text("[project]\nname = 'shop'\n\n[tool.pytest.ini_options]\ntestpaths = ['tests']\n")
 g(repo, "add", "."); g(repo, "commit", "-q", "-m", "fix: include the last line item in totals")
 head_sha = g(repo, "rev-parse", "HEAD")
 
@@ -82,6 +83,8 @@ expect(tr.get("planned_and_changed") == ["src/invoice.py"] and tr.get("planned_n
 expect(j.get("file_groups", {}).get("tests") == ["tests/test_invoice.py"], "test files grouped")
 expect(j.get("ci", {}).get("passed") == 1, "CI summary")
 expect(len(j.get("process", {}).get("codex_plan_mode", {}).get("plan_headings_found", [])) == 10, "all ten plan headings")
+bc = {(c["phase"], c["cmd"]) for c in j.get("build_commands", [])}
+expect(("test", "python3 -m pytest -q") in bc and ("install", "python3 -m pip install -e .") in bc, f"build/test commands detected for automatic run: {bc}")
 
 # ---------- a bare PR: no artifacts, nothing claimed -> Not Evidenced, never 'skipped' ----------
 g(repo, "switch", "-q", "main")
@@ -103,6 +106,7 @@ for step in ("prompt_builder", "codex_plan_mode", "plan_review", "build_and_test
     expect(st.get(step) == "Not Evidenced", f"bare PR: {step} should be Not Evidenced, got {st.get(step)}")
 expect("skipp" not in r.stdout.lower() and "violat" not in r.stdout.lower(), "evidence output must never say skipped/violated")
 expect("leaves no artifact" in j["process"]["plan_review"]["note"], "plan review note must explain that approval leaves no artifact")
+expect(j.get("build_commands") == [], f"no recognised build files -> no commands to run: {j.get('build_commands')}")
 
 # head commit unavailable: evidence is unavailable, not absent
 (tmp / "gone.json").write_text(json.dumps({**bare, "headRefOid": "0" * 40}))
@@ -147,8 +151,10 @@ r, j = py("review_log.py", "init", "--gh-repo", "acme/shop", "--pr", 21)
 d = Path(j.get("dir", tmp / "missing"))
 expect(str(d).startswith(str(tmp / "krithi" / "reviews" / "acme__shop" / "PR-21")), f"review dir under KRITHI_HOME: {d}")
 (tmp / "report.md").write_text("# report v1\n")
-r, j = py("review_log.py", "save", "--dir", d, "--report", tmp / "report.md", "--scorecard", tmp / "ratings.json")
+r, j = py("review_log.py", "save", "--dir", d, "--report", tmp / "report.md", "--scorecard", tmp / "ratings.json", "--head-sha", head_sha)
 expect(j.get("version") == 1, "first version")
+r, j = py("review_log.py", "init", "--gh-repo", "acme/shop", "--pr", 21)
+expect(j.get("last_reviewed_head") == head_sha and j.get("latest_version") == 1, f"re-init reports the last reviewed head: {j}")
 r, j = py("review_log.py", "feedback", "--dir", d, "--kind", "incorrect-finding", "--finding", "F2", "--text", "F2 is guarded upstream")
 learn = tmp / "krithi/review-pr/learning-log.jsonl"
 expect(learn.is_file() and "F2 is guarded upstream" in learn.read_text(), "feedback goes to the learning log")
@@ -177,7 +183,10 @@ expect(h == hashlib.sha256(b"## PR review \xe2\x80\x94 Approve\n").hexdigest(), 
 post = ["post", "--dir", d, "--gh-repo", "acme/shop", "--pr", 21, "--gh", fake, "--reviewed-sha", head_sha]
 r, j = py("post_comment.py", *post, "--sha256", h)
 expect(r.returncode == 2 and "not approved" in j.get("refused", ""), "posting before approval is refused")
-py("review_log.py", "approve", "--dir", d)
+r, j = py("review_log.py", "approve", "--dir", d, "--auto")
+expect(r.returncode != 0, "automatic approval without --reason is refused")
+r, j = py("review_log.py", "approve", "--dir", d, "--auto", "--reason", "quality gate passed")
+expect((j.get("recorded") or {}).get("by") == "auto", f"automatic approval is labelled: {j}")
 (d / "comment.md").write_text("## PR review — Approve (edited)\n")
 r, j = py("post_comment.py", *post, "--sha256", h)
 expect(r.returncode == 2 and "changed since it was approved" in j.get("refused", ""), "edited comment is refused")
@@ -193,7 +202,9 @@ r, j = py("post_comment.py", *post, "--sha256", h)
 expect(r.returncode == 2 and "already posted" in j.get("refused", ""), "the same comment is not posted twice")
 expect(calls.read_text().count("pr comment") == 1, "exactly one comment posted")
 r, j = py("review_log.py", "status", "--dir", d)
-expect(j.get("approved") is True and (j.get("published") or {}).get("status") == "posted", f"status: {j}")
+expect(j.get("approved") is True and j.get("approved_by") == "auto" and (j.get("published") or {}).get("status") == "posted", f"status: {j}")
+hist = subprocess.run([sys.executable, str(S / "review_log.py"), "history", "--dir", d], capture_output=True, text=True, env=env).stdout
+expect("by auto: quality gate passed" in hist, "history shows who approved")
 
 print("OK" if not problems else "PROBLEMS:\n- " + "\n- ".join(problems))
 sys.exit(1 if problems else 0)

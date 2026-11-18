@@ -331,6 +331,52 @@ def evidence(pr, tree, changed_files, ci, linked_issues):
     return tickets, pf["all"], steps
 
 
+def build_commands(tree):
+    """Detect the documented install/build/test/lint commands at the PR head, so the review can run them
+    without asking anyone. Returns a list of {"stack", "phase", "cmd", "source"}; empty if nothing is recognised."""
+    cmds = []
+
+    def add(stack, phase, cmd, source):
+        cmds.append({"stack": stack, "phase": phase, "cmd": cmd, "source": source})
+
+    pkg = tree.read("package.json")
+    if pkg:
+        try:
+            scripts = (json.loads(pkg) or {}).get("scripts") or {}
+        except ValueError:
+            scripts = {}
+        pm = "pnpm" if tree.has("pnpm-lock.yaml") else "yarn" if tree.has("yarn.lock") else "npm"
+        add("node", "install", {"npm": "npm ci" if tree.has("package-lock.json") else "npm install",
+                                "yarn": "yarn install --frozen-lockfile", "pnpm": "pnpm install --frozen-lockfile"}[pm], "package.json")
+        for phase in ("build", "lint", "test"):
+            if phase in scripts and "no test specified" not in str(scripts[phase]):
+                add("node", phase, f"{pm} run {phase}" if phase != "test" else f"{pm} test", f"package.json scripts.{phase}")
+    if tree.has("pyproject.toml") or tree.has("requirements.txt") or tree.has("setup.py"):
+        src = next(p for p in ("pyproject.toml", "requirements.txt", "setup.py") if tree.has(p))
+        if tree.has("requirements.txt"):
+            add("python", "install", "python3 -m pip install -r requirements.txt", "requirements.txt")
+        elif tree.has("pyproject.toml") or tree.has("setup.py"):
+            add("python", "install", "python3 -m pip install -e .", src)
+        if any(tree.has(p) for p in ("pytest.ini", "conftest.py", "tox.ini")) or "pytest" in (tree.read("pyproject.toml") or ""):
+            add("python", "test", "python3 -m pytest -q", src)
+        elif any(TEST_PATH.search(p) and p.endswith(".py") for p in tree.paths):
+            add("python", "test", "python3 -m unittest discover", src)
+    if tree.has("go.mod"):
+        add("go", "build", "go build ./...", "go.mod"); add("go", "test", "go test ./...", "go.mod")
+    if tree.has("Cargo.toml"):
+        add("rust", "build", "cargo build", "Cargo.toml"); add("rust", "test", "cargo test", "Cargo.toml")
+    if tree.has("pom.xml"):
+        add("java", "test", "mvn -B test", "pom.xml")
+    elif tree.has("gradlew") or tree.has("build.gradle") or tree.has("build.gradle.kts"):
+        add("java", "test", "./gradlew test" if tree.has("gradlew") else "gradle test", "build.gradle")
+    if not cmds:
+        mk = tree.read("Makefile") or ""
+        for phase in ("build", "lint", "test"):
+            if re.search(rf"^{phase}\s*:", mk, re.M):
+                add("make", phase, f"make {phase}", "Makefile")
+    return cmds
+
+
 def ci_summary(rollup):
     passed = failed = pending = 0
     checks = []
@@ -436,6 +482,7 @@ def main():
         "plan_builder_files": plan_paths,
         "head_tree": {"source": tree.source, "files": len(tree.paths), "error": tree.error,
                       "guidance_files": [p for p in ("AGENTS.md", "CLAUDE.md", "CONTRIBUTING.md", ".github/CONTRIBUTING.md") if tree.has(p)]},
+        "build_commands": build_commands(tree),
         "process": steps,
     }
     text = json.dumps(result, indent=2)
