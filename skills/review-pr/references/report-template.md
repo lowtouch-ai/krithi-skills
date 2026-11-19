@@ -24,17 +24,20 @@ Write for the reviewer first: every statement must be traceable to evidence (fil
 |---|---|---|---|
 | R1 | ... | Met / Partly met / Not met / Cannot verify | `path:line`, test name |
 
-## Findings
-<Confirmed findings only, most severe first, in the review-guide format. If none: "No confirmed defects.">
+## Issues
+<Confirmed (validated) issues only, grouped as in review-guide step D: Critical issues (Critical/High), Important issues (Medium), Suggestions (Low), each in the review-guide format. If none: "No issues found. Checked for <passes that ran>.">
 
 ### F1 [High · Confirmed] `path:line` — <title>
-- **Category:** Functional / Security / Accessibility / Testing / Maintainability
+- **Flagged as:** <bug / security / guidance rule (quoted, linked) / silent failure / comment accuracy / type design / accessibility> (pass <n>)
 - **Failure:** <input/state → wrong result>
 - **Evidence:** <what you traced or ran>
 - **Recommended fix:** <concrete change>
 
+## Strengths
+<What the PR does well, specific, with `path:line`.>
+
 ## Needs verification
-<Likely / Needs-verification items, each phrased as a question with what would confirm or rule it out. If none, omit.>
+<Only items that would be Critical/High but could not be validated from this environment, as questions with what would confirm them. Usually omitted.>
 
 ## Missing test scenarios
 - <scenario: input → expected result, and which test file it belongs in>
@@ -89,14 +92,20 @@ Shorter than the report, written to the PR author, neutral and specific. No inte
 | PR documentation and review readiness | 10% | 4 |
 | **Overall (weighted)** | | **3.30 / 5** |
 
-### Required changes
+### Critical issues (must fix before merge)
 1. **[High]** [`path:line`](https://github.com/<o>/<r>/blob/<full-sha>/<path>#L<a>-L<b>) — <problem> (see the line comment).
 
-### Findings
-<Remaining confirmed findings, one line each with severity and link; "see the line comment" when one exists, otherwise the fix.>
+### Important issues (should fix)
+<Medium issues, one line each with link; "see the line comment".>
+
+### Suggestions
+<Low issues, one line each.>
+
+### Strengths
+- <what is done well>
 
 ### Questions
-<Needs-verification items without a specific line, as questions to the author. Those with a line are line comments.>
+<Only unreachable would-be-Critical items, as questions to the author. Omit if none.>
 
 ### Development process
 | Step | Status | Gap |
@@ -111,7 +120,7 @@ Shorter than the report, written to the PR author, neutral and specific. No inte
 
 ## Line comments (`inline.json`)
 
-A JSON list; one entry per Confirmed finding and per Likely / Needs-verification item that points at a specific line. `line` is the line in the PR's head version of the file; add `start_line` for a range. Lines not in the PR's diff are moved into the summary automatically.
+A JSON list; one entry per Confirmed issue (one per unique issue; never for unvalidated items, questions, missing tests or process gaps). `line` is the line in the PR's head version of the file; add `start_line` for a range. Lines not in the PR's diff are moved into the summary automatically.
 
 ```json
 [
@@ -124,9 +133,8 @@ A JSON list; one entry per Confirmed finding and per Likely / Needs-verification
     "path": "src/api/routes.py",
     "start_line": 30,
     "line": 34,
-    "body": "**Question (needs verification):** is `user_id` validated before this query? If not, ... What would confirm it: ..."
-  }
-]
+    "body": "**F4 [Medium · Confirmed]** Raw SQL built with an f-string\n\n[`AGENTS.md`](https://github.com/<o>/<r>/blob/<full-sha>/AGENTS.md#L11-L13) says: \"All database access goes through `db/queries.py`; never build SQL in route handlers.\" Lines 30-34 build the query inline.\n\n**Fix:** move the query to `db/queries.py` as a parameterised function and call it here (several files, so no suggestion block)."
+  }]
 ```
 
-Each body: severity and status, a one-line title, the failure and its evidence, then the fix. Add a GitHub `suggestion` block only when the exact replacement for exactly those lines is known. Same tone rules as the summary: neutral, about the code, no secrets.
+Each body: severity, a one-line title, the failure and its evidence (quote and link the rule for guidance-file issues), then the fix. A `suggestion` block only for a small, self-contained fix that replaces exactly the commented lines and fixes the issue entirely; for larger fixes (6+ lines, structural, or several places) describe the fix instead (review-guide step F). Same tone rules as the summary: neutral, about the code, no secrets.
