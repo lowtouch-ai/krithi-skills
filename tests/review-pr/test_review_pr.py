@@ -206,5 +206,11 @@ expect(j.get("approved") is True and j.get("approved_by") == "auto" and (j.get("
 hist = subprocess.run([sys.executable, str(S / "review_log.py"), "history", "--dir", d], capture_output=True, text=True, env=env).stdout
 expect("by auto: quality gate passed" in hist, "history shows who approved")
 
+# Fully automated: script output must never tell the agent to go and ask the reviewer
+for f in ("post_comment.py", "review_log.py", "pr_evidence.py", "scorecard.py"):
+    src = (S / f).read_text().lower()
+    for phrase in ("get approval", "reviewer agrees", "ask the reviewer?", "confirm with the reviewer", "show the reviewer"):
+        expect(phrase not in src, f"{f} must not route decisions to the reviewer ({phrase!r})")
+
 print("OK" if not problems else "PROBLEMS:\n- " + "\n- ".join(problems))
 sys.exit(1 if problems else 0)

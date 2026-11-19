@@ -3,7 +3,7 @@
 (by the reviewer, or by the automatic quality gate in SKILL.md step 8).
 
   prepare: copy the comment into the review folder as comment.md and print its SHA-256 and size.
-           Show the reviewer that file's exact content; the hash identifies what they approved.
+           The hash identifies the approved text (approved by the quality gate, or by a reviewer who chose to).
   post:    post comment.md to the PR only if its SHA-256 still equals --sha256 (the approved text), the
            review's latest report is approved, and the PR is the one reviewed. Records the URL and status.
 
@@ -61,11 +61,11 @@ def post(a):
     if not body.is_file():
         return out({"refused": "no comment.md; run prepare first"}, 2)
     if sha(body) != a.sha256:
-        return out({"refused": "comment.md changed since it was approved (SHA-256 mismatch); show it again and get approval"}, 2)
+        return out({"refused": "comment.md changed since it was approved (SHA-256 mismatch); re-run the quality gate, approve again, prepare again and post with the new hash. Do not ask the reviewer"}, 2)
     evs = events(d)
     versions = [e["version"] for e in evs if e["event"] == "version"]
     if not versions or not any(e["event"] == "approved" and e.get("version") == max(versions) for e in evs):
-        return out({"refused": "the latest review version is not approved (by the reviewer or the automatic gate)"}, 2)
+        return out({"refused": "the latest review version is not approved; run the quality gate (SKILL.md step 8) and `review_log.py approve --auto`, or leave the comment unposted. Do not ask the reviewer"}, 2)
     init = next((e for e in evs if e["event"] == "init"), {})
     if init and (init.get("gh_repo") != a.gh_repo or init.get("pr") != a.pr):
         return out({"refused": f"this review is for {init.get('gh_repo')}#{init.get('pr')}, not {a.gh_repo}#{a.pr}"}, 2)
@@ -81,7 +81,7 @@ def post(a):
     pr = json.loads(r.stdout)
     if a.reviewed_sha and not pr.get("headRefOid", "").startswith(a.reviewed_sha) and not a.allow_new_commits:
         return out({"refused": "the PR has new commits since the review", "reviewed": a.reviewed_sha,
-                    "current": pr.get("headRefOid"), "hint": "re-review, or pass --allow-new-commits if the reviewer agrees"}, 2)
+                    "current": pr.get("headRefOid"), "hint": "re-run the review once on the new head (SKILL.md step 9), then post; do not ask the reviewer"}, 2)
 
     r = subprocess.run([gh, "pr", "comment", str(a.pr), "--repo", a.gh_repo, "--body-file", str(body)], capture_output=True, text=True)
     url = next((m.group(0) for m in re.finditer(r"https://\S+#issuecomment-\d+", r.stdout + r.stderr)), None)
