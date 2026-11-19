@@ -70,7 +70,7 @@ Write for the reviewer first: every statement must be traceable to evidence (fil
 <Output of `review_log.py history`: versions, gate repairs, automatic approval, any later reviewer feedback.>
 ```
 
-## GitHub comment (`comment.md`)
+## GitHub review summary (`comment.md`)
 
 Shorter than the report, written to the PR author, neutral and specific. No internal reviewer notes, scores reasoning about the person, or anything not supported by evidence. GitHub's limit is 65,536 characters.
 
@@ -90,13 +90,13 @@ Shorter than the report, written to the PR author, neutral and specific. No inte
 | **Overall (weighted)** | | **3.30 / 5** |
 
 ### Required changes
-1. **[High]** [`path:line`](https://github.com/<o>/<r>/blob/<full-sha>/<path>#L<a>-L<b>) — <problem>. *Fix:* <fix>.
+1. **[High]** [`path:line`](https://github.com/<o>/<r>/blob/<full-sha>/<path>#L<a>-L<b>) — <problem> (see the line comment).
 
 ### Findings
-<Remaining confirmed findings, one line each with severity, link and fix.>
+<Remaining confirmed findings, one line each with severity and link; "see the line comment" when one exists, otherwise the fix.>
 
 ### Questions
-<Needs-verification items as questions to the author.>
+<Needs-verification items without a specific line, as questions to the author. Those with a line are line comments.>
 
 ### Development process
 | Step | Status | Gap |
@@ -108,3 +108,25 @@ Shorter than the report, written to the PR author, neutral and specific. No inte
 
 <sub>Reviewed at <short sha> with the krithi-skills `review-pr` skill; findings were validated against the code before posting.</sub>
 ```
+
+## Line comments (`inline.json`)
+
+A JSON list; one entry per Confirmed finding and per Likely / Needs-verification item that points at a specific line. `line` is the line in the PR's head version of the file; add `start_line` for a range. Lines not in the PR's diff are moved into the summary automatically.
+
+```json
+[
+  {
+    "path": "src/billing/invoice.py",
+    "line": 142,
+    "body": "**F3 [High · Confirmed]** Total excludes the last line item\n\n`items[:-1]` drops the final item, so an invoice with one item totals 0. Reproduced with `tests/test_invoice.py::test_single_item`.\n\n**Fix:** iterate over `items`.\n\n```suggestion\n    for item in items:\n```"
+  },
+  {
+    "path": "src/api/routes.py",
+    "start_line": 30,
+    "line": 34,
+    "body": "**Question (needs verification):** is `user_id` validated before this query? If not, ... What would confirm it: ..."
+  }
+]
+```
+
+Each body: severity and status, a one-line title, the failure and its evidence, then the fix. Add a GitHub `suggestion` block only when the exact replacement for exactly those lines is known. Same tone rules as the summary: neutral, about the code, no secrets.

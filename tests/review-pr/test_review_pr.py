@@ -206,6 +206,73 @@ expect(j.get("approved") is True and j.get("approved_by") == "auto" and (j.get("
 hist = subprocess.run([sys.executable, str(S / "review_log.py"), "history", "--dir", d], capture_output=True, text=True, env=env).stdout
 expect("by auto: quality gate passed" in hist, "history shows who approved")
 
+# ---------- line comments: one GitHub review (event COMMENT) with comments on diff lines ----------
+def review_dir(pr):
+    r, j = py("review_log.py", "init", "--gh-repo", "acme/shop", "--pr", pr)
+    rd = Path(j["dir"])
+    py("review_log.py", "save", "--dir", rd, "--report", tmp / "report.md", "--scorecard", tmp / "ratings.json", "--head-sha", head_sha)
+    py("review_log.py", "approve", "--dir", rd, "--auto", "--reason", "quality gate passed")
+    return rd
+
+patch = "@@ -10,3 +10,4 @@ def total(items):\n     s = 0\n-    for i in items[:-1]:\n+    for i in items:\n+        s += i.price\n     return s"
+rcalls = tmp / "gh-review-calls.txt"
+fail_flag = tmp / "review-fails"
+fake2 = tmp / "gh2"
+fake2.write_text(f"""#!/bin/sh
+echo "$@" >> "{rcalls}"
+case "$*" in
+  "pr view"*) echo '{{"number":22,"url":"https://github.com/acme/shop/pull/22","headRefOid":"{head_sha}","state":"OPEN"}}';;
+  "pr comment"*) cp "$7" "{tmp}/sent-fallback.md"; echo "https://github.com/acme/shop/pull/22#issuecomment-777";;
+  "api repos/"*"/files"*) printf '%s\\n' '{json.dumps({"filename": "src/invoice.py", "patch": patch})}';;
+  "api -X POST repos/"*"/reviews"*) if [ -f "{fail_flag}" ]; then echo 'Line could not be resolved (HTTP 422)' >&2; exit 1; fi
+     cp "$6" "{tmp}/sent-review.json"; echo '{{"id": 99, "html_url": "https://github.com/acme/shop/pull/22#pullrequestreview-99"}}';;
+esac
+""")
+fake2.chmod(fake2.stat().st_mode | stat.S_IEXEC)
+expect(sorted(json.loads(subprocess.run([sys.executable, "-c",
+       f"import sys; sys.path.insert(0, {str(S)!r}); import post_comment, json; print(json.dumps(sorted(post_comment.diff_lines({patch!r}))))"],
+       capture_output=True, text=True).stdout or "[]")) == [10, 11, 12, 13], "diff_lines returns new-side added and context lines")
+
+inline = [{"path": "src/invoice.py", "line": 11, "body": "**F1 [High · Confirmed]** total skips the last item.\n\n**Fix:** iterate over all items."},
+          {"path": "./src/invoice.py", "line": 12, "start_line": 11, "body": "Range comment"},
+          {"path": "src/other.py", "line": 5, "body": "**Question:** is this guarded upstream?"}]
+(tmp / "inline.json").write_text(json.dumps(inline))
+(tmp / "bad-inline.json").write_text(json.dumps([{"path": "a.py", "body": "no line"}]))
+
+d2 = review_dir(22)
+r, j = py("post_comment.py", "prepare", "--dir", d2, "--body", tmp / "draft.md", "--inline", tmp / "bad-inline.json")
+expect(r.returncode == 2 and "needs path" in j.get("error", ""), "invalid inline comments are rejected")
+r, j = py("post_comment.py", "prepare", "--dir", d2, "--body", tmp / "draft.md", "--inline", tmp / "inline.json")
+h2 = j.get("sha256")
+expect(j.get("inline_comments") == 3 and h2 != h, "prepare counts line comments and hashes them with the summary")
+saved = (d2 / "inline.json").read_text()
+(d2 / "inline.json").write_text(saved.replace("total skips", "TOTAL SKIPS"))
+post2 = ["post", "--dir", d2, "--gh-repo", "acme/shop", "--pr", 22, "--gh", fake2, "--reviewed-sha", head_sha]
+r, j = py("post_comment.py", *post2, "--sha256", h2)
+expect(r.returncode == 2 and "changed since it was approved" in j.get("refused", ""), "an edited line comment is refused")
+(d2 / "inline.json").write_text(saved)
+r, j = py("post_comment.py", *post2, "--sha256", h2)
+expect(r.returncode == 0 and j.get("kind") == "review" and j.get("url", "").endswith("pullrequestreview-99"), f"review posted: {j} {r.stderr[-300:]}")
+expect(j.get("inline_posted") == 2 and j.get("moved_to_summary") == 1, f"lines outside the diff move to the summary: {j}")
+sent = json.loads((tmp / "sent-review.json").read_text()) if (tmp / "sent-review.json").exists() else {}
+expect(sent.get("event") == "COMMENT" and sent.get("commit_id") == head_sha, "review is COMMENT only, pinned to the reviewed head")
+expect([c["line"] for c in sent.get("comments", [])] == [11, 12] and sent["comments"][1].get("start_line") == 11
+       and sent["comments"][1]["path"] == "src/invoice.py", "line and range comments go on the diff lines")
+expect("src/other.py:5" in sent.get("body", "") and "outside this PR's diff" in sent.get("body", ""), "outside-diff comment is in the summary")
+expect("pr comment" not in rcalls.read_text(), "no plain comment when the review succeeds")
+r, j = py("post_comment.py", *post2, "--sha256", h2)
+expect(r.returncode == 2 and "already posted" in j.get("refused", ""), "the same review is not posted twice")
+
+fail_flag.write_text("1")
+d3 = review_dir(23)
+r, j = py("post_comment.py", "prepare", "--dir", d3, "--body", tmp / "draft.md", "--inline", tmp / "inline.json")
+r, j = py("post_comment.py", "post", "--dir", d3, "--gh-repo", "acme/shop", "--pr", 23, "--gh", fake2, "--reviewed-sha", head_sha, "--sha256", j.get("sha256"))
+fb = (tmp / "sent-fallback.md").read_text() if (tmp / "sent-fallback.md").exists() else ""
+expect(r.returncode == 0 and j.get("status") == "posted-fallback" and "422" in j.get("review_error", ""), f"refused review falls back to one comment: {j}")
+expect(fb.count("src/invoice.py:1") == 2 and "src/other.py:5" in fb, "fallback comment carries every line comment")
+r, j = py("post_comment.py", "prepare", "--dir", d3, "--body", tmp / "draft.md")
+expect(not (d3 / "inline.json").exists() and j.get("inline_comments") == 0, "preparing without --inline clears old line comments")
+
 # Fully automated: script output must never tell the agent to go and ask the reviewer
 for f in ("post_comment.py", "review_log.py", "pr_evidence.py", "scorecard.py"):
     src = (S / f).read_text().lower()
