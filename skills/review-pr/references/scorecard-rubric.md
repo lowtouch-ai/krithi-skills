@@ -10,7 +10,7 @@ Rate each factor 1 to 5 (5 is best) from **evidence you can cite**. If a factor 
 | `process` | Development process compliance | 15% |
 | `documentation` | PR documentation and review readiness | 10% |
 
-Overall = Σ rating × weight (1.00 to 5.00). Only **Confirmed** findings affect ratings; Likely and Needs-verification items are listed but do not lower a rating.
+Overall = Σ rating × weight (1.00 to 5.00). Only **Confirmed** (validated) findings affect ratings. Unvalidated candidates are withdrawn; the rare Needs-verification item (would be Critical/High but cannot be checked from this environment) is listed but does not lower a rating.
 
 ## Anchors
 
@@ -49,7 +49,7 @@ See the grading table in `process-evidence.md`. Absence of evidence alone never 
 
 Applied in this order; a high score never overrides a blocker:
 1. Any **Confirmed Critical or High** finding → **Request Changes**.
-2. Any **Critical or High** finding still Likely / Needs verification, or any factor unrated → **Needs Further Verification**.
+2. Any **Critical or High** finding still Needs verification, or any factor unrated → **Needs Further Verification**.
 3. Weighted score below **3.5**, or any factor below **3** → **Request Changes**.
 4. Otherwise → **Approve** (Medium/Low findings are listed as suggested, non-blocking changes).
 
