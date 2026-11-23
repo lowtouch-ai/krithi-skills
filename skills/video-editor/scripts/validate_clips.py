@@ -111,6 +111,13 @@ def resolve_cards(clip, tag, cw, text, start, end, errors, warnings, keep=None):
             res_items.append({"text": t, "say": say, "at": round(hit[0], 3)})
         if not res_items:
             continue
+        lab_core = " ".join(norm(label))
+        for it in res_items:
+            pill_core = " ".join(norm(it["text"]))
+            if lab_core and pill_core and (lab_core == pill_core or lab_core in pill_core or pill_core in lab_core):
+                warnings.append(f"{ctag}: the label \"{label}\" repeats the pill \"{it['text']}\"; make the label a heading that adds context "
+                                f"(for example \"The first week\" over \"Set up laptop\") and keep the pill as the term")
+                break
         out.append({"label": label.upper(), "chain": bool(card.get("chain")), "items": res_items,
                     "start": round(max(start, res_items[0]["at"] - CARD_LEAD), 3),
                     "end": round(min(end - 0.3, res_items[-1]["at"] + CARD_HOLD), 3)})
@@ -121,6 +128,9 @@ def resolve_cards(clip, tag, cw, text, start, end, errors, warnings, keep=None):
             for it in c["items"]:
                 it["clip_at"] = round(kept_before(keep, it["at"]), 2)
     for x, y in zip(out, out[1:]):
+        if y["start"] - x["start"] < 3.0 and y["start"] >= x["items"][-1]["at"] + 0.8:
+            warnings.append(f"{tag}: the card '{x['label']}' is replaced by '{y['label']}' only {y['start'] - x['start']:.1f} s after it appears, "
+                            f"so it is on screen for under 3 s; merge them into one card or drop one")
         if y["start"] < x["items"][-1]["at"] + 0.8:
             errors.append(f"{tag}: cards '{x['label']}' and '{y['label']}' are too close together (the first needs about a second after its last item)")
         elif y["start"] < x["end"]:

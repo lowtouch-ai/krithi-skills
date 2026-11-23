@@ -280,6 +280,19 @@ _line_w = _F.width("interfaces. extraordinarily unmistakable", _fs)
 expect(_line_w <= 540 * 0.91 and "\\q2" in _txt[0][4], f"a wide caption must shrink to fit the frame and never wrap (width {_line_w:.0f} px at size {_fs})")
 expect(len(_txt) == 3 and len([e for e in _events if e[3] == "Shape"]) == 3, "one box and one text event per word")
 
+# ---- stutters in captions (no ffmpeg needed) ----
+sys.path.insert(0, str(scripts))
+import captions as _cap
+_wd = lambda w_, s_, e_: {"word": w_, "start": s_, "end": e_}
+_st = _cap.dedupe_repeats([_wd("a", 0, .3), _wd("also", .4, .7), _wd("also", .8, 1.1), _wd("figured", 1.2, 1.6)])
+expect([x["word"] for x in _st] == ["a", "also", "figured"] and abs(_st[1]["end"] - 1.1) < 1e-6, f"a repeated word should show once, for the whole repetition: {_st}")
+_ph = _cap.dedupe_repeats([_wd("is", 0, .2), _wd("that", .3, .5), _wd("Is", .6, .8), _wd("that", .9, 1.1), _wd("true", 1.2, 1.5)])
+expect([x["word"] for x in _ph] == ["is", "that", "true"], f"a repeated two-word phrase should show once: {[x['word'] for x in _ph]}")
+expect([x["word"] for x in _cap.dedupe_repeats([_wd("never,", 0, .4), _wd("never", .5, .9)])] == ["never,", "never"], "a repeat after punctuation is deliberate and must stay")
+expect([x["word"] for x in _cap.dedupe_repeats([_wd("no", 0, .2), _wd("no", .3, .5), _wd("no", .6, .8)])] == ["no"], "a triple repeat should collapse to one")
+expect(len(_cap.dedupe_repeats([_wd("hello", 0, .4), _wd("hello", 5.0, 5.4)])) == 2, "a word repeated after a long pause is not a stutter")
+expect(len(_cap.retime([_wd("so", 0, .3), _wd("so", .4, .7)], [{"start": 0, "end": 5}], dedupe=False)) == 2, "dedupe=False must keep repeats")
+
 # ---- keyword cards (no ffmpeg needed) ----
 sys.path.insert(0, str(scripts))
 from fontmetrics import Font as _Font
@@ -304,6 +317,12 @@ if cj.get("ok") and cj["resolved"][0]["cards"]:
     expect(cj["resolved"][0]["cards"][0]["label"] == "WHY PILOTS STALL", "card label should be upper-cased")
     expect(all("clip_at" in i for i in it) and "clip_start" in cj["resolved"][0]["cards"][0], "resolved cards should give times in the finished clip")
 expect(not card_check([{"label": "L", "items": [{"text": "X", "say": "never said this"}]}])["ok"], "a pill whose words are not spoken was accepted")
+_rp = card_check([{"label": "Nobody owns", "items": [{"text": "Nobody owns", "say": "nobody owns"}]}])
+expect(_rp["ok"] and any("repeats the pill" in w for w in _rp["warnings"]), f"a label that repeats its pill should be warned about: {_rp['warnings']}")
+_ok_lab = card_check([{"label": "Why pilots stall", "items": [{"text": "Nobody owns it", "say": "nobody owns"}]}])
+expect(not any("repeats the pill" in w for w in _ok_lab["warnings"]), "a label that adds context must not be warned about")
+_close = card_check([{"label": "First idea", "items": [{"text": "Owners", "say": "nobody owns"}]}, {"label": "Second idea", "items": [{"text": "Workflow", "say": "workflow"}]}])
+expect(any("under 3 s" in w for w in _close["warnings"]), f"two cards within 3 s should be warned about: {_close['warnings']}")
 oo = card_check([{"label": "L", "items": [{"text": "A", "say": "the workflow"}, {"text": "B", "say": "nobody owns"}]}])
 expect(not oo["ok"] and any("only spoken earlier" in e for e in oo["errors"]), f"items out of spoken order should say the words were only spoken earlier: {oo['errors']}")
 # a word said before AND after the previous item must resolve to the later one

@@ -26,7 +26,42 @@ PAUSE_BREAK = 0.8
 SENTENCE_END = re.compile(r"[.!?]['\")\]]*$")
 
 
-def retime(words, keep, offset=0.0):
+PUNCT_END = re.compile(r"[.,;:!?]['\")\]]*$")
+
+
+def _core(word):
+    return re.sub(r"[^\w']+", "", word.lower())
+
+
+def dedupe_repeats(words, max_gap=0.7, max_len=3):
+    """Show an immediately repeated word or phrase once ("also also", "is that Is that", "From From").
+
+    Captions are for reading, and a stutter looks like a typo; the audio keeps it. The shown words stay on screen for
+    the whole repetition. A repeat after punctuation ("never, never.") is left alone, because that is usually deliberate."""
+    for _ in range(3):  # a triple repeat needs a second pass
+        out, i, changed = [], 0, False
+        while i < len(words):
+            hit = False
+            for n in range(min(max_len, (len(words) - i) // 2), 0, -1):
+                a, b = words[i:i + n], words[i + n:i + 2 * n]
+                same = [_core(w["word"]) for w in a] == [_core(w["word"]) for w in b] and all(_core(w["word"]) for w in a)
+                if same and not any(PUNCT_END.search(w["word"]) for w in a) and b[0]["start"] - a[-1]["end"] <= max_gap:
+                    kept = [dict(w) for w in a]
+                    kept[-1]["end"] = b[-1]["end"]
+                    out.extend(kept)
+                    i += 2 * n
+                    hit = changed = True
+                    break
+            if not hit:
+                out.append(words[i])
+                i += 1
+        words = out
+        if not changed:
+            break
+    return words
+
+
+def retime(words, keep, offset=0.0, dedupe=True):
     """Keep words whose midpoint is in a kept range and map them to output time."""
     out = []
     for w in words:
@@ -38,7 +73,7 @@ def retime(words, keep, offset=0.0):
         if e <= s:
             e = s + 0.05
         out.append({**w, "start": s - offset, "end": e - offset})
-    return out
+    return dedupe_repeats(out) if dedupe else out
 
 
 def _range_start(keep, t):

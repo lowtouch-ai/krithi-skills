@@ -220,6 +220,7 @@ def main():
     ap.add_argument("--captions", choices=["none", "burn", "srt", "both"])
     ap.add_argument("--no-intro-outro", action="store_true")
     ap.add_argument("--no-lower-thirds", "--no-lower-third", dest="no_lower_thirds", action="store_true")
+    ap.add_argument("--keep-repeats", action="store_true", help="show stutters (an immediately repeated word) in captions; by default they are shown once")
     ap.add_argument("--preview", action="store_true")
     ap.add_argument("--keep-work", action="store_true", help="keep the per-piece files (default: delete after a good render)")
     a = ap.parse_args()
@@ -334,7 +335,7 @@ def main():
     keep_for_text = keep
     cues = []
     if transcript and mode in ("burn", "both", "srt"):
-        timed = cap.retime(words_of(transcript), keep_for_text)
+        timed = cap.retime(words_of(transcript), keep_for_text, dedupe=not a.keep_repeats)
         cues = cap.group(timed)
         if mode in ("srt", "both"):
             # the video starts with the brand intro (offset seconds), so the sidecar file must start later too

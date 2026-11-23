@@ -342,6 +342,7 @@ def main():
     ap.add_argument("--brand", default=str(DEFAULT_BRAND))
     ap.add_argument("--speaker", help='"Name|Title" for the lower third')
     ap.add_argument("--punch-in", type=float, default=1.0)
+    ap.add_argument("--keep-repeats", action="store_true", help="show stutters (an immediately repeated word) in captions; by default they are shown once")
     ap.add_argument("--preview", action="store_true")
     ap.add_argument("--no-title", action="store_true")
     ap.add_argument("--cover", choices=["reveal", "static"], default="reveal",
@@ -445,7 +446,7 @@ def main():
             lst.write_text("\n".join(list_lines) + "\n", encoding="utf-8")
 
             # 3. captions, overlay text, end card
-            timed = cap.retime(all_words, keep)
+            timed = cap.retime(all_words, keep, dedupe=not a.keep_repeats)
             groups = cap.group(timed, brand.get("captions", {}).get("short", {}).get("max_words_per_line", 3))
             (d_out / "clip.srt").write_text(cap.to_srt(cap.group(timed)), encoding="utf-8")
             cards_ct = [{"label": k["label"], "chain": k.get("chain", False), "start": kept_before(keep, k["start"]), "end": kept_before(keep, k["end"]),
