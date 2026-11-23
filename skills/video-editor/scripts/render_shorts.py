@@ -4,7 +4,7 @@
 Usage: render_shorts.py --source source.json --clips clips.resolved.json --transcript transcript.json
          --out-dir DIR [--ids 1,3] [--analysis analysis.json] [--brand brand.json]
          [--speaker "Name|Title"] [--punch-in 1.15] [--preview]
-         [--cover static|animated] [--no-title] [--no-lower-third] [--no-end-card]
+         [--cover reveal|static] [--no-title] [--no-lower-third] [--no-end-card]
 
 clips.resolved.json comes from validate_clips.py. For each chosen clip it writes
 DIR/clip-NN-<title>/clip.mp4, clip.srt and meta.md (title, caption, reason). Each clip is built to
@@ -41,33 +41,13 @@ def reexec_in_venv():
         os.execv(str(vpy), [str(vpy), __file__, *sys.argv[1:]])
 
 
-from _vlib import load_json, words_of  # noqa: E402
+from _vlib import clip_keep, kept_before, load_json, words_of  # noqa: E402
+from fontmetrics import Font  # noqa: E402
 import captions as cap  # noqa: E402
 from render_long import (DEFAULT_BRAND, FADE, ass_color, ass_time, esc, font_info, load_brand,  # noqa: E402
                          measure_loudness, measured_duration, run_ffmpeg, split_by_clip)
 
 TITLE_FADE = 0.35
-
-
-def clip_keep(clip, analysis):
-    """Kept ranges of a clip: its span minus the dead-air pauses inside it."""
-    s, e = clip["start"], clip["end"]
-    cuts = []
-    if clip.get("trim_pauses", True) and analysis:
-        for c in analysis.get("candidates", []):
-            if c.get("keep_suggested") or c.get("kind") in ("lead_in", "tail_out"):
-                continue
-            c0, c1 = c["cut"]
-            if c1 > s and c0 < e:
-                cuts.append((max(c0, s), min(c1, e)))
-    keep, pos = [], s
-    for c0, c1 in sorted(cuts):
-        if c0 - pos >= 0.1:
-            keep.append({"start": pos, "end": c0})
-        pos = max(pos, c1)
-    if e - pos >= 0.1:
-        keep.append({"start": pos, "end": e})
-    return keep
 
 
 def rrect(w, h, r):
@@ -79,44 +59,151 @@ def rrect(w, h, r):
             f"b {i(r - k)} {i(h)} 0 {i(h - r + k)} 0 {i(h - r)} l 0 {i(r)} b 0 {i(r - k)} {i(r - k)} 0 {i(r)} 0")
 
 
-def kinetic_cover(ev, W, H, title, subtitle, T, t_sz, per_line, mag, green, safe):
-    """Animated cover events (first T seconds): glowing title lines that pop in, a drifting wireframe
-    ribbon (the brand's wave), a green rule that draws across, and a subtitle that slides up."""
+def reveal_cover(ev, Fs, W, H, title, subtitle, T, mag, green, white, safe):
+    """Cover in the reference style: tiers of title text reveal one after another (a big magenta word, a small white
+    connector, a big magenta word), then a green rule and a small subtitle. Mark tiers with "|": WORDS IN CAPITALS are
+    big, other words are small ("HUMAN | in the | LEAD"). No decoration, no glow."""
     import textwrap
-    n_lines = max(1, math.ceil(len(title) / max(per_line, 1)))
-    lines = textwrap.wrap(title, math.ceil(len(title) / n_lines) + 1) or [title]  # balanced lines, no lone short word
-    block = len(lines) * t_sz
+    Fb, Fsm = Fs["bold"], Fs["semibold"]
+    tiers = [t.strip() for t in title.split("|") if t.strip()]
+    max_w = W * 0.84
+    if len(tiers) == 1:  # no markup: balanced lines, all big
+        n = max(1, math.ceil(len(tiers[0]) / 12))
+        tiers = textwrap.wrap(tiers[0], math.ceil(len(tiers[0]) / n) + 1) or tiers
+        roles = ["big"] * len(tiers)
+    else:
+        roles = ["big" if t.isupper() else "small" for t in tiers]
+    big = [t for t, r_ in zip(tiers, roles) if r_ == "big"]
+    big_sz = int(H * 0.24)  # the width fit below makes it as large as the widest big word allows
+    for t in big:  # one size for every big tier, small enough that the widest fits
+        w = Fb.width(t, big_sz)
+        if w > max_w:
+            big_sz = int(big_sz * max_w / w)
+    small_sz = max(int(H * 0.040), int(big_sz * 0.34))
+    heights = [Fb.em(big_sz) * 1.0 if r_ == "big" else Fsm.em(small_sz) * 1.15 for r_ in roles]
+    gap = Fb.em(big_sz) * 0.16
+    total = sum(heights) + gap * (len(heights) - 1)
     ty = H * 0.42
     ms = lambda x: int(x * 1000)
-    out_at = ms(T) - 350
-    for i in range(9):  # flowing wireframe ribbon, brightest in the middle, drifting upward
-        y0 = int(H * 0.115 + i * H * 0.011)
-        amp, dy = int(H * (0.045 + 0.004 * i)), int(H * (0.02 + 0.006 * i))
-        path = "m -80 0 b %d %d %d %d %d %d" % (int(W * 0.30), -amp, int(W * 0.62), amp * 2, W + 80, dy)
-        al = 0x48 + 14 * abs(i - 4)
-        ev(0, 0, T, "Shape", "{\\an7\\move(0,%d,0,%d,0,%d)\\p1\\1a&HFF&\\3c%s\\3a&H%02X&\\bord3\\blur1\\t(%d,%d,\\3a&HFF&)}%s{\\p0}"
-           % (y0 + int(H * 0.07), y0 - int(H * 0.05), ms(T), mag, min(al, 0xE0), out_at, ms(T), path))
-    for i, line in enumerate(lines):
-        y = int(ty - block / 2 + (i + 0.5) * t_sz)
-        d = 40 + 150 * i
-        glow = ("{\\an5\\pos(%d,%d)\\1a&HFF&\\3c%s\\bord9\\blur16\\3a&HFF&\\fscx72\\fscy72\\t(%d,%d,\\3a&H50&\\fscx110\\fscy110)"
-                "\\t(%d,%d,\\fscx100\\fscy100)\\t(%d,%d,\\3a&HFF&)}%s" % (W // 2, y, mag, d, d + 230, d + 230, d + 380, out_at, ms(T), safe(line)))
-        main = ("{\\an5\\pos(%d,%d)\\alpha&HFF&\\blur8\\fscx72\\fscy72\\t(%d,%d,\\alpha&H00&\\blur0\\fscx110\\fscy110)"
-                "\\t(%d,%d,\\fscx100\\fscy100)\\t(%d,%d,\\alpha&HFF&)}%s" % (W // 2, y, d, d + 230, d + 230, d + 380, out_at, ms(T), safe(line)))
-        ev(1, 0, T, "Title", glow)
-        ev(2, 0, T, "Title", main)
-    ry = int(ty + block / 2 + H * 0.016)
-    rw, rh = int(W * 0.34), max(5, int(H * 0.0045))
+    out_at = ms(T) - 450
+    y = ty - total / 2
+    slide = int(H * 0.022)
+    last = 0
+    for i, (t, r_, h_) in enumerate(zip(tiers, roles, heights)):
+        cy = int(y + h_ / 2)
+        y += h_ + gap
+        d = 150 + 230 * i
+        style, col = ("Title", mag) if r_ == "big" else ("TitleSmall", white)
+        size_tag = "\\fs%d" % (big_sz if r_ == "big" else small_sz)
+        ev(2, 0, T, style, "{\\an5\\move(%d,%d,%d,%d,%d,%d)\\alpha&HFF&%s\\1c%s\\t(%d,%d,\\alpha&H00&)\\t(%d,%d,\\alpha&HFF&)}%s"
+           % (W // 2, cy + slide, W // 2, cy, d, d + 380, size_tag, col, d, d + 380, out_at, ms(T), safe(t)))
+        last = d + 380
+    ry = int(y - gap + Fb.em(big_sz) * 0.26)
+    rw, rh = int(W * 0.15), max(5, int(H * 0.0042))
     rx = (W - rw) // 2
-    ev(2, 0, T, "Shape", "{\\an7\\pos(%d,%d)\\p1\\1c%s\\bord0\\clip(%d,%d,%d,%d)\\t(900,1300,\\clip(%d,%d,%d,%d))\\t(%d,%d,\\alpha&HFF&)}m 0 0 l %d 0 %d %d 0 %d{\\p0}"
-       % (rx, ry, green, rx, ry - 2, rx, ry + rh + 2, rx, ry - 2, rx + rw, ry + rh + 2, out_at, ms(T), rw, rw, rh, rh))
+    ev(2, 0, T, "Shape", "{\\an7\\pos(%d,%d)\\p1\\1c%s\\bord0\\clip(%d,%d,%d,%d)\\t(%d,%d,\\clip(%d,%d,%d,%d))\\t(%d,%d,\\alpha&HFF&)}m 0 0 l %d 0 %d %d 0 %d{\\p0}"
+       % (rx, ry, green, rx, ry - 2, rx, ry + rh + 2, last - 100, last + 250, rx, ry - 2, rx + rw, ry + rh + 2, out_at, ms(T), rw, rw, rh, rh))
     if subtitle:
-        sy = int(ry + H * 0.062)
-        ev(2, 0, T, "Sub", "{\\an5\\move(%d,%d,%d,%d,1050,1400)\\alpha&HFF&\\t(1050,1400,\\alpha&H00&)\\t(%d,%d,\\alpha&HFF&)}%s"
-           % (W // 2, sy + int(H * 0.02), W // 2, sy, out_at, ms(T), safe(subtitle)))
+        sub_sz = int(H * 0.043)
+        sw_ = Fsm.width(subtitle, sub_sz)
+        if sw_ > W * 0.90:
+            sub_sz = int(sub_sz * W * 0.90 / sw_)
+        sy = int(ry + rh + Fsm.em(sub_sz) * 1.7)
+        ev(2, 0, T, "Sub", "{\\an5\\q2\\fs%d\\move(%d,%d,%d,%d,%d,%d)\\alpha&HFF&\\t(%d,%d,\\alpha&H00&)\\t(%d,%d,\\alpha&HFF&)}%s"
+           % (sub_sz, W // 2, sy + int(H * 0.012), W // 2, sy, last + 150, last + 500, last + 150, last + 500, out_at, ms(T), safe(subtitle)))
 
 
-def build_ass(brand, res, W, H, words_groups, title, subtitle, speaker, cfg, main_dur, flags):
+def caption_box_events(ev, F, W, H, groups, cap_sz, white, hi, safe, t_min=0.0):
+    """Captions in the reference style: white text, with the word being spoken on a magenta rounded box.
+    Word positions come from the font's real metrics, so the box sits exactly behind the word."""
+    em = F.em(cap_sz)
+    capy = int(H * 0.715)
+    space = F.width(" ", cap_sz)
+    for grp in groups:
+        widths = [F.width(x["word"], cap_sz) for x in grp]
+        total = sum(widths) + space * (len(grp) - 1)
+        cur, offs = W / 2 - total / 2, []
+        for w_ in widths:
+            offs.append(cur)
+            cur += w_ + space
+        line = " ".join(safe(x["word"]) for x in grp)
+        for k in range(len(grp)):
+            a = grp[k]["start"] if k else grp[0]["start"]
+            b = grp[k + 1]["start"] if k + 1 < len(grp) else grp[-1]["end"]
+            a = max(a, t_min)
+            if b <= a:
+                continue
+            pad, bh = 0.30 * em, 1.04 * em
+            bx, bw = offs[k] - pad, widths[k] + 2 * pad
+            ev(3, a, b, "Shape", "{\\pos(%d,%d)\\p1\\1c%s\\bord0}%s{\\p0}" % (bx, capy - bh / 2 - 0.07 * em, hi, rrect(bw, bh, bh * 0.34)))
+            ev(4, a, b, "CapW", "{\\an5\\pos(%d,%d)\\1c%s}%s" % (W // 2, capy, white, line))
+
+
+def card_events(ev, Fs, W, H, cards, colors, safe):
+    """Keyword cards: a navy panel with a magenta top line, a green label, and white pills that appear one at a
+    time as each term is spoken (the current pill in magenta). Times are in clip seconds."""
+    mag, green, navy, white, surf = colors
+    pill_sz, label_sz = int(H * 0.028), int(H * 0.0205)
+    Fp, Fl = Fs["semibold"], Fs["semibold"]
+    em = Fp.em(pill_sz)
+    pad_x, ph, gap, row_gap = 0.62 * em, 1.62 * em, W * 0.016, 0.55 * em
+    arrow_w = W * 0.05
+    panel_w = int(W * 0.92)
+    px0, inner = (W - panel_w) // 2, panel_w - 2 * int(W * 0.035)
+    fad = lambda i, o: "\\fad(%d,%d)" % (i, o)
+    for card in cards:
+        s_, e_ = card["start"], card["end"]
+        items = card["items"]
+        # lay the pills out in centred rows
+        seq = []
+        for k, it in enumerate(items):
+            if card["chain"] and k:
+                seq.append(("arrow", arrow_w, k))
+            seq.append(("pill", Fp.width(it["text"], pill_sz) + 2 * pad_x, k))
+        rows, cur, curw = [], [], 0.0
+        for el in seq:
+            w_ = el[1] + (gap if cur else 0)
+            if cur and curw + w_ > inner:
+                rows.append((cur, curw))
+                cur, curw, w_ = [], 0.0, el[1]
+            cur.append(el)
+            curw += w_
+        rows.append((cur, curw))
+        label_band = Fl.em(label_sz) * 2.4
+        pad_y = 0.75 * em
+        panel_h = int(pad_y + label_band + len(rows) * ph + (len(rows) - 1) * row_gap + pad_y)
+        y0 = min(int(H * 0.795), int(H * 0.955) - panel_h)
+        r = ph * 0.5
+        ev(4, s_, e_, "Shape", "{\\pos(%d,%d)\\p1\\1c%s\\1a&H14&\\bord0%s}%s{\\p0}" % (px0, y0, surf, fad(220, 260), rrect(panel_w, panel_h, r)))
+        ev(5, s_, e_, "Shape", "{\\pos(%d,%d)\\p1\\1c%s\\bord0%s}m 0 0 l %d 0 %d 3 0 3{\\p0}" % (px0 + r * 0.7, y0, mag, fad(220, 260), panel_w - r * 1.4, panel_w - r * 1.4))
+        ev(6, s_, e_, "CardLabel", "{\\an5\\pos(%d,%d)%s}%s" % (W // 2, y0 + pad_y * 0.55 + label_band / 2, fad(220, 260), safe(card["label"])))
+        for ri, (row, rw) in enumerate(rows):
+            x = (W - rw) / 2
+            y = y0 + pad_y + label_band + ri * (ph + row_gap)
+            for kind, w_, k in row:
+                it = items[k]
+                t_i = max(it["at"], s_ + 0.15)
+                if kind == "arrow":
+                    ah = ph * 0.46
+                    ev(6, t_i, e_, "Shape", "{\\pos(%d,%d)\\p1\\1c%s\\bord0%s}m 0 %d l %d %d %d 0 %d %d %d %d %d %d 0 %d{\\p0}" % (
+                        x + w_ * 0.12, y + (ph - ah) / 2, white, fad(180, 260), ah * 0.30, w_ * 0.50, ah * 0.30, w_ * 0.50, w_ * 0.76, ah * 0.5,
+                        w_ * 0.50, ah, w_ * 0.50, ah * 0.70, ah * 0.70))
+                else:
+                    nxt = items[k + 1]["at"] if k + 1 < len(items) else t_i + 1.1
+                    t_act = min(max(nxt, t_i + 0.5), e_)
+                    cx, cy = x + w_ / 2, y + ph / 2
+                    shape = rrect(w_, ph, ph * 0.5)
+                    tail = fad(180, 260 if t_act >= e_ - 0.01 else 0)
+                    mv = "\\move(%d,%d,%d,%d,0,220)"
+                    ev(7, t_i, t_act, "Shape", ("{" + mv + "\\p1\\1c%s\\bord0%s}%s{\\p0}") % (x, y + 0.4 * ph, x, y, mag, tail, shape))
+                    ev(8, t_i, t_act, "CardPill", ("{\\an5" + mv + "\\1c%s%s}%s") % (cx, cy + 0.4 * ph, cx, cy, white, tail, safe(it["text"])))
+                    if t_act < e_ - 0.01:
+                        ev(7, t_act, e_, "Shape", "{\\pos(%d,%d)\\p1\\1c%s\\bord0%s}%s{\\p0}" % (x, y, white, fad(0, 260), shape))
+                        ev(8, t_act, e_, "CardPill", "{\\an5\\pos(%d,%d)\\1c%s%s}%s" % (cx, cy, navy, fad(0, 260), safe(it["text"])))
+                x += w_ + gap
+
+
+def build_ass(brand, res, W, H, words_groups, title, subtitle, speaker, cfg, main_dur, flags, cards=None, lt_until=None):
     colors = brand["colors"]
     col = lambda n: colors.get(n, n if str(n).startswith("#") else "#FFFFFF")
     fonts = brand["fonts"]
@@ -128,7 +215,7 @@ def build_ass(brand, res, W, H, words_groups, title, subtitle, speaker, cfg, mai
     cap_fam, cap_b = font_info(res(fonts[capc.get("font", "bold")]))
     white, hi = ass_color(col(capc.get("color", "text"))), ass_color(col(capc.get("highlight", "primary")))
     outline = ass_color(capc.get("outline", "#000000"))
-    cap_sz = int(H * 0.054)  # ASS sizes are line heights; Poppins is tall, so letters render about 1.5x smaller
+    cap_sz = int(H * 0.072)  # ASS sizes are line heights; Poppins is tall, so letters render about 1.5x smaller
     tl = len(title)
     t_sz = int(H * (0.14 if tl <= 12 else 0.105 if tl <= 28 else 0.080))
     per_line = max(6, int(W * 0.92 / (t_sz / 1.5 * 0.58)))
@@ -143,9 +230,13 @@ def build_ass(brand, res, W, H, words_groups, title, subtitle, speaker, cfg, mai
         "Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding",
         f"Style: Cap,{cap_fam},{cap_sz},{white},&H00FFFFFF&,{outline},&H00000000&,{-1 if cap_b else 0},0,0,0,100,100,0,0,1,{max(4, int(H * 0.0035))},0,2,{int(W * 0.06)},{int(W * 0.06)},{int(H * 0.26)},1",
         f"Style: Title,{bold_fam},{t_sz},{mag},&H00FFFFFF&,&H00000000&,&H00000000&,{-1 if bold_b else 0},0,0,0,100,100,0,0,1,0,0,5,{int(W * 0.07)},{int(W * 0.07)},0,1",
-        f"Style: Sub,{med_fam},{int(H * 0.058)},{green},&H00FFFFFF&,&H00000000&,&H00000000&,{-1 if med_b else 0},0,0,0,100,100,0,0,1,0,0,5,{int(W * 0.07)},{int(W * 0.07)},0,1",
+        f"Style: TitleSmall,{semi_fam},{int(H * 0.04)},&H00FFFFFF&,&H00FFFFFF&,&H00000000&,&H00000000&,{-1 if semi_b else 0},0,0,0,100,100,0,0,1,0,0,5,0,0,0,1",
+        f"Style: Sub,{med_fam},{int(H * 0.043)},{green},&H00FFFFFF&,&H00000000&,&H00000000&,{-1 if med_b else 0},0,0,0,100,100,0,0,1,0,0,5,{int(W * 0.07)},{int(W * 0.07)},0,1",
         f"Style: Name,{bold_fam},{int(H * 0.034)},&H00FFFFFF&,&H00FFFFFF&,&H00000000&,&H00000000&,{-1 if bold_b else 0},0,0,0,100,100,0,0,1,0,0,7,0,0,0,1",
         f"Style: Role,{reg_fam},{int(H * 0.028)},{green},&H00FFFFFF&,&H00000000&,&H00000000&,{-1 if reg_b else 0},0,0,0,100,100,0,0,1,0,0,7,0,0,0,1",
+        f"Style: CapW,{cap_fam},{cap_sz},{white},&H00FFFFFF&,{outline},&H00000000&,{-1 if cap_b else 0},0,0,0,100,100,0,0,1,{max(3, int(H * 0.0028))},0,5,0,0,0,1",
+        f"Style: CardLabel,{semi_fam},{int(H * 0.0205)},{green},&H00FFFFFF&,&H00000000&,&H00000000&,{-1 if semi_b else 0},0,0,0,100,100,3,0,1,0,0,5,0,0,0,1",
+        f"Style: CardPill,{semi_fam},{int(H * 0.028)},{navy},&H00FFFFFF&,&H00000000&,&H00000000&,{-1 if semi_b else 0},0,0,0,100,100,0,0,1,0,0,5,0,0,0,1",
         f"Style: Shape,{reg_fam},20,&H00FFFFFF&,&H00FFFFFF&,&H00000000&,&H00000000&,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1",
         f"Style: Url,{med_fam},{int(H * 0.031)},&H00FFFFFF&,&H00FFFFFF&,&H00000000&,&H00000000&,0,1,0,0,100,100,0,0,1,0,0,5,0,0,0,1",
         "", "[Events]", "Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text"]
@@ -153,8 +244,8 @@ def build_ass(brand, res, W, H, words_groups, title, subtitle, speaker, cfg, mai
     safe = lambda s: s.replace("{", "(").replace("}", ")").replace("\\", "")
     T = float(cfg["title"].get("seconds", 3))
     ty = H * 0.42
-    if flags["title"] and title and flags.get("cover", "static") == "animated":
-        kinetic_cover(ev, W, H, title, subtitle, T, t_sz, per_line, mag, green, safe)
+    if flags["title"] and title and flags.get("cover", "reveal") == "reveal":
+        reveal_cover(ev, {k: Font(res(fonts[k])) for k in ("bold", "semibold") if k in fonts}, W, H, title, subtitle, T, mag, green, ass_color(col("text")), safe)
     elif flags["title"] and title:
             ev(2, 0, T, "Title", f"{{\\pos({W // 2},{int(ty)})\\fad({int(TITLE_FADE * 1000)},{int(TITLE_FADE * 1000)})}}{safe(title)}")
             ry = int(ty + t_h / 2 + H * 0.014)
@@ -162,15 +253,24 @@ def build_ass(brand, res, W, H, words_groups, title, subtitle, speaker, cfg, mai
             ev(2, 0, T, "Shape", f"{{\\pos({(W - rw) // 2},{ry})\\p1\\1c{green}\\bord0\\fad({int(TITLE_FADE * 1000)},{int(TITLE_FADE * 1000)})}}m 0 0 l {rw} 0 {rw} {rh} 0 {rh}{{\\p0}}")
             if subtitle:
                 ev(2, 0, T, "Sub", f"{{\\pos({W // 2},{int(ry + H * 0.05)})\\fad({int(TITLE_FADE * 1000)},{int(TITLE_FADE * 1000)})}}{safe(subtitle)}")
-    for grp in words_groups:
-        for k, w in enumerate(grp):
-            a = w["start"] if k else grp[0]["start"]
-            b = grp[k + 1]["start"] if k + 1 < len(grp) else grp[-1]["end"]
-            parts = [("{\\1c" + (hi if j == k else white) + "}") + safe(x["word"]) for j, x in enumerate(grp)]
-            ev(3, a, b, "Cap", " ".join(parts))
+    Fs = {k: Font(res(fonts[k])) for k in ("regular", "medium", "semibold", "bold") if k in fonts}
+    if capc.get("style", "box") == "box":
+        caption_box_events(ev, Fs[capc.get("font", "bold")], W, H, words_groups, cap_sz, white, hi, safe,
+                           t_min=(T - 0.45) if (flags["title"] and title) else 0.0)
+    else:
+        for grp in words_groups:
+            for k, w in enumerate(grp):
+                a = w["start"] if k else grp[0]["start"]
+                b = grp[k + 1]["start"] if k + 1 < len(grp) else grp[-1]["end"]
+                parts = [("{\\1c" + (hi if j == k else white) + "}") + safe(x["word"]) for j, x in enumerate(grp)]
+                ev(3, a, b, "Cap", " ".join(parts))
+    if cards:
+        card_events(ev, Fs, W, H, cards, (mag, green, navy, ass_color(col("text")), ass_color(col("surface"))), safe)
     if flags["lower_third"] and speaker:
         a = T if flags["title"] else 0.5
         b = min(a + float(cfg["lower_third"].get("seconds", 16)), main_dur)
+        if lt_until is not None:
+            b = min(b, lt_until)
         bw, bh = int(W * 0.46), int(H * 0.085)
         bx, by = W - int(W * 0.035) - bw, int(H * 0.855)
         fad = "\\fad(300,300)"
@@ -227,8 +327,8 @@ def main():
     ap.add_argument("--punch-in", type=float, default=1.0)
     ap.add_argument("--preview", action="store_true")
     ap.add_argument("--no-title", action="store_true")
-    ap.add_argument("--cover", choices=["static", "animated"], default="static",
-                    help="static (default): plain title over the blurred video; animated: experimental kinetic title with a drifting ribbon, not recommended until the cover is redesigned")
+    ap.add_argument("--cover", choices=["reveal", "static"], default="reveal",
+                    help="reveal (default): staggered title tiers, a green rule and a subtitle over the blurred video, then a crossfade; static: plain title")
     ap.add_argument("--no-lower-third", "--no-lower-thirds", dest="no_lower_third", action="store_true")
     ap.add_argument("--no-end-card", action="store_true")
     ap.add_argument("--keep-work", action="store_true")
@@ -329,8 +429,22 @@ def main():
         timed = cap.retime(all_words, keep)
         groups = cap.group(timed, brand.get("captions", {}).get("short", {}).get("max_words_per_line", 3))
         (d_out / "clip.srt").write_text(cap.to_srt(cap.group(timed)), encoding="utf-8")
+        cards_ct = [{"label": k["label"], "chain": k.get("chain", False), "start": kept_before(keep, k["start"]), "end": kept_before(keep, k["end"]),
+                     "items": [{"text": i["text"], "at": kept_before(keep, i["at"])} for i in k["items"]]} for k in clip.get("cards") or []]
+        clip_flags, lt_until = dict(flags), None
+        if cards_ct and clip_flags["lower_third"]:
+            # the name tag and the cards share the bottom of the frame: show the name until just before the first card,
+            # but only when that leaves at least 3 seconds to read it
+            first_card = min(k["start"] for k in cards_ct)
+            lt_from = float(cfg["title"].get("seconds", 3)) if clip_flags["title"] else 0.5
+            if first_card - 0.5 - lt_from >= 3.0:
+                lt_until = first_card - 0.5
+                warnings.append(f"lower third shown from {lt_from:.1f} s to {lt_until:.1f} s, then the cards take over")
+            else:
+                clip_flags["lower_third"] = False
+                warnings.append(f"lower third skipped: the first card starts at {first_card:.1f} s, which leaves less than 3 s to show the name")
         ass = build_ass(brand, res, W, H, groups, clip.get("overlay_title", clip["title"]), clip.get("subtitle", ""),
-                        speaker, cfg, main_dur, flags)
+                        speaker, cfg, main_dur, clip_flags, cards_ct, lt_until)
         (work / "overlays.ass").write_text(ass, encoding="utf-8")
         inputs = ["-f", "concat", "-safe", "0", "-i", str(lst)]
         meas = measure_loudness(lst, lufs)
@@ -345,12 +459,11 @@ def main():
         if flags["title"]:
             ov = cfg["title"].get("blur_overlay", "#041250").replace("#", "0x")
             al = cfg["title"].get("blur_alpha", 0.72)
-            if a.cover == "animated":
+            if a.cover == "reveal":
                 g.append(f"[0:v]split=2[base][cp];"
                          f"[cp]trim=0:{T},setpts=PTS-STARTPTS,boxblur=luma_radius={max(8, W // 28)}:luma_power=2,"
                          f"drawbox=x=0:y=0:w=iw:h=ih:color={ov}@{al}:t=fill,"
-                         f"scale=w='trunc(iw*(1.16-0.16*min(t/{T},1))/2)*2':h='trunc(ih*(1.16-0.16*min(t/{T},1))/2)*2':eval=frame,"
-                         f"crop={W}:{H},format=yuva420p,fade=t=out:st={T - 0.45:.2f}:d=0.45:alpha=1[blur];"
+                         f"format=yuva420p,fade=t=out:st={T - 0.5:.2f}:d=0.5:alpha=1[blur];"
                          f"[base][blur]overlay=eof_action=pass[mv]")
             else:
                 g.append(f"[0:v]boxblur=luma_radius={max(8, W // 28)}:luma_power=2:enable='lt(t,{T})',"

@@ -17,13 +17,13 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _vlib import TOL, fmt_clock, hms, kept_before, in_keep, load_json, output_duration, words_of  # noqa: E402
+from _vlib import TOL, Levels, fmt_clock, hms, kept_before, in_keep, load_json, output_duration, words_of  # noqa: E402
 
 MIN_CHAPTERS = 3
 MIN_CHAPTER_SECONDS = 10.0
 
 
-def validate(cl, transcript=None):
+def validate(cl, transcript=None, levels=None):
     errors, warnings = [], []
     if cl.get("version") != 1:
         errors.append("version must be 1")
@@ -94,6 +94,13 @@ def validate(cl, transcript=None):
                         )
                         break
 
+    if levels is not None:
+        for k in clean:
+            if k["start"] > TOL and levels.loud(k["start"] - 0.08):
+                warnings.append(f"a kept range starts at {hms(k['start'])} with sound still going just before it; the cut may clip a word")
+            if dur and k["end"] < dur - TOL and levels.loud(k["end"] + 0.03):
+                warnings.append(f"a kept range ends at {hms(k['end'])} with sound still going just after it; the cut may clip a word")
+
     out_dur = output_duration(clean)
     info = {
         "output_seconds": round(out_dur, 3),
@@ -138,14 +145,16 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("cutlist")
     ap.add_argument("--transcript")
+    ap.add_argument("--levels", help="fine audio levels from analyse.py; warns about cuts that land in sound")
     a = ap.parse_args()
     try:
         cl = load_json(a.cutlist)
         tr = load_json(a.transcript) if a.transcript else None
+        lv = Levels.load(a.levels) if a.levels else None
     except (OSError, ValueError) as e:
         print(json.dumps({"ok": False, "error": f"cannot read input: {e}"}))
         return 1
-    errors, warnings, info = validate(cl, tr)
+    errors, warnings, info = validate(cl, tr, lv)
     print(json.dumps({"ok": not errors, "errors": errors, "warnings": warnings, **info}, indent=2))
     return 0 if not errors else 1
 

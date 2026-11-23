@@ -2,7 +2,7 @@
 """Resolve and check a proposed clip list (short-form moments).
 
 Usage: validate_clips.py CLIPS.json --sentences sentences.json [--analysis analysis.json]
-                         [--out clips.resolved.json]
+                         [--transcript transcript.json] [--out clips.resolved.json]
 
 CLIPS.json (written by the agent), one entry per proposed clip:
   {"id": 1, "from": 120, "to": 134, "title": "...", "caption": "...", "reason": "...",
@@ -15,7 +15,8 @@ removed (needs --analysis), and checks:
             title/reason/caption, a title over 60 characters, more than 2 hashtags, copy-style problems
   warnings  length outside 30-90 s, opens mid-thought ("so", "and", "this"...) or points back to
             earlier context ("like I said"), a filler word in the first words
-Writes the resolved list (with start, end, seconds, effective_seconds, text) to --out.
+With the levels file written by analyse.py (found next to --analysis), each clip's start and end are moved to where the
+sound has really stopped, so a word is never cut off. Writes the resolved list (with start, end, seconds, effective_seconds, text) to --out.
 Prints JSON; exit 0 when there are no errors.
 """
 import argparse
@@ -25,7 +26,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _vlib import copy_problems, hms, load_json, save_json  # noqa: E402
+from _vlib import Levels, clip_keep, copy_problems, hms, kept_before, load_json, save_json, words_of  # noqa: E402
 
 LEAD, TAIL = 0.15, 0.35
 HARD_MIN, HARD_MAX, SOFT_MIN, SOFT_MAX = 20.0, 120.0, 30.0, 90.0
@@ -49,7 +50,89 @@ def pause_seconds(analysis, start, end):
     return total
 
 
-def check(clips, sents, analysis):
+CARD_LEAD, CARD_HOLD = 0.35, 2.4
+MAX_ITEMS, MAX_LABEL_WORDS, MAX_LABEL_CHARS, MAX_ITEM_CHARS = 4, 7, 36, 26
+
+
+def find_phrase(words, phrase, after=None):
+    """(start, end) of the first spoken `phrase` at or after time `after`, or None. Returns the earliest earlier match
+    as a second value when the phrase is only found before `after`."""
+    want = norm(phrase)
+    toks = [norm(w["word"]) for w in words]
+    toks = [t[0] if t else "" for t in toks]
+    earlier = None
+    for i in range(len(toks) - len(want) + 1):
+        if toks[i:i + len(want)] == want:
+            hit = (words[i]["start"], words[i + len(want) - 1]["end"])
+            if after is None or hit[0] >= after - 1e-6:
+                return hit, None
+            earlier = earlier or hit
+    return None, earlier
+
+
+def resolve_cards(clip, tag, cw, text, start, end, errors, warnings, keep=None):
+    """Check a clip's keyword cards and give every item the time its words are spoken (source seconds)."""
+    out, cards = [], clip.get("cards") or []
+    clip_start = start
+    text_low = text.lower()
+    for ci, card in enumerate(cards, 1):
+        ctag = f"{tag} card {ci}"
+        label = str(card.get("label", "")).strip()
+        items = card.get("items") or []
+        if not label or len(label.split()) > MAX_LABEL_WORDS or len(label) > MAX_LABEL_CHARS:
+            errors.append(f"{ctag}: label must be 1 to {MAX_LABEL_WORDS} words and at most {MAX_LABEL_CHARS} characters")
+        if not items or len(items) > MAX_ITEMS:
+            errors.append(f"{ctag}: needs 1 to {MAX_ITEMS} items")
+            continue
+        for f, v in (("label", label), *((f"item {k}", it.get("text", "")) for k, it in enumerate(items, 1))):
+            for p in copy_problems(str(v)):
+                errors.append(f"{ctag}: {f} {p}")
+            for num in re.findall(r"\d+", str(v)):
+                if num not in text_low:
+                    errors.append(f"{ctag}: {f} contains the number {num}, which is not in the clip")
+        res_items, last_t = [], None
+        for k, it in enumerate(items, 1):
+            t, say = str(it.get("text", "")).strip(), str(it.get("say", "")).strip()
+            if not t or len(t) > MAX_ITEM_CHARS:
+                errors.append(f"{ctag} item {k}: text must be 1 to {MAX_ITEM_CHARS} characters")
+                continue
+            if not say:
+                errors.append(f"{ctag} item {k} ('{t}'): 'say' (the words spoken) is required")
+                continue
+            hit, earlier = find_phrase(cw, say, last_t)
+            if hit is None:
+                if earlier is not None:
+                    errors.append(f"{ctag} item {k} ('{t}'): the words \"{say}\" are only spoken earlier ({earlier[0] - clip_start:.1f} s into the clip), "
+                                  f"before the previous item; items must be in the order they are spoken, so use words said after it")
+                else:
+                    errors.append(f"{ctag} item {k} ('{t}'): the words \"{say}\" are not spoken in this clip")
+                continue
+            last_t = hit[0]
+            res_items.append({"text": t, "say": say, "at": round(hit[0], 3)})
+        if not res_items:
+            continue
+        out.append({"label": label.upper(), "chain": bool(card.get("chain")), "items": res_items,
+                    "start": round(max(start, res_items[0]["at"] - CARD_LEAD), 3),
+                    "end": round(min(end - 0.3, res_items[-1]["at"] + CARD_HOLD), 3)})
+    out.sort(key=lambda c: c["start"])
+    if keep:  # where each card and pill lands in the finished clip, after dead-air pauses are removed
+        for c in out:
+            c["clip_start"], c["clip_end"] = round(kept_before(keep, c["start"]), 2), round(kept_before(keep, c["end"]), 2)
+            for it in c["items"]:
+                it["clip_at"] = round(kept_before(keep, it["at"]), 2)
+    for x, y in zip(out, out[1:]):
+        if y["start"] < x["items"][-1]["at"] + 0.8:
+            errors.append(f"{tag}: cards '{x['label']}' and '{y['label']}' are too close together (the first needs about a second after its last item)")
+        elif y["start"] < x["end"]:
+            x["end"] = round(y["start"] - 0.25, 3)
+    if out and out[0]["start"] - start < 3.0:
+        warnings.append(f"{tag}: the first card starts inside the title overlay (first 3 seconds); move its words later or drop it")
+    if len(out) > 1 and (end - start) / len(out) < 7.0:
+        warnings.append(f"{tag}: {len(out)} cards in {end - start:.0f} s is crowded; about one every 10 to 15 seconds reads better")
+    return out
+
+
+def check(clips, sents, analysis, levels=None, tx_words=None):
     errors, warnings, out = [], [], []
     by_id = {s["id"]: s for s in sents}
     for i, c in enumerate(clips):
@@ -67,6 +150,23 @@ def check(clips, sents, analysis):
         next_start = by_id[b + 1]["start"] if b + 1 in by_id else last["end"] + TAIL
         start = max(first["start"] - LEAD, (prev_end + first["start"]) / 2 if prev_end else 0.0)
         end = min(last["end"] + TAIL, (last["end"] + next_start) / 2 if b + 1 in by_id else last["end"] + TAIL)
+        edge_notes = []
+        if levels is not None:
+            # Whisper's word times can end early or start late: move each edge to where the sound has really stopped.
+            if levels.loud(end):
+                lim = (next_start - 0.03) if b + 1 in by_id else last["end"] + 1.0
+                q = levels.next_quiet(end, min(lim, end + 1.0))
+                if q is not None:
+                    end = min(q + 0.12, lim)
+                else:
+                    edge_notes.append("sound is still going at the clip's end; check the last word by eye")
+            if levels.loud(start):
+                lim = (prev_end + 0.03) if a - 1 in by_id else 0.0
+                q = levels.prev_quiet(start, max(lim, start - 1.0))
+                if q is not None:
+                    start = max(q - 0.10, lim, 0.0)
+                else:
+                    edge_notes.append("sound is already going at the clip's start; check the first word by eye")
         raw = end - start
         trimmed = pause_seconds(analysis, start, end) if c.get("trim_pauses", True) else 0.0
         eff = raw - trimmed
@@ -89,6 +189,8 @@ def check(clips, sents, analysis):
             if ph in low:
                 warnings.append(f"{tag}: refers back to earlier context ('{ph}'); may not stand alone")
                 break
+        for note in edge_notes:
+            warnings.append(f"{tag}: {note}")
         for f in ("title", "caption", "reason"):
             if not str(c.get(f, "")).strip():
                 errors.append(f"{tag}: '{f}' is required")
@@ -99,7 +201,14 @@ def check(clips, sents, analysis):
         for f in ("title", "caption"):
             for p in copy_problems(str(c.get(f, ""))):
                 errors.append(f"{tag}: {f} {p}")
-        out.append({**c, "start": round(start, 3), "end": round(end, 3), "seconds": round(raw, 1),
+        cards = []
+        if c.get("cards"):
+            if tx_words is None:
+                errors.append(f"{tag}: cards need the transcript; pass --transcript")
+            else:
+                cw = [w for w in tx_words if start - 0.05 <= w["start"] <= end + 0.05]
+                cards = resolve_cards(c, tag, cw, text, start, end, errors, warnings, clip_keep({**c, "start": start, "end": end}, analysis))
+        out.append({**c, "cards": cards, "start": round(start, 3), "end": round(end, 3), "seconds": round(raw, 1),
                     "effective_seconds": round(eff, 1), "at": hms(start), "text": text})
     ordered = sorted(out, key=lambda x: x["start"])
     for x, y in zip(ordered, ordered[1:]):
@@ -113,6 +222,8 @@ def main():
     ap.add_argument("clips")
     ap.add_argument("--sentences", required=True)
     ap.add_argument("--analysis")
+    ap.add_argument("--levels", help="fine audio levels from analyse.py (default: next to --analysis)")
+    ap.add_argument("--transcript", help="transcript.json; required for keyword cards (their pills are timed to the spoken words)")
     ap.add_argument("--out")
     a = ap.parse_args()
     try:
@@ -120,13 +231,16 @@ def main():
         clips = data["clips"] if isinstance(data, dict) else data
         sents = load_json(a.sentences)["sentences"]
         analysis = load_json(a.analysis) if a.analysis else None
+        lv_path = a.levels or (str(Path(a.analysis).with_suffix("")) + ".levels.json" if a.analysis else None)
+        levels = Levels.load(lv_path) if lv_path and Path(lv_path).is_file() else None
+        words = words_of(load_json(a.transcript)) if a.transcript else None
     except (OSError, ValueError, KeyError) as e:
         print(json.dumps({"ok": False, "error": f"cannot read input: {e}"}))
         return 1
-    errors, warnings, resolved = check(clips, sents, analysis)
+    errors, warnings, resolved = check(clips, sents, analysis, levels, words)
     if a.out and not errors:
         save_json(a.out, {"version": 1, "clips": resolved})
-    print(json.dumps({"ok": not errors, "errors": errors, "warnings": warnings, "clips": len(resolved),
+    print(json.dumps({"ok": not errors, "errors": errors, "warnings": warnings, "clips": len(resolved), "edges_snapped_to_audio": levels is not None,
                       "resolved": resolved if not errors else [], "out": a.out if not errors else None}, indent=2))
     return 0 if not errors else 1
 

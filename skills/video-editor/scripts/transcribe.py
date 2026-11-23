@@ -29,7 +29,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _vlib import hms, load_json, save_json  # noqa: E402
+from _vlib import apply_corrections, hms, load_json, merge_fragments, save_json  # noqa: E402
 
 VERSION = 1
 
@@ -78,7 +78,7 @@ def cache_key(clips, model, language, glossary=()):
     return h.hexdigest()[:16]
 
 
-def run_whisper(clips, model_name, language, work, glossary=()):
+def run_whisper(clips, model_name, language, work, glossary=(), corrections=None):
     from faster_whisper import WhisperModel
     cpu = os.cpu_count() or 4
     model = WhisperModel(model_name, device="auto", compute_type="auto", cpu_threads=min(cpu, 8))
@@ -92,9 +92,16 @@ def run_whisper(clips, model_name, language, work, glossary=()):
                                       initial_prompt=("Terms: " + ", ".join(glossary) + ".") if glossary else None,
                                       hotwords=" ".join(glossary) if glossary else None)
         lang_seen = lang_seen or info.language
+        last_note = 0.0
         for s in segs:
+            if s.end - last_note >= 60:  # a sign of life on a long file; stdout stays a single JSON object
+                print(f"transcribing... {s.end:.0f} s of {c['duration']:.0f} s", file=sys.stderr, flush=True)
+                last_note = s.end
             words = [{"word": w.word.strip(), "start": round(c["offset"] + w.start, 3), "end": round(c["offset"] + w.end, 3),
                       "probability": round(float(w.probability), 3)} for w in (s.words or []) if w.word.strip()]
+            words = merge_fragments(words)
+            if corrections:
+                words, _ = apply_corrections(words, corrections)
             if not words:
                 continue
             segments.append({"start": round(c["offset"] + s.start, 3), "end": round(c["offset"] + s.end, 3),
@@ -185,7 +192,7 @@ def main():
     ap.add_argument("--language", default="auto")
     ap.add_argument("--duration", type=float)
     ap.add_argument("--glossary", default="", help="comma-separated names/terms Whisper often mishears (e.g. 'lowtouch.ai, Krithi')")
-    ap.add_argument("--brand", help="brand.json; its glossary list is added to --glossary")
+    ap.add_argument("--brand", help="brand.json; its glossary list is added to --glossary, and its corrections (known mishearings) are applied")
     ap.add_argument("--force", action="store_true", help="ignore the cache")
     a = ap.parse_args()
 
@@ -223,7 +230,10 @@ def main():
                 glossary += [g for g in load_json(a.brand).get("glossary", []) if g not in glossary]
             except (OSError, ValueError) as e:
                 return die(f"cannot read brand file: {e}")
-        key = cache_key(clips, a.model, a.language, glossary)
+        corrections = {}
+        if a.brand:
+            corrections = load_json(a.brand).get("corrections", {}) or {}
+        key = cache_key(clips, a.model, a.language, glossary + sorted(f"{k}=>{v}" for k, v in corrections.items()))
         if tpath.exists() and not a.force:
             try:
                 old = load_json(tpath)
@@ -239,7 +249,7 @@ def main():
         except ImportError:
             return die("faster-whisper is not installed", fix="python3 <skill-dir>/scripts/setup_env.py")
         try:
-            segments, lang = run_whisper(clips, a.model, a.language, out_dir / "proxy", glossary)
+            segments, lang = run_whisper(clips, a.model, a.language, out_dir / "proxy", glossary, corrections)
         except Exception as e:  # model download, decode, memory
             return die(f"transcription failed: {e}")
         t = {"version": VERSION, "engine": "faster-whisper", "model": a.model, "language": lang, "granularity": "word",

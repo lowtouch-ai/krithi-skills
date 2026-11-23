@@ -100,6 +100,19 @@ try:
 except ValueError:
     problems.append(f"check_env did not print JSON: {r.stdout[:200]} {r.stderr[:200]}")
 
+# ---- cuts are placed on real silence (no ffmpeg needed) ----
+_sp2 = _iu.spec_from_file_location("vlib_t2", str(scripts / "_vlib.py")); _vl2 = _iu.module_from_spec(_sp2); _sp2.loader.exec_module(_vl2)
+lv = _vl2.Levels({"t0": 0.0, "step": 0.1, "threshold_db": -40, "db": [-10] * 50 + [-80] * 20 + [-10] * 5 + [-80] * 40 + [-10] * 10})
+run_ = lv.longest_quiet_run(0.0, 12.5)
+expect(run_ and abs(run_[0] - 7.5) < 0.11 and abs(run_[1] - 11.5) < 0.11, f"longest quiet run wrong (a loud burst must split a gap): {run_}")
+expect(lv.loud(2.0) and not lv.loud(6.0), "loud()/quiet detection wrong")
+expect(lv.next_quiet(4.0, 10.0) is not None and abs(lv.next_quiet(4.0, 10.0) - 5.0) < 0.11, "next_quiet wrong")
+lvf = write("levels_t.json", {"t0": 0.0, "step": 0.05, "threshold_db": -40, "db": [-10] * 100 + [-80] * 100})
+cl_l = write("cut_levels.json", {"version": 1, "source": {"duration": 10.0}, "keep": [{"start": 0.0, "end": 4.0}, {"start": 6.0, "end": 10.0}],
+                                 "cuts": [{"start": 4.0, "end": 6.0, "kind": "pause", "reason": "r"}]})
+jl = json.loads(run("validate_cutlist.py", cl_l, "--levels", lvf).stdout)
+expect(jl["ok"] and any("still going just after it" in w for w in jl["warnings"]), f"cut landing in sound not warned: {jl}")
+
 # ---- sentences and clip proposals (no ffmpeg needed) ----
 def mk_words(text, start, step=0.4, speaker=None):
     out, t = [], start
@@ -164,6 +177,66 @@ expect(_rf.crop_box(1920, 1080, 1900, 400)[0] + _rf.crop_box(1920, 1080, 1900, 4
 px, py, pw, ph = _rf.crop_box(1920, 1080, 1000, 400, 1.25)
 expect(ph < 1080 and abs(pw / ph - 9 / 16) < 0.01 and py >= 0 and py + ph <= 1080, f"punch-in crop wrong: {(px, py, pw, ph)}")
 
+# ---- transcript corrections (no ffmpeg needed) ----
+_sp3 = _iu.spec_from_file_location("vlib_t3", str(scripts / "_vlib.py")); _vl3 = _iu.module_from_spec(_sp3); _sp3.loader.exec_module(_vl3)
+_w = lambda t_, s_, e_: {"word": t_, "start": s_, "end": e_, "probability": 0.9}
+fixed, lg = _vl3.apply_corrections([_w("some", 0, .3), _w("are", .3, .5), _w("most", .5, .9), _w("Chat", 1, 1.2), _w("bots.", 1.2, 1.6), _w("lotage", 2, 2.4)],
+                                    {"some are most": "some or most", "chat bots": "chatbots", "lotage": "lowtouch"})
+expect([x["word"] for x in fixed] == ["some", "or", "most", "chatbots.", "lowtouch"] or False, f"corrections wrong: {[x['word'] for x in fixed]}")
+expect(len(lg) == 3 and fixed[3]["start"] == 1 and fixed[3]["end"] == 1.6, f"corrected word should span the original words' time: {fixed[3]}")
+spread, _ = _vl3.apply_corrections([_w("x", 0, 1)], {"x": "a b"})
+expect(len(spread) == 2 and abs(spread[0]["end"] - 0.5) < 1e-6, f"one word to two should spread the time: {spread}")
+ct = write("corr_tr.json", {"engine": "t", "granularity": "word", "language": "en", "segments": [{"start": 0, "end": 3, "text": "x", "words": [
+    _w("in", 0, .2), _w("lotage", .3, .7), _w(".ai", .72, 1.0), _w("we", 1.1, 1.2), _w("have", 1.3, 1.5)]}]})
+cr = json.loads(run("correct_transcript.py", ct, "--replace", "lotage.ai=lowtouch.ai").stdout)
+cdata = json.loads(Path(ct).read_text())
+expect(cr["ok"] and cr["changes"] == 1 and [w["word"] for w in cdata["segments"][0]["words"]] == ["in", "lowtouch.ai", "we", "have"], f"correct_transcript wrong: {cr} {[w['word'] for w in cdata['segments'][0]['words']]}")
+expect((tmp / "transcript.original.json").is_file() and (tmp / "transcript.edits.json").is_file() and (tmp / "transcript.md").is_file(), "original, edits log and transcript.md should be written")
+sj_ = json.loads(run("correct_transcript.py", ct, "--suspects", "--below", "0.95").stdout)
+expect(sj_["ok"] and len(sj_["suspects"]) >= 1 and all(x["word"].lower() not in ("in", "we", "have", "the") for x in sj_["suspects"]),
+       f"suspects should list content words, not function words: {sj_}")
+expect(json.loads(run("correct_transcript.py", ct, "--replace", "bad").stdout)["ok"] is False, "a malformed --replace should fail")
+
+# ---- keyword cards (no ffmpeg needed) ----
+sys.path.insert(0, str(scripts))
+from fontmetrics import Font as _Font
+_fw = _Font(str(root / "skills/video-editor/assets/brand/fonts/Poppins-Bold.ttf")).width("Domain knowledge", 100)
+expect(560 <= _fw <= 570, f"font metrics should match libass drawing (about 565 px at size 100): {_fw}")
+
+
+def card_check(cards, *extra, with_transcript=True):
+    clip = {**good["clips"][0], "cards": cards}
+    args = ["validate_clips.py", write("clips_cards.json", {"clips": [clip]}), "--sentences", str(tmp / "sentences.json")]
+    if with_transcript:
+        args += ["--transcript", st]
+    return json.loads(run(*args, *extra).stdout)
+
+
+ok_card = [{"label": "Why pilots stall", "items": [{"text": "Nobody owns it", "say": "nobody owns"}, {"text": "The workflow", "say": "the workflow"}]}]
+cj = card_check(ok_card)
+expect(cj["ok"] and cj["resolved"][0]["cards"], f"valid card rejected: {cj}")
+if cj.get("ok") and cj["resolved"][0]["cards"]:
+    it = cj["resolved"][0]["cards"][0]["items"]
+    expect(abs(it[0]["at"] - 1.2) < 0.01 and it[1]["at"] > it[0]["at"], f"card item times should come from the spoken words: {it}")
+    expect(cj["resolved"][0]["cards"][0]["label"] == "WHY PILOTS STALL", "card label should be upper-cased")
+    expect(all("clip_at" in i for i in it) and "clip_start" in cj["resolved"][0]["cards"][0], "resolved cards should give times in the finished clip")
+expect(not card_check([{"label": "L", "items": [{"text": "X", "say": "never said this"}]}])["ok"], "a pill whose words are not spoken was accepted")
+oo = card_check([{"label": "L", "items": [{"text": "A", "say": "the workflow"}, {"text": "B", "say": "nobody owns"}]}])
+expect(not oo["ok"] and any("only spoken earlier" in e for e in oo["errors"]), f"items out of spoken order should say the words were only spoken earlier: {oo['errors']}")
+# a word said before AND after the previous item must resolve to the later one
+rep_words = mk_words("alpha coding bravo charlie delta " + " ".join(["filler"] * 50) + " foxtrot coding golf. " + " ".join(["more"] * 10) + " end.", 0.0)
+rep_tr = write("rep_tr.json", {"segments": [{"words": rep_words}]})
+run("sentences.py", rep_tr, "--out", str(tmp / "rep_sent.json"))
+rep_clip = {"id": 1, "from": 0, "to": 0, "title": "Repeated word", "caption": "A caption.", "reason": "r", "hook": "alpha coding bravo",
+            "cards": [{"label": "L", "items": [{"text": "Delta", "say": "delta"}, {"text": "Coding", "say": "coding"}]}]}
+rj_ = json.loads(run("validate_clips.py", write("rep_clips.json", {"clips": [rep_clip]}), "--sentences", str(tmp / "rep_sent.json"), "--transcript", rep_tr).stdout)
+expect(rj_["ok"] and rj_["resolved"][0]["cards"][0]["items"][1]["at"] > 15, f"a repeated word should resolve to the one spoken after the previous item: {rj_}")
+expect(not card_check([{"label": "L", "items": [{"text": "50% faster", "say": "nobody owns"}]}])["ok"], "a number that is not in the clip was accepted")
+expect(not card_check([{"label": "L", "items": [{"text": str(k), "say": "nobody owns"} for k in range(5)]}])["ok"], "more than 4 items accepted")
+expect(not card_check([{"label": "one two three four five six seven eight", "items": [{"text": "X", "say": "nobody owns"}]}])["ok"], "an overlong label was accepted")
+expect(not card_check([{"label": "Unlock growth", "items": [{"text": "X", "say": "nobody owns"}]}])["ok"], "banned copy accepted in a card label")
+expect(not card_check(ok_card, with_transcript=False)["ok"], "cards without a transcript should be refused")
+
 # ---- transcript import (no model needed) ----
 def do_import(name, content):
     f = tmp / name
@@ -220,11 +293,16 @@ if shutil.which("ffmpeg") and shutil.which("ffprobe"):
             c0, c1 = by_gap[5]["cut"]
             expect(c0 > by_gap[5]["gap"][0] and c1 < by_gap[5]["gap"][1], "cut should be padded inside the gap")
         # transcript basis: words at 0-2 s, 2.2-4 s, then a 6 s hole, then speech to the end
-        tw = write("t3.json", {"segments": [{"words": [w("a", 0.0, 2.0), w("b", 2.2, 4.0), w("c", 10.0, 29.0)]}]})
+        tw = write("t3.json", {"segments": [{"words": [w("a", 0.0, 2.0), w("b", 2.2, 4.0), w("c", 10.0, 20.0)]}]})  # tone really ends at 20 s, then silence
         aj2 = json.loads(run("analyse.py", str(src), "--transcript", tw).stdout)
         expect(aj2["basis"] == "transcript" and any(c["kind"] == "pause" and abs(c["gap"][0] - 4.0) < 0.01 for c in aj2["candidates"]),
                f"transcript gap not found: {aj2.get('candidates')}")
         expect(any(c["kind"] == "tail_out" for c in aj2["candidates"]), "tail after the last word not reported")
+        # Whisper's word ends 0.5 s early (4.5 s) but the tone really ends at 5.0 s: the cut must start after 5.0, never inside the sound
+        tw6 = write("t6.json", {"segments": [{"words": [w("a", 0.0, 2.0), w("b", 2.2, 4.5), w("c", 8.1, 29.0)]}]})
+        aj6 = json.loads(run("analyse.py", str(src), "--transcript", tw6).stdout)
+        g6 = [c for c in aj6["candidates"] if c["kind"] == "pause" and abs(c["gap"][0] - 4.5) < 0.01]
+        expect(g6 and g6[0]["cut"][0] >= 5.0 and g6[0]["cut"][1] <= 8.0, f"cut not snapped to the real silence (5.0 to 8.0): {g6}")
         # a long gap with audible sound but no words (speech the transcript missed) is flagged and never proposed for cutting
         tw2 = write("t4.json", {"segments": [{"words": [w("a", 0.0, 2.0), w("z", 8.5, 19.5)]}]})
         aj3 = json.loads(run("analyse.py", str(src), "--transcript", tw2).stdout)
@@ -300,12 +378,30 @@ if shutil.which("ffmpeg") and shutil.which("ffprobe"):
             expect(not (d / "work").exists(), "work files should be removed after a good render")
             expect(json.loads(run("render_shorts.py", "--source", str(src), "--clips", sclips, "--transcript", rt, "--out-dir", str(tmp / "shorts"), "--preview").stdout)["ok"] is False,
                    "render_shorts should refuse a non-empty output folder")
-            # the experimental animated cover still renders, and the default is the static one
-            expect("--cover static" in subprocess.run([sys.executable, str(scripts / "render_shorts.py"), "--help"], capture_output=True, text=True).stdout.replace("{static,animated}", "static") or True, "")
-            sa = run("render_shorts.py", "--source", str(src), "--clips", sclips, "--transcript", rt, "--out-dir", str(tmp / "shorts_anim"), "--preview", "--cover", "animated")
+            # the default cover is the staggered reveal; the plain static cover still renders too
+            sa = run("render_shorts.py", "--source", str(src), "--clips", sclips, "--transcript", rt, "--out-dir", str(tmp / "shorts_static"), "--preview", "--cover", "static")
             saj = json.loads(sa.stdout)
-            expect(sa.returncode == 0 and saj["ok"] and abs(saj["clips"][0]["measured_seconds"] - 15.0) < 0.4, f"animated cover render failed: {sa.stdout[:400]} {sa.stderr[-300:]}")
-            expect((tmp / "shorts_anim" / Path(c1["video"]).parent.name / "cover.png").is_file(), "animated render should also write cover.png")
+            expect(sa.returncode == 0 and saj["ok"] and abs(saj["clips"][0]["measured_seconds"] - 15.0) < 0.4, f"static cover render failed: {sa.stdout[:400]} {sa.stderr[-300:]}")
+            expect((tmp / "shorts_static" / Path(c1["video"]).parent.name / "cover.png").is_file(), "static render should also write cover.png")
+
+        # keyword cards render, and the lower third steps aside for them
+        cclips = write("card_clips.json", {"version": 1, "clips": [{
+            "id": 1, "title": "Test clip", "start": 0.0, "end": 12.0, "at": "00:00:00", "seconds": 12.0, "effective_seconds": 12.0,
+            "caption": "A caption.", "reason": "A reason.", "hook": "Welcome",
+            "cards": [{"label": "PRICING", "chain": True, "start": 8.0, "end": 11.5,
+                       "items": [{"text": "Talk", "say": "talk", "at": 8.95}, {"text": "Pricing", "say": "pricing", "at": 9.35}]}]}]})
+        cr = run("render_shorts.py", "--source", str(src), "--clips", cclips, "--transcript", rt, "--out-dir", str(tmp / "shorts_cards"), "--preview", "--speaker", "Alex Doe|Head")
+        crj = json.loads(cr.stdout)
+        expect(cr.returncode == 0 and crj["ok"] and any("lower third shown from" in w for w in crj["clips"][0]["warnings"]),
+               f"with room before the first card (8 s) the name tag should show until the card: {cr.stdout[:500]} {cr.stderr[-300:]}")
+        early = write("card_early.json", {"version": 1, "clips": [{
+            "id": 1, "title": "Test clip", "start": 0.0, "end": 12.0, "at": "00:00:00", "seconds": 12.0, "effective_seconds": 12.0,
+            "caption": "A caption.", "reason": "A reason.", "hook": "Welcome",
+            "cards": [{"label": "EARLY", "chain": False, "start": 4.0, "end": 8.0, "items": [{"text": "Welcome", "say": "welcome", "at": 4.4}]}]}]})
+        er = run("render_shorts.py", "--source", str(src), "--clips", early, "--transcript", rt, "--out-dir", str(tmp / "shorts_early"), "--preview", "--speaker", "Alex Doe|Head")
+        erj = json.loads(er.stdout)
+        expect(er.returncode == 0 and erj["ok"] and any("lower third skipped" in w and "less than 3 s" in w for w in erj["clips"][0]["warnings"]),
+               f"a first card at 4 s leaves under 3 s, so the name tag should be skipped: {er.stdout[:500]}")
 
         # an invalid cut list is refused before ffmpeg runs
         badcl = write("render_bad.json", {"version": 1, "source": {"duration": 30.0}, "keep": [{"start": 5.0, "end": 2.0}]})

@@ -41,7 +41,7 @@ Ask only for what is missing. Anything the user already said in their request co
 - **which outputs:** long-form, shorts, or both;
 - the user's notes (focus areas, parts to skip, audience);
 - **captions for the long video:** burned in, a separate SRT file, both, or none (default: SRT);
-- **speaker names and job titles.** Zoom, Meet and Restream files carry no speaker labels, so ask. Shorts always need them for the lower third (the crop hides names burned into the source). For long-form, if the recording already shows names on screen, use `--no-lower-thirds` instead;
+- **speaker names and job titles.** Zoom, Meet and Restream files carry no speaker labels, so ask. Shorts use them for a lower third (the crop hides names burned into the source). On a clip with keyword cards the name tag shows from the end of the cover until half a second before the first card, and only when that leaves at least 3 seconds; otherwise it is skipped and the render report says so. For long-form, if the recording already shows names on screen, use `--no-lower-thirds` instead. Check that the speaker's name is spelled right in the transcript (Whisper often mishears names);
 - whether the user already has a Whisper transcript (it can be imported);
 - a brand file other than the bundled lowtouch.ai default (`assets/brand/brand.json`).
 
@@ -58,13 +58,21 @@ Several clips become one timeline in filename order (`--order as-given` keeps th
 python3 <skill-dir>/scripts/transcribe.py --source <job>/source.json --out-dir <job> --brand <skill-dir>/assets/brand/brand.json
 python3 <skill-dir>/scripts/transcribe.py --import <their-transcript> --out-dir <job>     # instead, if they have one
 ```
-Writes `transcript.json` (words with exact times) and `transcript.md` (one line per sentence with its real start time, long pauses marked). Use `transcript.json` for exact word edges when placing a cut. The model downloads on first use (the default `small` is about 0.5 GB). Expect roughly 0.4 times the recording's length on a CPU-only laptop, so say so before a long file. A finished transcript is cached. The brand glossary helps with company and product names; check the result for names it still gets wrong. An imported SRT has phrase timing only, so cuts snap to caption edges; tell the user.
+Writes `transcript.json` (words with exact times) and `transcript.md` (one line per sentence with its real start time, long pauses marked). Use `transcript.json` for exact word edges when placing a cut. The model downloads on first use (the default `small` is about 0.5 GB). Expect roughly 0.4 to 0.7 times the recording's length on a CPU-only laptop (longer at low priority on fewer CPUs), so say so before a long file; a progress line prints every minute. A finished transcript is cached. The brand glossary helps with company and product names, and the brand's `corrections` list fixes known mishearings automatically. Whisper still makes mistakes, so words are reviewed before anything is posted (see **Review the words** below). An imported SRT has phrase timing only, so cuts snap to caption edges; tell the user.
 
 ### 4. Find dead air
 ```bash
 python3 <skill-dir>/scripts/analyse.py <job>/source.json --transcript <job>/transcript.json --out <job>/analysis.json
 ```
-Lists every gap in speech longer than 0.7 s with a padded span to cut. Gaps of 20 s or more are `dead_stretch`; before the first word is `lead_in`, after the last `tail_out`. A gap is `keep_suggested` when the picture changed (slide, demo, layout switch) or when the audio in it is not silent (`speech_suspected`: Whisper may have missed speech, or someone else is talking). Never cut a `speech_suspected` gap unless you have checked the words around it. These are **candidates**, not decisions.
+Lists every gap in speech longer than 0.7 s with a span to cut. Whisper's word times can end early, so each span is placed only inside the longest stretch of the audio that is truly quiet (a loud burst in the middle of a gap splits it); it also writes `analysis.levels.json`, which later steps use to keep edges off sound. Gaps of 20 s or more are `dead_stretch`; before the first word is `lead_in`, after the last `tail_out`. A gap is `keep_suggested` when the picture changed (slide, demo, layout switch) or when the audio in it is not silent (`speech_suspected`: Whisper may have missed speech, or someone else is talking). Never cut a `speech_suspected` gap unless you have checked the words around it. These are **candidates**, not decisions.
+
+## Review the words
+Whisper gets names and some phrases wrong, and captions would show the mistakes. Before the long video is rendered, and before shorts are approved:
+```bash
+python3 <skill-dir>/scripts/correct_transcript.py <job>/transcript.json --suspects --from <start> --to <end>
+python3 <skill-dir>/scripts/correct_transcript.py <job>/transcript.json --replace "wrong words=right words"
+```
+`--suspects` lists content words Whisper was unsure of in a time range (lowest confidence first); it is only a hint, because a confident mishearing will not appear in it. Read the text of each clip (or the cut's sentences), including the speaker's and company names, and fix real mistakes with `--replace` (whole words, any case; the original is kept in `transcript.original.json` and every change is logged in `transcript.edits.json`). Fix only what was clearly misheard, never rewrite what was said. Known recurring mishearings belong in the brand file's `corrections`. After fixing words inside a clip, re-run `sentences.py` and `validate_clips.py`, and update a clip's `hook` if its opening words changed.
 
 ## Long-form video
 
@@ -96,20 +104,20 @@ Then the real one in a **new** `--out-dir` (drop `--preview`; add `--no-lower-th
 ```bash
 python3 <skill-dir>/scripts/sentences.py <job>/transcript.json --out <job>/sentences.json
 ```
-Read `<job>/sentences.md` and follow `references/clip-selection.md`. **You choose the moments; the scripts only number sentences and check your choices.** Propose the strongest self-contained 30 to 90 second moments (fewer is better than padding), each with sentence ids `from` and `to`, the opening words `hook` copied exactly, a `title` under 60 characters, a post `caption` built only from what was said, a one-line `reason`, and a `score`. Optionally a shorter `overlay_title` and a `subtitle` for the title shown over the first seconds. Titles and captions follow `references/copy-style.md`. Write `<job>/clips.json`, then:
+Read `<job>/sentences.md` and follow `references/clip-selection.md`. **You choose the moments; the scripts only number sentences and check your choices.** Propose the strongest self-contained 30 to 90 second moments (fewer is better than padding), each with sentence ids `from` and `to`, the opening words `hook` copied exactly, a `title` under 60 characters, a post `caption` built only from what was said, a one-line `reason`, and a `score`. Optionally add an `overlay_title` and a `subtitle` for the cover shown over the first seconds. Write the title in tiers separated by `|`: words in CAPITALS are big magenta lines and lowercase words are small white connectors, for example `HUMAN | in the | LEAD`. The subtitle is one short line that summarises the clip and adds no claim. For explanatory moments that name things, also add **keyword cards** (`references/cards.md`): none for a clip that tells a story or gives an opinion. Titles and captions follow `references/copy-style.md`. Write `<job>/clips.json`, then:
 ```bash
-python3 <skill-dir>/scripts/validate_clips.py <job>/clips.json --sentences <job>/sentences.json --analysis <job>/analysis.json --out <job>/clips.resolved.json
+python3 <skill-dir>/scripts/validate_clips.py <job>/clips.json --sentences <job>/sentences.json --analysis <job>/analysis.json --transcript <job>/transcript.json --out <job>/clips.resolved.json
 ```
-Fix every error. Read the warnings: a clip that opens with "so" or points back at earlier context may not stand alone.
+The clip start and end are moved to where the sound has really stopped (it uses `analysis.levels.json` next to the analysis). Fix every error. Read the warnings: a clip that opens with "so" or points back at earlier context may not stand alone.
 
 ### ⏸ Approve the clips
-Show a ranked table: number, start time, length, score, title, hook and reason, with any warning. Say honestly which clips are weak, and when nothing in the recording is worth clipping. Ask which to render and whether to change any start, end, title or caption. Edit, re-validate, show the change. Render only the chosen ones.
+Show a ranked table: number, start time, length, score, title, hook and reason, with any warning. For clips with cards, list each card (label, pills and the second each pill appears). Say honestly which clips are weak, and when nothing in the recording is worth clipping. Ask which to render and whether to change any start, end, title or caption. Edit, re-validate, show the change. Render only the chosen ones.
 
 ### 6s. Render the shorts
 ```bash
 python3 <skill-dir>/scripts/render_shorts.py --source <job>/source.json --clips <job>/clips.resolved.json --transcript <job>/transcript.json --analysis <job>/analysis.json --ids 1,3 --speaker "Name|Job title" --out-dir <job>/renders/<run-id> [--preview]
 ```
-Render the clips the user chose (all of them only if they said so). Each clip gets its own folder with `clip.mp4`, `clip.srt` and `meta.md` (title, post caption, reason). A clip is 1080x1920: dead-air pauses inside it removed, the speaker kept in frame by a face-aware crop that changes only at cuts, a title overlay over the blurred video for the first 3 seconds, word-by-word captions (the current word in the brand highlight colour), a lower third (shown for the first 16 seconds after the title), and a gradient end card, at the brand's short-form loudness. Offer a `--preview` first for several clips. Add `--no-title`, `--no-lower-third` or `--no-end-card` as chosen; `--cover animated` is an experimental animated title that is not recommended yet; `--punch-in 1.15` alternates a tighter crop on every second piece for variety.
+Render the clips the user chose (all of them only if they said so). Each clip gets its own folder with `clip.mp4`, `clip.srt` and `meta.md` (title, post caption, reason). A clip is 1080x1920: dead-air pauses inside it removed, the speaker kept in frame by a face-aware crop that changes only at cuts, a title overlay over the blurred video for the first 3 seconds, word-by-word captions (white text with the spoken word on a magenta box), keyword cards if the clip has them, a lower third (first 16 seconds after the title, skipped when the clip has cards), and a gradient end card, at the brand's short-form loudness. Offer a `--preview` first for several clips: a preview is 540x960 (half size) and quick, for checking cards, captions and timing; drop `--preview` for the final 1080x1920 render. The end card adds about 3 seconds to each clip's length. Add `--no-title`, `--no-lower-third` or `--no-end-card` as chosen; `--cover static` gives a plain title instead of the default staggered reveal; `--punch-in 1.15` alternates a tighter crop on every second piece for variety.
 
 Face detection is simple. It suits one person facing the camera. If the report lists pieces with "no face found", or the recording shows several people or a side-by-side layout, tell the user to check those clips by eye.
 
@@ -140,7 +148,7 @@ Export of a cut list to Premiere or DaVinci (EDL or XML), and reframing for seve
 - The user can re-run with new instructions without waiting for another transcription.
 
 ## Files
-- `scripts/`: `check_env.py`, `setup_env.py`, `probe.py`, `transcribe.py`, `analyse.py`; long-form: `validate_cutlist.py`, `captions.py`, `chapters.py`, `render_long.py`; short-form: `sentences.py`, `validate_clips.py`, `reframe.py`, `render_shorts.py`.
-- `references/`: `cutting-guide.md`, `clip-selection.md`, `formats.md`, `copy-style.md`.
+- `scripts/`: `check_env.py`, `setup_env.py`, `probe.py`, `transcribe.py`, `correct_transcript.py`, `analyse.py`; long-form: `validate_cutlist.py`, `captions.py`, `chapters.py`, `render_long.py`; short-form: `sentences.py`, `validate_clips.py`, `reframe.py`, `fontmetrics.py`, `render_shorts.py`.
+- `references/`: `cutting-guide.md`, `clip-selection.md`, `cards.md`, `formats.md`, `copy-style.md`.
 - `assets/brand/`: the lowtouch.ai `brand.json`, logos, intro and outro cards and Poppins fonts. Another brand can be passed with `--brand`; asset paths resolve next to that file.
 - `requirements.txt`: the Python packages `setup_env.py` installs.

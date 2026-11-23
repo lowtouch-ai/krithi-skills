@@ -65,10 +65,10 @@ def motion_scores(path, fps=2):
     return out
 
 
-def audio_windows(path):
-    """Loudness of the audio in 0.25 s windows: [(time, dB)]. Silence is -120."""
+def audio_windows(path, n=4000):
+    """Loudness of the audio in windows of n samples at 16 kHz (4000 = 0.25 s): [(time, dB)]. Silence is -120."""
     r = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", path, "-vn", "-ac", "1", "-ar", "16000", "-af",
-                        "asetnsamples=n=4000:p=0,astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=-",
+                        f"asetnsamples=n={n}:p=0,astats=metadata=1:reset=1,ametadata=print:key=lavfi.astats.Overall.RMS_level:file=-",
                         "-f", "null", "-"], capture_output=True, text=True)
     t, out = None, []
     for line in r.stdout.splitlines():
@@ -170,15 +170,42 @@ def main():
         loud = sum(v > speech_ref - 15 for v in vs) / len(vs)
         return vs[len(vs) // 2], loud, vs[int(0.8 * (len(vs) - 1))]
 
+    # 2c. fine levels (50 ms): put every cut on REAL silence. Whisper's word times can end early or start late,
+    # so a cut placed at "the end of the word plus a margin" can clip the end of a word.
+    fine, fine_data = None, None
+    if basis == "transcript" and speech_ref is not None:
+        ts, dbs = [], []
+        for c in clips:
+            if c.get("has_audio"):
+                for t_, d_ in audio_windows(c["path"], 800):
+                    ts.append(round(c["offset"] + t_, 4))
+                    dbs.append(round(d_, 1))
+        diffs = [y - x for x, y in zip(ts, ts[1:])]
+        step = sorted(diffs)[len(diffs) // 2] if diffs else 0.02
+        even = bool(diffs) and max(abs(d_ - step) for d_ in diffs) < 0.004
+        fine_data = {"threshold_db": round(speech_ref - 15, 1), "speech_db": round(speech_ref, 1), "db": dbs}
+        fine_data.update({"t0": ts[0], "step": round(step, 6)} if even else {"t": ts})
+        from _vlib import Levels
+        fine = Levels(fine_data)
+
     def active(g0, g1):
         return any(g0 <= t <= g1 and s >= motion_thr for t, s in motion)
 
     cands = []
+    skipped = [0]
 
     def add(g0, g1, kind):
         if g1 - g0 < a.min_gap:
             return
         c0, c1 = (g0, g1 - a.pad) if kind == "lead_in" else (g0 + a.pad, g1) if kind == "tail_out" else (g0 + a.pad, g1 - a.pad)
+        if fine is not None:
+            run = fine.longest_quiet_run(g0, g1)
+            if run is None:
+                skipped[0] += 1  # no unbroken quiet stretch: nothing safe to cut
+                return
+            q0, q1 = run
+            c0 = max(g0 if kind == "lead_in" else g0 + a.pad, q0 + (0 if kind == "lead_in" else a.pad))
+            c1 = min(g1 if kind == "tail_out" else g1 - a.pad, q1 - (0 if kind == "tail_out" else a.pad))
         if c1 - c0 < 0.1:
             return
         act = active(g0, g1)
@@ -214,11 +241,15 @@ def main():
             "dead_stretches": sum(c["kind"] == "dead_stretch" for c in cands),
             "keep_suggested": sum(c["keep_suggested"] for c in cands),
             "speech_suspected": sum(c["speech_suspected"] for c in cands),
+            "skipped_sound_throughout": skipped[0],
             "removable_seconds": round(sum(c["cut_seconds"] for c in removable), 3),
         },
     }
     if a.out:
         save_json(a.out, result)
+        if fine_data:
+            save_json(str(Path(a.out).with_suffix("")) + ".levels.json", fine_data)
+            result["levels_file"] = str(Path(a.out).with_suffix("")) + ".levels.json"
     print(json.dumps(result, indent=2))
     return 0
 

@@ -47,7 +47,8 @@
       "color": "text",
       "highlight": "primary",
       "outline": "#000000",
-      "max_words_per_line": 3
+      "max_words_per_line": 3,
+      "style": "box"
     }
   },
   "watermark": {
@@ -91,5 +92,11 @@
       "url": "www.lowtouch.ai",
       "logo_width": 0.7
     }
+  },
+  "corrections": {
+    "lotage.ai": "lowtouch.ai",
+    "lotage": "lowtouch",
+    "chat bots": "chatbots",
+    "chat bot": "chatbot"
   }
 }
