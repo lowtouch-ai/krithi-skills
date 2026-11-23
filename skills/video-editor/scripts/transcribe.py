@@ -29,9 +29,9 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _vlib import apply_corrections, hms, load_json, merge_fragments, save_json  # noqa: E402
+from _vlib import apply_corrections, hms, load_json, merge_fragments, save_json, unreliable_spans  # noqa: E402
 
-VERSION = 1
+VERSION = 2
 
 
 def reexec_in_venv():
@@ -78,21 +78,83 @@ def cache_key(clips, model, language, glossary=()):
     return h.hexdigest()[:16]
 
 
-def run_whisper(clips, model_name, language, work, glossary=(), corrections=None):
+def mean_p(words):
+    ps = [w["probability"] for w in words if w.get("probability") is not None]
+    return sum(ps) / len(ps) if ps else 0.0
+
+
+def repair_unreliable(model, audio, offset, segments, decode, corrections, notes):
+    """Re-transcribe stretches where Whisper lost the thread (collapsed word timing, runs of low confidence).
+
+    The failure depends on the long-file context: the same stretch decoded alone, with a few seconds of context either
+    side, usually comes out right. The new words replace the old only when they look healthier; every attempt is noted."""
+    flat = [(si, w) for si, s in enumerate(segments) for w in s["words"]]
+    spans = unreliable_spans([w for _, w in flat], before=4)
+    if not spans:
+        return segments
+    ranges = []
+    for a, b in spans:
+        sa, sb = flat[a][0], flat[b][0]
+        if ranges and sa <= ranges[-1][1]:
+            ranges[-1][1] = max(ranges[-1][1], sb)
+        else:
+            ranges.append([sa, sb])
+    out, cursor = [], 0
+    dur = len(audio) / 16000.0
+    for sa, sb in ranges:
+        out.extend(segments[cursor:sa])
+        old = segments[sa:sb + 1]
+        # replace everything between the neighbouring good segments, so words the broken stretch swallowed come back
+        A = (segments[sa - 1]["end"] - offset) if sa > 0 else 0.0
+        B = (segments[sb + 1]["start"] - offset) if sb + 1 < len(segments) else dur
+        w0, w1 = max(0.0, A - 2.5), min(dur, B + 2.5)
+        new_segs = []
+        try:
+            for s in decode(audio[int(w0 * 16000): int(w1 * 16000)]):
+                words = [{"word": x.word.strip(), "start": round(offset + w0 + x.start, 3), "end": round(offset + w0 + x.end, 3),
+                          "probability": round(float(x.probability), 3)} for x in (s.words or []) if x.word.strip()]
+                words = merge_fragments(words)
+                if corrections:
+                    words, _ = apply_corrections(words, corrections)
+                words = [w for w in words if A + offset - 0.02 < w["start"] < B + offset]
+                if words:
+                    new_segs.append({"start": words[0]["start"], "end": words[-1]["end"],
+                                     "text": " ".join(w["word"] for w in words), "words": words})
+        except Exception as e:  # keep the original if the second decode fails
+            notes.append({"at": round(offset + A, 2), "status": "kept", "reason": f"re-transcription failed: {e}"})
+            out.extend(old)
+            cursor = sb + 1
+            continue
+        old_words = [w for s in old for w in s["words"]]
+        new_words = [w for s in new_segs for w in s["words"]]
+        healthier = bool(new_words) and not unreliable_spans(new_words) and mean_p(new_words) >= mean_p(old_words)
+        entry = {"at": round(offset + A, 2), "start": round(offset + A, 2), "end": round(offset + B, 2), "old": " ".join(w["word"] for w in old_words)[:200], "new": " ".join(w["word"] for w in new_words)[:200]}
+        if healthier:
+            notes.append({**entry, "status": "repaired"})
+            out.extend(new_segs)
+        else:
+            notes.append({**entry, "status": "still unreliable"})
+            out.extend(old)
+        cursor = sb + 1
+    out.extend(segments[cursor:])
+    return out
+
+
+def run_whisper(clips, model_name, language, work, glossary=(), corrections=None, notes=None):
     from faster_whisper import WhisperModel
+    notes = notes if notes is not None else []
     cpu = os.cpu_count() or 4
     model = WhisperModel(model_name, device="auto", compute_type="auto", cpu_threads=min(cpu, 8))
+    kw = dict(word_timestamps=True, vad_filter=True, vad_parameters={"min_silence_duration_ms": 500},
+              condition_on_previous_text=False,
+              initial_prompt=("Terms: " + ", ".join(glossary) + ".") if glossary else None,
+              hotwords=" ".join(glossary) if glossary else None)
     segments, lang_seen = [], None
     for c in clips:
-        wav = audio_wav(c, work)
-        segs, info = model.transcribe(read_wav(wav), language=None if language == "auto" else language,
-                                      word_timestamps=True, vad_filter=True,
-                                      vad_parameters={"min_silence_duration_ms": 500},
-                                      condition_on_previous_text=False,
-                                      initial_prompt=("Terms: " + ", ".join(glossary) + ".") if glossary else None,
-                                      hotwords=" ".join(glossary) if glossary else None)
+        audio = read_wav(audio_wav(c, work))
+        segs, info = model.transcribe(audio, language=None if language == "auto" else language, **kw)
         lang_seen = lang_seen or info.language
-        last_note = 0.0
+        last_note, clip_segments = 0.0, []
         for s in segs:
             if s.end - last_note >= 60:  # a sign of life on a long file; stdout stays a single JSON object
                 print(f"transcribing... {s.end:.0f} s of {c['duration']:.0f} s", file=sys.stderr, flush=True)
@@ -104,8 +166,11 @@ def run_whisper(clips, model_name, language, work, glossary=(), corrections=None
                 words, _ = apply_corrections(words, corrections)
             if not words:
                 continue
-            segments.append({"start": round(c["offset"] + s.start, 3), "end": round(c["offset"] + s.end, 3),
-                             "text": s.text.strip(), "words": words})
+            clip_segments.append({"start": round(c["offset"] + s.start, 3), "end": round(c["offset"] + s.end, 3),
+                                  "text": s.text.strip(), "words": words})
+        decode = lambda chunk, lg=(None if language == "auto" else language) or info.language: model.transcribe(chunk, language=lg, **kw)[0]
+        clip_segments = repair_unreliable(model, audio, c["offset"], clip_segments, decode, corrections, notes)
+        segments.extend(clip_segments)
     return segments, lang_seen or language
 
 
@@ -249,18 +314,22 @@ def main():
         except ImportError:
             return die("faster-whisper is not installed", fix="python3 <skill-dir>/scripts/setup_env.py")
         try:
-            segments, lang = run_whisper(clips, a.model, a.language, out_dir / "proxy", glossary, corrections)
+            repair_notes = []
+            segments, lang = run_whisper(clips, a.model, a.language, out_dir / "proxy", glossary, corrections, repair_notes)
         except Exception as e:  # model download, decode, memory
             return die(f"transcription failed: {e}")
         t = {"version": VERSION, "engine": "faster-whisper", "model": a.model, "language": lang, "granularity": "word",
-             "duration": src["duration"], "segments": segments, "meta": {"key": key}}
+             "duration": src["duration"], "segments": segments, "meta": {"key": key, "repairs": repair_notes}}
     for i, s in enumerate(t["segments"]):
         s["id"] = i
     (out_dir / "proxy").mkdir(exist_ok=True)
     save_json(tpath, t)
     (out_dir / "transcript.md").write_text(to_markdown(t), encoding="utf-8")
     n_words = sum(len(s["words"]) for s in t["segments"])
-    print(json.dumps({"ok": True, "cached": False, "transcript": str(tpath), "readable": str(out_dir / "transcript.md"),
+    rep = t.get("meta", {}).get("repairs", [])
+    print(json.dumps({"ok": True, "cached": False,
+                      "repaired_stretches": sum(1 for r in rep if r.get("status") == "repaired"),
+                      "still_unreliable": [{"at": r["at"], "heard": r["old"][:80]} for r in rep if r.get("status") != "repaired"], "transcript": str(tpath), "readable": str(out_dir / "transcript.md"),
                       "engine": t["engine"], "granularity": t["granularity"], "language": t["language"],
                       "segments": len(t["segments"]), "words": n_words}))
     return 0

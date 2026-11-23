@@ -177,6 +177,44 @@ expect(_rf.crop_box(1920, 1080, 1900, 400)[0] + _rf.crop_box(1920, 1080, 1900, 4
 px, py, pw, ph = _rf.crop_box(1920, 1080, 1000, 400, 1.25)
 expect(ph < 1080 and abs(pw / ph - 9 / 16) < 0.01 and py >= 0 and py + ph <= 1080, f"punch-in crop wrong: {(px, py, pw, ph)}")
 
+# ---- unreliable stretches: detection and repair (no model needed) ----
+_spx = _iu.spec_from_file_location("vlib_t4", str(scripts / "_vlib.py")); _vl3 = _iu.module_from_spec(_spx); _spx.loader.exec_module(_vl3)
+import types as _ty
+_w2 = lambda t_, s_, e_, p_=0.9: {"word": t_, "start": s_, "end": e_, "probability": p_}
+_good = [_w2("one", 0, .4), _w2("two", .5, .9), _w2("three", 1.0, 1.4)]
+_bad = [_w2("thank", 5.0, 5.8, 0.0)] + [_w2(f"w{k}", 5.8, 5.8, 0.1) for k in range(6)]
+_tail = [_w2("four", 9.0, 9.4), _w2("five", 9.5, 9.9)]
+expect(_vl3.unreliable_spans(_good + _tail) == [], "healthy words should not be flagged")
+_sp = _vl3.unreliable_spans(_good + _bad + _tail, before=1)
+expect(len(_sp) == 1 and _sp[0][0] <= 3 and _sp[0][1] >= 3 + 6, f"a run of zero-length words should be flagged: {_sp}")
+_lowc = [_w2(f"x{k}", k * 0.5, k * 0.5 + 0.4, 0.2) for k in range(8)]
+expect(len(_vl3.unreliable_spans(_lowc)) == 1, "a long run of low-confidence words should be flagged")
+sys.path.insert(0, str(scripts))
+import transcribe as _tr
+
+
+def _seg(words):
+    return {"start": words[0]["start"], "end": words[-1]["end"], "text": " ".join(w["word"] for w in words), "words": words}
+
+
+_segs = [_seg(_good), _seg(_bad), _seg(_tail)]
+_mk = lambda t_, s_, e_, p_=0.95: _ty.SimpleNamespace(word=" " + t_, start=s_, end=e_, probability=p_)
+_fix = lambda chunk: [_ty.SimpleNamespace(start=0.0, end=4.0, words=[_mk("real", 2.6, 3.0), _mk("words", 3.1, 3.6), _mk("here", 3.7, 4.2)])]
+_notes = []
+_audio = [0.0] * (16000 * 12)
+_out = _tr.repair_unreliable(None, _audio, 0.0, _segs, _fix, None, _notes)
+expect(_notes and _notes[0]["status"] == "repaired" and any("real" in sg["text"] for sg in _out) and not any("thank" in sg["text"] for sg in _out),
+       f"a healthier re-decode should replace the broken stretch: {_notes} {[sg['text'] for sg in _out]}")
+_still = lambda chunk: [_ty.SimpleNamespace(start=0.0, end=1.0, words=[_mk(f"z{k}", 3.0, 3.0, 0.1) for k in range(5)])]
+_notes2 = []
+_out2 = _tr.repair_unreliable(None, _audio, 0.0, _segs, _still, None, _notes2)
+expect(_notes2 and _notes2[0]["status"] == "still unreliable" and any("thank" in sg["text"] for sg in _out2), f"a repair that is still broken must keep the original: {_notes2}")
+
+# the checker: words over silence, collapsed stretches, and --drop
+chk_t = write("chk_tr.json", {"engine": "t", "granularity": "word", "language": "en", "segments": [{"start": 0, "end": 30, "text": "x", "words": [
+    _w2("hello", 0.2, 0.8), _w2("there", 0.9, 1.5), _w2("thank", 22.0, 22.4), _w2("you", 22.5, 22.9), _w2("so", 23.0, 23.3), _w2("much", 23.4, 23.8),
+    _w2("later", 8.5, 9.5)] + [_w2(f"real{k}", 10.0 + k * 1.0, 10.8 + k * 1.0) for k in range(7)]}]})
+
 # ---- transcript corrections (no ffmpeg needed) ----
 _sp3 = _iu.spec_from_file_location("vlib_t3", str(scripts / "_vlib.py")); _vl3 = _iu.module_from_spec(_sp3); _sp3.loader.exec_module(_vl3)
 _w = lambda t_, s_, e_: {"word": t_, "start": s_, "end": e_, "probability": 0.9}
@@ -398,6 +436,13 @@ if shutil.which("ffmpeg") and shutil.which("ffprobe"):
             saj = json.loads(sa.stdout)
             expect(sa.returncode == 0 and saj["ok"] and abs(saj["clips"][0]["measured_seconds"] - 15.0) < 0.4, f"static cover render failed: {sa.stdout[:400]} {sa.stderr[-300:]}")
             expect((tmp / "shorts_static" / Path(c1["video"]).parent.name / "cover.png").is_file(), "static render should also write cover.png")
+
+        # words placed over the silent stretch (22 to 24 s) have no sound behind them; real words over the tone do
+        cw = json.loads(run("check_words.py", "--source", str(src), "--transcript", chk_t).stdout)
+        expect(cw["ok"] and cw["unvoiced_words"] == 4 and cw["spans"] and "thank you so much" in cw["spans"][0]["text"], f"words over silence not found: {cw}")
+        cw2 = json.loads(run("check_words.py", "--source", str(src), "--transcript", chk_t, "--drop").stdout)
+        left = [w["word"] for sg in json.loads(Path(chk_t).read_text())["segments"] for w in sg["words"]]
+        expect(cw2["dropped"] == 4 and left == ["hello", "there", "later"] + [f"real{k}" for k in range(7)], f"--drop should remove only the words with no sound: {left}")
 
         # keyword cards render, and the lower third steps aside for them
         cclips = write("card_clips.json", {"version": 1, "clips": [{

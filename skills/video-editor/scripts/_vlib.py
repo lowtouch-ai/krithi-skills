@@ -288,3 +288,40 @@ def clip_keep(clip, analysis):
         keep.append({"start": pos, "end": e})
     return keep
 
+
+def unreliable_spans(words, min_run=3, tiny=0.05, low_p=0.4, low_run=6, before=1, after=1):
+    """Index ranges (first, last) of words whose timing or confidence says Whisper lost the thread.
+
+    1. A run of at least `min_run` words with almost no duration (start close to end): the timing collapsed, which is
+       how Whisper's invented phrases show up (17 words squeezed into one instant).
+    2. A run of at least `low_run` words that are all low confidence (probability under `low_p`).
+    Each range is widened by `before` words and `after` words (timing errors usually start a few words before the
+    collapse, so a repair widens further back). Returns merged, sorted ranges.
+    """
+    n, found = len(words), []
+    i = 0
+    while i < n:
+        j = i
+        while j < n and words[j]["end"] - words[j]["start"] < tiny:
+            j += 1
+        if j - i >= min_run:
+            found.append((i, j - 1))
+        i = max(j, i + 1)
+    i = 0
+    while i < n:
+        j = i
+        while j < n and words[j].get("probability") is not None and words[j]["probability"] < low_p:
+            j += 1
+        if j - i >= low_run:
+            found.append((i, j - 1))
+        i = max(j, i + 1)
+    found.sort()
+    merged = []
+    for a, b in found:
+        a, b = max(0, a - before), min(n - 1, b + after)
+        if merged and a <= merged[-1][1] + 1:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], b))
+        else:
+            merged.append((a, b))
+    return merged
+

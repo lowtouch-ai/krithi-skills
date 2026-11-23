@@ -132,7 +132,7 @@ def resolve_cards(clip, tag, cw, text, start, end, errors, warnings, keep=None):
     return out
 
 
-def check(clips, sents, analysis, levels=None, tx_words=None):
+def check(clips, sents, analysis, levels=None, tx_words=None, unreliable=()):
     errors, warnings, out = [], [], []
     by_id = {s["id"]: s for s in sents}
     for i, c in enumerate(clips):
@@ -191,6 +191,10 @@ def check(clips, sents, analysis, levels=None, tx_words=None):
                 break
         for note in edge_notes:
             warnings.append(f"{tag}: {note}")
+        for u in unreliable:
+            if u["start"] < end and u["end"] > start:
+                warnings.append(f"{tag}: Whisper could not transcribe {hms(u['start'])} to {hms(u['end'])} reliably "
+                                f"(it heard \"{u['old'][:60]}...\"); the captions there may be wrong, so listen to it or pick another stretch")
         for f in ("title", "caption", "reason"):
             if not str(c.get(f, "")).strip():
                 errors.append(f"{tag}: '{f}' is required")
@@ -233,11 +237,13 @@ def main():
         analysis = load_json(a.analysis) if a.analysis else None
         lv_path = a.levels or (str(Path(a.analysis).with_suffix("")) + ".levels.json" if a.analysis else None)
         levels = Levels.load(lv_path) if lv_path and Path(lv_path).is_file() else None
-        words = words_of(load_json(a.transcript)) if a.transcript else None
+        tdata = load_json(a.transcript) if a.transcript else None
+        words = words_of(tdata) if tdata else None
+        unreliable = [r for r in (tdata or {}).get("meta", {}).get("repairs", []) if r.get("status") != "repaired" and "start" in r]
     except (OSError, ValueError, KeyError) as e:
         print(json.dumps({"ok": False, "error": f"cannot read input: {e}"}))
         return 1
-    errors, warnings, resolved = check(clips, sents, analysis, levels, words)
+    errors, warnings, resolved = check(clips, sents, analysis, levels, words, unreliable)
     if a.out and not errors:
         save_json(a.out, {"version": 1, "clips": resolved})
     print(json.dumps({"ok": not errors, "errors": errors, "warnings": warnings, "clips": len(resolved), "edges_snapped_to_audio": levels is not None,
