@@ -3,7 +3,9 @@
 Short panels that appear under the captions and name the idea being spoken. They were modelled on a reel the team made: a navy card with a thin magenta top line, a small green all-caps **label**, and white **pills**. Each pill appears at the moment its words are spoken, and the pill being spoken is magenta. With `chain: true`, arrows join the pills (a sequence such as Plan, Build, Ship).
 
 ## When to use them
-Use cards on **explanatory clips**: the speaker is teaching, comparing or walking through ideas. A card marks each idea as it is introduced, so a viewer watching on mute can follow the argument. Do not use them on a clip that tells a story or gives an opinion with no named ideas.
+**Add cards by default to every clip that explains something**: the speaker is teaching, comparing, arguing for an idea or walking through steps. That is most business talks, and it includes opinions and explanations: an argument that names its ideas ("agents are not chatbots", "human in the loop") is explanatory. A card marks each idea as it is introduced, so a viewer watching on mute can follow the argument.
+
+Leave cards off only for a clip that is purely a story or a personal anecdote with no named ideas. When you propose such a clip, or any clip with no cards, say so and why at the approval step, so the user can ask for cards. If the user says no cards, add none.
 
 Two kinds of card, both welcome:
 - **A list or a process.** The speaker names several things ("a laptop, an account, a first task") or steps ("plan, build, ship"). One card, one pill per item, `chain: true` for steps.

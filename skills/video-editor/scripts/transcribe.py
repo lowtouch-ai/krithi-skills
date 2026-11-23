@@ -25,6 +25,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import tempfile
 from pathlib import Path
 
@@ -249,6 +250,7 @@ def to_markdown(t):
 
 
 def main():
+    t_start = time.time()
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--source")
     ap.add_argument("--import", dest="imp")
@@ -327,7 +329,9 @@ def main():
     (out_dir / "transcript.md").write_text(to_markdown(t), encoding="utf-8")
     n_words = sum(len(s["words"]) for s in t["segments"])
     rep = t.get("meta", {}).get("repairs", [])
-    print(json.dumps({"ok": True, "cached": False,
+    took = round(time.time() - t_start, 1)
+    print(json.dumps({"ok": True, "cached": False, "seconds_taken": took,
+                      "seconds_per_audio_second": round(took / max(t["duration"], 1), 2) if took else None,
                       "repaired_stretches": sum(1 for r in rep if r.get("status") == "repaired"),
                       "still_unreliable": [{"at": r["at"], "heard": r["old"][:80]} for r in rep if r.get("status") != "repaired"], "transcript": str(tpath), "readable": str(out_dir / "transcript.md"),
                       "engine": t["engine"], "granularity": t["granularity"], "language": t["language"],

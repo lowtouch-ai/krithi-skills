@@ -18,6 +18,7 @@ import argparse
 import json
 import subprocess
 import sys
+import time
 import struct
 from pathlib import Path
 
@@ -209,6 +210,7 @@ def measured_duration(path):
 
 
 def main():
+    t_start = time.time()
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--source", required=True)
     ap.add_argument("--cutlist", required=True)
@@ -381,7 +383,7 @@ def main():
         warnings.append(f"measured duration {measured:.2f}s differs from expected {expected:.2f}s")
     print(json.dumps({"ok": True, "video": str(out_mp4), "preview": a.preview, "captions": mode,
                       "pieces": len(pieces), "expected_seconds": round(expected, 3), "measured_seconds": measured,
-                      "intro_outro_seconds": extra, "lower_thirds": len(lts), "warnings": warnings}, indent=2))
+                      "intro_outro_seconds": extra, "seconds_taken": round(time.time() - t_start, 1), "lower_thirds": len(lts), "warnings": warnings}, indent=2))
     return 0
 
 

@@ -23,6 +23,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -389,6 +390,7 @@ def main():
     results, clipsrc = [], src["clips"]
 
     for clip in clips:
+        t_clip = time.time()
         try:
             warnings = []
             d_out = out_root / f"clip-{int(clip['id']):02d}-{slug(clip['title'])}"
@@ -523,10 +525,11 @@ def main():
                 shutil.rmtree(work, ignore_errors=True)
             faces = [p for pl in plans.values() for p in pl["pieces"]]
             results.append({"id": clip["id"], "ok": True, "video": str(out_mp4), "expected_seconds": round(total, 3),
+                        "seconds_taken": round(time.time() - t_clip, 1),
                             "measured_seconds": measured, "pieces": len(pieces),
                             "faces_found": f"{sum(p['faces_found'] > 0 for p in faces)}/{len(faces)} pieces", "warnings": warnings})
         except ClipError as e:
-            results.append({"id": clip["id"], "ok": False, "error": str(e), "folder": str(out_root / f"clip-{int(clip['id']):02d}-{slug(clip['title'])}"), **e.extra})
+            results.append({"id": clip["id"], "ok": False, "error": str(e), "seconds_taken": round(time.time() - t_clip, 1), "folder": str(out_root / f"clip-{int(clip['id']):02d}-{slug(clip['title'])}"), **e.extra})
             print(f"clip {clip['id']} failed: {e}", file=sys.stderr, flush=True)
 
     print(json.dumps({"ok": all(r["ok"] for r in results), "preview": a.preview, "clips": results}, indent=2))

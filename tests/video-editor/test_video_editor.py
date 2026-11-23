@@ -416,6 +416,7 @@ if shutil.which("ffmpeg") and shutil.which("ffprobe"):
         expect(r.returncode == 0 and rj["ok"], f"render failed: {r.stdout[:400]}")
         if rj.get("ok"):
             expect(abs(rj["measured_seconds"] - 19.3) < 0.2, f"rendered length {rj['measured_seconds']} != 19.3")
+            expect(isinstance(rj.get("seconds_taken"), (int, float)) and rj["seconds_taken"] > 0, f"render_long should report how long it took: {rj}")
             lufs = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", rj["video"], "-af", "ebur128", "-f", "null", "-"], capture_output=True, text=True).stderr
             import re as _re
             m = _re.findall(r"I:\s+(-?[\d.]+) LUFS", lufs)
@@ -455,6 +456,7 @@ if shutil.which("ffmpeg") and shutil.which("ffprobe"):
         expect(sr.returncode == 0 and sj2["ok"], f"render_shorts failed: {sr.stdout[:500]} {sr.stderr[-300:]}")
         if sj2.get("ok"):
             c1 = sj2["clips"][0]
+            expect(isinstance(c1.get("seconds_taken"), (int, float)) and c1["seconds_taken"] > 0, f"each rendered clip should report how long it took: {c1}")
             expect(abs(c1["measured_seconds"] - 15.0) < 0.4, f"short length {c1['measured_seconds']} != 15 (12 + 3 s end card)")
             dims = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", c1["video"]],
                                   capture_output=True, text=True).stdout.strip()
