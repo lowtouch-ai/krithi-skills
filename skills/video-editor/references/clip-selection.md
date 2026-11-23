@@ -13,7 +13,7 @@ Judge a candidate on these four, in this order:
 - A leading "so" is fine when it begins the question that gives the clip its hook ("So, is that really true?"). Otherwise start a sentence later.
 - Start on the first word of a complete thought; end on the last word of one, ideally the strongest line, not a trailing qualification. Clips are chosen by sentence id (`from`, `to`), so they always start and end on whole sentences.
 - Do not stretch a clip to reach a length. A tight 35 second clip beats a padded 80 second one. Do not join two unrelated good moments.
-- Clips are 30 to 90 seconds **after** dead-air pauses inside them are removed. Over 90 or under 30 is allowed with a stated reason; under 20 or over 120 is rejected.
+- Clips are 30 to 90 seconds **after** dead-air pauses inside them are removed. The 3 second end card is added on top and is not counted. Over 90 or under 30 is allowed with a stated reason; under 20 or over 120 is rejected.
 - Clips must not overlap. Prefer moments spread across the recording.
 - A stumble inside a clip (a false start, a repeated word) is a cost: mention it in the reason, and prefer a cleaner stretch if two are close.
 

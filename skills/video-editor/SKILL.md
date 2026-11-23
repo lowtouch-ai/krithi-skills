@@ -108,10 +108,10 @@ Read `<job>/sentences.md` and follow `references/clip-selection.md`. **You choos
 ```bash
 python3 <skill-dir>/scripts/validate_clips.py <job>/clips.json --sentences <job>/sentences.json --analysis <job>/analysis.json --transcript <job>/transcript.json --out <job>/clips.resolved.json
 ```
-The clip start and end are moved to where the sound has really stopped (it uses `analysis.levels.json` next to the analysis). Fix every error. Read the warnings (the checker warns on every clip that begins with "so"; keep the opening when the "so" begins the question or the clip stands alone): a clip that opens with "so" or points back at earlier context may not stand alone.
+The clip start and end are moved to where the sound has really stopped (it uses `analysis.levels.json` next to the analysis). Fix every error. Read the warnings (the checker warns on every clip that begins with "so"; keep the opening when the "so" begins the question or the clip stands alone): a clip that opens with "so" or points back at earlier context may not stand alone. Clip length means the speech after pauses are removed; the 3-second end card is extra and does not count toward 30 to 90 seconds.
 
 ### ⏸ Approve the clips
-Show a ranked table: number, start time, length, score, title, hook and reason, with any warning. For clips with cards, list each card (label, pills and the second each pill appears). Say honestly which clips are weak, and when nothing in the recording is worth clipping. Ask which to render and whether to change any start, end, title or caption. Edit, re-validate, show the change. Render only the chosen ones.
+Show a ranked table: number, start time, length, score, title, hook and reason, with any warning. For clips with cards, list each card (label, pills and the second each pill appears). For clips with cards, tell the user that the speaker's name tag shows only until the first card appears (it can be short, or skipped) and offer to move or drop the first card if they want the name on screen longer. Say honestly which clips are weak, and when nothing in the recording is worth clipping. Ask which to render and whether to change any start, end, title or caption. Edit, re-validate, show the change. Render only the chosen ones.
 
 ### 6s. Render the shorts
 ```bash
