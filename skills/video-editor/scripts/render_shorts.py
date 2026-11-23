@@ -115,13 +115,21 @@ def reveal_cover(ev, Fs, W, H, title, subtitle, T, mag, green, white, safe):
 
 def caption_box_events(ev, F, W, H, groups, cap_sz, white, hi, safe, t_min=0.0):
     """Captions in the reference style: white text, with the word being spoken on a magenta rounded box.
-    Word positions come from the font's real metrics, so the box sits exactly behind the word."""
-    em = F.em(cap_sz)
+    Word positions come from the font's real metrics, so the box sits exactly behind the word. A group that would
+    be wider than the frame is drawn smaller (and never wraps), so the box always lines up with its word."""
     capy = int(H * 0.715)
-    space = F.width(" ", cap_sz)
+    max_w = W * 0.90
     for grp in groups:
-        widths = [F.width(x["word"], cap_sz) for x in grp]
+        size = cap_sz
+        widths = [F.width(x["word"], size) for x in grp]
+        space = F.width(" ", size)
         total = sum(widths) + space * (len(grp) - 1)
+        if total > max_w:
+            size = max(int(cap_sz * max_w / total), int(cap_sz * 0.5))
+            widths = [F.width(x["word"], size) for x in grp]
+            space = F.width(" ", size)
+            total = sum(widths) + space * (len(grp) - 1)
+        em = F.em(size)
         cur, offs = W / 2 - total / 2, []
         for w_ in widths:
             offs.append(cur)
@@ -136,7 +144,7 @@ def caption_box_events(ev, F, W, H, groups, cap_sz, white, hi, safe, t_min=0.0):
             pad, bh = 0.30 * em, 1.04 * em
             bx, bw = offs[k] - pad, widths[k] + 2 * pad
             ev(3, a, b, "Shape", "{\\pos(%d,%d)\\p1\\1c%s\\bord0}%s{\\p0}" % (bx, capy - bh / 2 - 0.07 * em, hi, rrect(bw, bh, bh * 0.34)))
-            ev(4, a, b, "CapW", "{\\an5\\pos(%d,%d)\\1c%s}%s" % (W // 2, capy, white, line))
+            ev(4, a, b, "CapW", "{\\an5\\q2\\fs%d\\pos(%d,%d)\\1c%s}%s" % (size, W // 2, capy, white, line))
 
 
 def card_events(ev, Fs, W, H, cards, colors, safe):

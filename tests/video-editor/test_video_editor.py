@@ -197,6 +197,21 @@ expect(sj_["ok"] and len(sj_["suspects"]) >= 1 and all(x["word"].lower() not in 
        f"suspects should list content words, not function words: {sj_}")
 expect(json.loads(run("correct_transcript.py", ct, "--replace", "bad").stdout)["ok"] is False, "a malformed --replace should fail")
 
+# ---- caption boxes stay on their word, even for a very wide group ----
+sys.path.insert(0, str(scripts))
+from fontmetrics import Font as _Font
+import render_shorts as _rs
+_F = _Font(str(root / "skills/video-editor/assets/brand/fonts/Poppins-Bold.ttf"))
+_events = []
+_ev = lambda layer, a_, b_, style, text: _events.append((layer, a_, b_, style, text))
+_g = [{"word": "interfaces.", "start": 0.0, "end": 0.5}, {"word": "extraordinarily", "start": 0.5, "end": 1.0}, {"word": "unmistakable", "start": 1.0, "end": 1.6}]
+_rs.caption_box_events(_ev, _F, 540, 960, [_g], int(960 * 0.072), "&HFFFFFF&", "&HFF47FB&", lambda t_: t_)
+_txt = [e for e in _events if e[3] == "CapW"]
+_fs = int(__import__("re").search(r"\\fs(\d+)", _txt[0][4]).group(1))
+_line_w = _F.width("interfaces. extraordinarily unmistakable", _fs)
+expect(_line_w <= 540 * 0.91 and "\\q2" in _txt[0][4], f"a wide caption must shrink to fit the frame and never wrap (width {_line_w:.0f} px at size {_fs})")
+expect(len(_txt) == 3 and len([e for e in _events if e[3] == "Shape"]) == 3, "one box and one text event per word")
+
 # ---- keyword cards (no ffmpeg needed) ----
 sys.path.insert(0, str(scripts))
 from fontmetrics import Font as _Font

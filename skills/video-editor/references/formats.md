@@ -29,7 +29,7 @@ All times are seconds (decimals) unless a name says otherwise. On a multi-clip s
               "text": "so go ahead and record it" } ],
   "speakers": [ { "id": "S1", "name": "Alex Doe", "title": "Head of Product" } ],
   "lower_thirds": [ { "at": 223.5, "speaker": "S1", "seconds": 6 } ],
-  "chapters": [ { "at": 223.1, "title": "Why agents manage agents" } ]
+  "chapters": [ { "at": 223.1, "title": "Why teams review first" } ]
 }
 ```
 - `keep`: sorted, non-overlapping, inside the media. The renderer uses only this.
@@ -44,15 +44,15 @@ All times are seconds (decimals) unless a name says otherwise. On a multi-clip s
 ```json
 { "version": 1, "clips": [
   { "id": 1, "from": 43, "to": 56, "score": 88, "trim_pauses": true,
-    "title": "Agents are not chatbots",
-    "hook": "some are most analysts today say that agents are a feature",
-    "reason": "Contrarian opening, then concrete proof.",
-    "caption": "Agents do have a chat interface. But they're not chatbots. #AIagents" } ] }
+    "title": "Why most migrations stall",
+    "hook": "Most migrations stall at the last stretch",
+    "reason": "A recognisable problem, then a concrete rule.",
+    "caption": "Most migrations stall at the last stretch. The fix is a cutover plan with one owner. #engineering" } ] }
 ```
-`from` and `to` are sentence ids. `hook` is the opening words copied exactly. `trim_pauses` (default true) removes dead-air pauses inside the clip when counting its length. Optional `cards` (see `cards.md`): `[{"label": "The human brings", "chain": false, "items": [{"text": "Domain knowledge", "say": "domain knowledge"}]}]`; the resolved file gives each card its `start` and `end` and each item the source time (`at`) its spoken words begin, and the matching times in the finished clip (`clip_start`, `clip_end`, `clip_at`, after dead-air pauses are removed). Optional: `overlay_title` (the cover headline; defaults to `title`) and `subtitle` (a one-line tagline under it). Mark cover tiers with `|`: CAPITAL words are big magenta lines, lowercase words small white ones (`"HUMAN | in the | LEAD"`); with no `|` the title is wrapped into balanced big lines. The resolved file (`--out`) adds `start`, `end`, `seconds` (raw), `effective_seconds` (after trimmed pauses), `at` and `text`.
+`from` and `to` are sentence ids. `hook` is the opening words copied exactly. `trim_pauses` (default true) removes dead-air pauses inside the clip when counting its length. Optional `cards` (see `cards.md`): `[{"label": "The first week", "chain": false, "items": [{"text": "Set up laptop", "say": "set up the laptop"}]}]`; the resolved file gives each card its `start` and `end` and each item the source time (`at`) its spoken words begin, and the matching times in the finished clip (`clip_start`, `clip_end`, `clip_at`, after dead-air pauses are removed). Optional: `overlay_title` (the cover headline; defaults to `title`) and `subtitle` (a one-line tagline under it). Mark cover tiers with `|`: CAPITAL words are big magenta lines, lowercase words small white ones (`"HUMAN | in the | LEAD"`); with no `|` the title is wrapped into balanced big lines. Use 2 to 4 tiers, and keep each tier to a word or two. The resolved file (`--out`) adds `start`, `end`, `seconds` (raw), `effective_seconds` (after trimmed pauses), `at` and `text`.
 
 ## brand.json
-Colours are referenced by token name (`primary`, `secondary`, `text`, `background`, `surface`, `text_muted`). Asset paths are relative to the brand file. Keys: `name`, `logo`, `intro` and `outro` (`card`, `seconds`, `fade_seconds`), `fonts` (`regular`, `medium`, `semibold`, `bold` TTF files), `colors`, `lower_third`, `captions`, `watermark`, `output` (`long` and `short` resolution, fps and `lufs`), `glossary` (words for Whisper to spell correctly), `corrections` (known mishearings fixed automatically, for example `{"chat bots": "chatbots"}`).
+Colours are referenced by token name (`primary`, `secondary`, `text`, `background`, `surface`, `text_muted`). Asset paths are relative to the brand file. Keys: `name`, `logo`, `intro` and `outro` (`card`, `seconds`, `fade_seconds`), `fonts` (`regular`, `medium`, `semibold`, `bold` TTF files), `colors`, `lower_third`, `captions`, `watermark`, `output` (`long` and `short` resolution, fps and `lufs`), `glossary` (words for Whisper to spell correctly), `corrections` (known mishearings fixed automatically, for example `{"e mail": "email"}`).
 
 ## render output (render_long.py)
 `<out-dir>/long.mp4`, `long.srt` (captions `srt` or `both`), `chapters.txt` (chapter times include the intro; the first is always `00:00`), `overlays.ass` and `filtergraph.txt` (the exact captions and ffmpeg settings, for debugging). The script prints JSON with expected and measured length and warnings.

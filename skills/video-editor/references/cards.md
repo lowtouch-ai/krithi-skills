@@ -1,12 +1,20 @@
 # Keyword cards
 
-Short panels that appear under the captions and name the idea being spoken. They were modelled on a reel the team made: a navy card with a thin magenta top line, a small green all-caps **label**, and white **pills**. Each pill appears at the moment its words are spoken, and the pill being spoken is magenta. With `chain: true`, arrows join the pills (a sequence such as Build, Runtime, Deployment).
+Short panels that appear under the captions and name the idea being spoken. They were modelled on a reel the team made: a navy card with a thin magenta top line, a small green all-caps **label**, and white **pills**. Each pill appears at the moment its words are spoken, and the pill being spoken is magenta. With `chain: true`, arrows join the pills (a sequence such as Plan, Build, Ship).
 
 ## When to use them
-Use them for explanatory moments that name things: a list of qualities, the steps of a process, a contrast between two ideas. Do not force them onto a story or an opinion with no named things. Use 0 to 3 cards per clip: none for a clip that tells a story or gives an opinion with no named things, and never more than one every 8 seconds. About one card every 10 to 15 seconds reads well; the checker warns if they are crowded, and warns if the first one starts inside the 3 second title overlay.
+Use cards on **explanatory clips**: the speaker is teaching, comparing or walking through ideas. A card marks each idea as it is introduced, so a viewer watching on mute can follow the argument. Do not use them on a clip that tells a story or gives an opinion with no named ideas.
+
+Two kinds of card, both welcome:
+- **A list or a process.** The speaker names several things ("a laptop, an account, a first task") or steps ("plan, build, ship"). One card, one pill per item, `chain: true` for steps.
+- **A single idea.** The speaker introduces one named concept ("code review", "a faster feedback loop"). One card with one pill. Do not skip these: they are what keeps the viewer oriented between the lists.
+
+**How many.** On an explanatory clip aim for about one card every 12 to 15 seconds: roughly 4 or 5 cards in a 60 second clip, 5 or 6 in 75 seconds. Never more than one every 8 seconds (the checker warns). A clip with only one or two cards in a minute is probably missing ideas; read it again and mark each place where a new idea is named. A clip with none is right only when nothing in it is a named idea. If a clip's opening has no named idea (a long first stretch of setup), start the first card later: that is fine, but check that the rest of the clip is not under-marked.
+
+Example (an invented 75 second clip about onboarding new engineers): "THE FIRST WEEK" with the pills "Set up laptop", "Meet the team", "Ship a small fix"; "WHY IT MATTERS" with "Fast feedback"; "HOW WE REVIEW" (a chain) with "Draft", "Review", "Merge".
 
 ## What a card is
-- **`label`**: 1 to 7 words, up to 36 characters. It is a short heading that **summarises what was said** ("THE HUMAN BRINGS", "LOG EVERYTHING"). It may paraphrase. It must not add a claim, a name or a number that the speaker did not say. The user approves it.
+- **`label`**: 1 to 7 words, up to 36 characters. It is a short heading that **summarises what was said** ("THE FIRST WEEK", "HOW WE REVIEW"). It may paraphrase. It must not add a claim, a name or a number that the speaker did not say. The user approves it.
 - **`items`**: 1 to 4 pills. Each has `text` (what is shown, up to 26 characters, usually the speaker's own term) and `say` (the exact words as spoken in the clip). The checker finds `say` in the transcript, rejects the card if those words are not spoken in the clip, rejects items that are not in the order they are spoken, and takes the pill's timing from the word. Each item is searched for **after the previous item**, so an earlier use of the same word does not count (if "coding" is said before the first item, pick words said later). The resolved clip lists each card's and pill's time in the finished clip (`clip_start`, `clip_at`, after dead-air pauses are removed) so you can check them against the video.
 - **`chain`**: true when the items are steps in order.
 - Numbers in a label or pill must appear in the clip's words. Follow `copy-style.md`: no em dashes, no hype words.

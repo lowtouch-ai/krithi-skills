@@ -4,7 +4,7 @@ How to turn `sentences.md` into a proposal of 30 to 90 second clips. The team's 
 
 ## What makes a clip work
 Judge a candidate on these four, in this order:
-1. **Hook.** The first sentence must make a stranger stay: a contrarian claim, a specific number, a question they already have, or the middle of tension ("Most companies are stuck in pilots."). It must not open on a connective ("so", "and", "but"), a filler ("yeah", "okay"), or the tail of an answer to a question the viewer never heard.
+1. **Hook.** The first sentence must make a stranger stay: a contrarian claim, a specific number, a question they already have, or the middle of tension ("Most migrations stall at the last stretch."). It must not open on a connective ("so", "and", "but"), a filler ("yeah", "okay"), or the tail of an answer to a question the viewer never heard.
 2. **Self-contained.** Someone with no context understands it fully. No pronouns pointing at something said earlier, no "like I said", no setup that sits outside the clip. If it needs the previous five minutes, it is not a clip.
 3. **Payoff.** Something lands: a conclusion, a reversal, a concrete rule, a number that reframes the topic. If you cannot name what the viewer walks away with, score it under 50 and do not propose it.
 4. **Quotable.** At least one sentence a person would repeat or screenshot.
@@ -26,7 +26,7 @@ Judge a candidate on these four, in this order:
 ## Each proposed clip needs
 - `from` and `to`: sentence ids.
 - `hook`: the opening words, copied from the transcript as written. Upper or lower case and punctuation are ignored when the checker compares them with the clip's real start, so a wrong start is caught but you do not need to match commas.
-- `title`: under 60 characters, specific, in the speaker's own terms ("Why most companies are stuck in pilots"), not a topic label ("Discussion about AI adoption").
+- `title`: under 60 characters, specific, in the speaker's own terms ("Why most migrations stall"), not a topic label ("Discussion about AI adoption").
 - `caption`: the post text, built only from what was said. No claim the speaker did not make. At most two hashtags.
 - `reason`: one or two sentences naming the hook and the payoff, and any weakness. Written for the person who will decide whether to keep it.
 - `score`.
