@@ -45,6 +45,19 @@ def has_module(name):
     return False
 
 
+def transcriber_status(has_faster_whisper, which):
+    """(ok, detail). Only faster-whisper satisfies the check, because transcribe.py supports only that backend.
+    Other Whisper tools that are installed are reported, but they cannot be used by this skill."""
+    if has_faster_whisper:
+        return True, "faster-whisper"
+    other = [n for n, cmds in (("whisper.cpp", ("whisper-cli", "whisper-cpp")), ("openai-whisper CLI", ("whisper",)))
+             if any(which(c) for c in cmds)]
+    if other:
+        return False, ("found " + " and ".join(other) + ", which this skill cannot use; it needs faster-whisper "
+                       "(or import a transcript you already have with transcribe.py --import)")
+    return False, "none found"
+
+
 def install_hint(what):
     system = platform.system()
     if what == "ffmpeg":
@@ -85,14 +98,8 @@ def main():
         add("libx264", "libx264" in encoders, "H.264 video", "this ffmpeg build lacks libx264. " + install_hint("ffmpeg"))
         add("aac", " aac " in encoders, "AAC audio", "this ffmpeg build lacks aac. " + install_hint("ffmpeg"))
 
-    transcriber = None
-    if has_module("faster_whisper"):
-        transcriber = "faster-whisper"
-    elif shutil.which("whisper-cli") or shutil.which("whisper-cpp"):
-        transcriber = "whisper.cpp"
-    elif shutil.which("whisper"):
-        transcriber = "openai-whisper CLI"
-    add("transcriber", transcriber, transcriber or "none found", install_hint("faster-whisper"))
+    ok_t, detail_t = transcriber_status(has_module("faster_whisper"), shutil.which)
+    add("transcriber", ok_t, detail_t, install_hint("faster-whisper"))
 
     cv = has_module("cv2")
     add("OpenCV (face tracking)", cv, "9:16 reframing" if cv else "needed for 9:16 reframing",

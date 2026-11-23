@@ -215,6 +215,36 @@ chk_t = write("chk_tr.json", {"engine": "t", "granularity": "word", "language": 
     _w2("hello", 0.2, 0.8), _w2("there", 0.9, 1.5), _w2("thank", 22.0, 22.4), _w2("you", 22.5, 22.9), _w2("so", 23.0, 23.3), _w2("much", 23.4, 23.8),
     _w2("later", 8.5, 9.5)] + [_w2(f"real{k}", 10.0 + k * 1.0, 10.8 + k * 1.0) for k in range(7)]}]})
 
+# ---- review fixes (no ffmpeg needed) ----
+sys.path.insert(0, str(scripts))
+import check_env as _ce
+_none = lambda c: None
+_only = lambda *names: (lambda c: "/usr/bin/" + c if c in names else None)
+expect(_ce.transcriber_status(True, _none) == (True, "faster-whisper"), "faster-whisper should pass the transcriber check")
+_ok_c, _msg_c = _ce.transcriber_status(False, _only("whisper-cli"))
+expect(_ok_c is False and "whisper.cpp" in _msg_c and "cannot use" in _msg_c, f"whisper.cpp alone must not pass the check: {_ok_c} {_msg_c}")
+expect(_ce.transcriber_status(False, _only("whisper"))[0] is False, "the openai-whisper CLI alone must not pass the check")
+expect(_ce.transcriber_status(False, _none) == (False, "none found"), "no transcriber should say so")
+
+ch_cut = {"version": 1, "source": {"duration": 100.0}, "keep": [{"start": 0.0, "end": 20.0}, {"start": 30.0, "end": 60.0}, {"start": 65.0, "end": 100.0}],
+          "cuts": [{"start": 20.0, "end": 30.0, "kind": "false_start", "reason": "r"}, {"start": 60.0, "end": 65.0, "kind": "pause", "reason": "r"}]}
+str_ch = write("cut_strch.json", {**ch_cut, "chapters": [{"at": "0:00", "title": "Intro"}, {"at": "0:30", "title": "Pricing"}, {"at": "1:10", "title": "Wrap up"}]})
+r_sc = run("validate_cutlist.py", str_ch)
+j_sc = json.loads(r_sc.stdout)
+expect(r_sc.returncode == 0 and j_sc["ok"] and [c["at_out"] for c in j_sc["chapters_out"]] == [0, 20, 55], f"chapter times given as mm:ss should work: {r_sc.stdout[:300]}")
+for bad_at in ("soon", None):
+    r_b = run("validate_cutlist.py", write("cut_badat.json", {**ch_cut, "chapters": [{"at": bad_at, "title": "X"}]}))
+    expect(r_b.returncode == 1 and "Traceback" not in r_b.stderr and json.loads(r_b.stdout)["ok"] is False, f"a bad chapter time must give an error, not a traceback: {r_b.stdout[:200]} {r_b.stderr[-200:]}")
+r_bc = run("validate_cutlist.py", write("cut_badcut.json", {**ch_cut, "cuts": [{"start": "abc", "end": 30, "kind": "pause", "reason": "r"}]}))
+expect("Traceback" not in r_bc.stderr, f"a bad cut time must not crash: {r_bc.stderr[-200:]}")
+
+# caption and lower-third text cannot inject ASS override tags
+import render_long as _rl
+_brand, _res = _rl.load_brand(str(_rl.DEFAULT_BRAND))
+_ass = _rl.build_ass(_brand, _res, 1920, 1080, [[{"word": "{\\b1}hello", "start": 1.0, "end": 1.5}, {"word": "back\\slash", "start": 1.5, "end": 2.0}]],
+                     [{"start": 1.0, "end": 4.0, "name": "A{\\i1}B", "title": "C}D"}], 0.0)
+expect("{\\b1}" not in _ass and "{\\i1}" not in _ass and "C}D" not in _ass, "braces or backslashes in text must not become ASS override tags")
+
 # ---- transcript corrections (no ffmpeg needed) ----
 _sp3 = _iu.spec_from_file_location("vlib_t3", str(scripts / "_vlib.py")); _vl3 = _iu.module_from_spec(_sp3); _sp3.loader.exec_module(_vl3)
 _w = lambda t_, s_, e_: {"word": t_, "start": s_, "end": e_, "probability": 0.9}
@@ -406,9 +436,13 @@ if shutil.which("ffmpeg") and shutil.which("ffprobe"):
                 expect(frame_md5(rj["video"]) != frame_md5(r2j["video"]), "captions/lower third were not drawn on the picture")
 
         # full render adds the brand intro (3 s) and outro (5 s)
-        r3 = render("r_full", "--captions", "none")
+        r3 = render("r_full", "--captions", "srt")
         r3j = json.loads(r3.stdout)
         expect(r3j.get("ok") and abs(r3j["measured_seconds"] - 27.3) < 0.3, f"full render length wrong: {r3.stdout[:300]}")
+        # the video starts with a 3 s intro, so the sidecar captions must start 3 s later than the words (first word at 0.5 s)
+        srt_full = (tmp / "r_full" / "long.srt").read_text()
+        expect("00:00:03,500 --> " in srt_full, f"long.srt must include the 3 s intro offset (first cue at 3.5 s):\n{srt_full[:200]}")
+        srt_prev = (tmp / "r_plain" / "long.srt") if (tmp / "r_plain" / "long.srt").exists() else None
 
 
         # render_shorts: 9:16 clip from the synthetic media (no face in it, so the crop falls back and says so)
@@ -462,6 +496,37 @@ if shutil.which("ffmpeg") and shutil.which("ffprobe"):
         erj = json.loads(er.stdout)
         expect(er.returncode == 0 and erj["ok"] and any("lower third skipped" in w and "less than 3 s" in w for w in erj["clips"][0]["warnings"]),
                f"a first card at 4 s leaves under 3 s, so the name tag should be skipped: {er.stdout[:500]}")
+
+        # one clip failing must not stop the others, and the report must list every clip
+        import os as _os
+        _os.environ["VE_REEXEC"] = "1"  # never re-launch this test process inside the virtualenv
+        import reframe as _rf2
+        _real_detect, _calls = _rf2.detect, [0]
+
+        def _flaky(video, ranges, *a_, **k_):
+            _calls[0] += 1
+            if _calls[0] == 1:
+                raise RuntimeError("face model missing (test)")
+            # a stand-in face plan (the system Python running the tests has no OpenCV): a centred 9:16 crop of the 320x240 test media
+            return {"source_size": [320, 240], "pieces": [{"range": [x0, x1], "crop": {"x": 90, "y": 0, "w": 134, "h": 240}, "faces_found": 1, "samples": 1, "flag": None} for x0, x1 in ranges]}
+
+        _rf2.detect = _flaky
+        two = write("two_clips.json", {"version": 1, "clips": [
+            {"id": 1, "title": "First", "start": 0.0, "end": 12.0, "at": "00:00:00", "effective_seconds": 12.0, "caption": "c", "reason": "r", "hook": "Welcome"},
+            {"id": 2, "title": "Second", "start": 0.0, "end": 12.0, "at": "00:00:00", "effective_seconds": 12.0, "caption": "c", "reason": "r", "hook": "Welcome"}]})
+        import io as _io, contextlib as _cl
+        _buf = _io.StringIO()
+        _argv = sys.argv
+        sys.argv = ["render_shorts.py", "--source", str(src), "--clips", two, "--transcript", rt, "--out-dir", str(tmp / "shorts_two"), "--preview", "--no-lower-third"]
+        try:
+            with _cl.redirect_stdout(_buf):
+                _code = _rs.main()
+        finally:
+            sys.argv = _argv
+            _rf2.detect = _real_detect
+        _rep = json.loads(_buf.getvalue())
+        expect(_code == 1 and len(_rep["clips"]) == 2 and _rep["clips"][0]["ok"] is False and "face detection failed" in _rep["clips"][0]["error"] and _rep["clips"][1]["ok"] is True,
+               f"a failing clip must be recorded while the next one still renders: {_rep}")
 
         # an invalid cut list is refused before ffmpeg runs
         badcl = write("render_bad.json", {"version": 1, "source": {"duration": 30.0}, "keep": [{"start": 5.0, "end": 2.0}]})

@@ -50,6 +50,14 @@ from render_long import (DEFAULT_BRAND, FADE, ass_color, ass_time, esc, font_inf
 TITLE_FADE = 0.35
 
 
+class ClipError(Exception):
+    """One clip failed; the others are still rendered and the report lists every clip."""
+
+    def __init__(self, msg, extra=None):
+        super().__init__(msg)
+        self.extra = extra or {}
+
+
 def rrect(w, h, r):
     """ASS drawing path for a rounded rectangle."""
     k = r * 0.5523
@@ -381,141 +389,146 @@ def main():
     results, clipsrc = [], src["clips"]
 
     for clip in clips:
-        warnings = []
-        d_out = out_root / f"clip-{int(clip['id']):02d}-{slug(clip['title'])}"
-        work = d_out / "work"
-        work.mkdir(parents=True, exist_ok=True)
-        keep = clip_keep(clip, analysis)
-        pieces = split_by_clip(keep, clipsrc)
-        if not pieces:
-            results.append({"id": clip["id"], "ok": False, "error": "no kept ranges inside the source"})
-            continue
+        try:
+            warnings = []
+            d_out = out_root / f"clip-{int(clip['id']):02d}-{slug(clip['title'])}"
+            work = d_out / "work"
+            work.mkdir(parents=True, exist_ok=True)
+            keep = clip_keep(clip, analysis)
+            pieces = split_by_clip(keep, clipsrc)
+            if not pieces:
+                results.append({"id": clip["id"], "ok": False, "error": "no kept ranges inside the source"})
+                continue
 
-        # 1. face-aware crop per piece (grouped by source clip)
-        plans = {}
-        for ci in sorted({p[0] for p in pieces}):
-            rng = [(ls, le) for (c, ls, le) in pieces if c == ci]
-            try:
-                plans[ci] = detect(clipsrc[ci]["path"], rng, a.punch_in)
-            except (RuntimeError, ImportError) as e:
-                return die(f"face detection failed: {e}")
-        counters = {ci: 0 for ci in plans}
+            # 1. face-aware crop per piece (grouped by source clip)
+            plans = {}
+            for ci in sorted({p[0] for p in pieces}):
+                rng = [(ls, le) for (c, ls, le) in pieces if c == ci]
+                try:
+                    plans[ci] = detect(clipsrc[ci]["path"], rng, a.punch_in)
+                except (RuntimeError, ImportError) as e:
+                    raise ClipError(f"face detection failed: {e}")
+            counters = {ci: 0 for ci in plans}
 
-        # 2. cut and crop each piece on its own (memory stays flat)
-        list_lines, main_dur = [], 0.0
-        for i, (ci, ls, le) in enumerate(pieces):
-            plan = plans[ci]["pieces"][counters[ci]]
-            counters[ci] += 1
-            if plan["flag"]:
-                warnings.append(f"piece {i + 1} at {ls:.1f}s: {plan['flag']}")
-            cx = plan["crop"]
-            lsn, len_ = snap(ls), snap(le)
-            d = max(len_ - lsn, 1 / fps)
-            main_dur += d
-            vf = (f"crop={cx['w']}:{cx['h']}:{cx['x']}:{cx['y']},scale={W}:{H}:flags=lanczos,setsar=1,fps={fps},format=yuv420p")
-            cmd = ["-ss", f"{lsn:.4f}", "-i", clipsrc[ci]["path"]]
-            if clipsrc[ci].get("has_audio"):
-                amap = "0:a:0"
-                af = (f"aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,afade=t=in:st=0:d={FADE},"
-                      f"afade=t=out:st={max(d - FADE, 0):.4f}:d={FADE}")
+            # 2. cut and crop each piece on its own (memory stays flat)
+            list_lines, main_dur = [], 0.0
+            for i, (ci, ls, le) in enumerate(pieces):
+                plan = plans[ci]["pieces"][counters[ci]]
+                counters[ci] += 1
+                if plan["flag"]:
+                    warnings.append(f"piece {i + 1} at {ls:.1f}s: {plan['flag']}")
+                cx = plan["crop"]
+                lsn, len_ = snap(ls), snap(le)
+                d = max(len_ - lsn, 1 / fps)
+                main_dur += d
+                vf = (f"crop={cx['w']}:{cx['h']}:{cx['x']}:{cx['y']},scale={W}:{H}:flags=lanczos,setsar=1,fps={fps},format=yuv420p")
+                cmd = ["-ss", f"{lsn:.4f}", "-i", clipsrc[ci]["path"]]
+                if clipsrc[ci].get("has_audio"):
+                    amap = "0:a:0"
+                    af = (f"aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo,afade=t=in:st=0:d={FADE},"
+                          f"afade=t=out:st={max(d - FADE, 0):.4f}:d={FADE}")
+                else:
+                    cmd += ["-f", "lavfi", "-t", f"{d:.4f}", "-i", "anullsrc=r=48000:cl=stereo"]
+                    amap, af = "1:a:0", "aresample=48000"
+                pf = work / f"p{i:04d}.mkv"
+                cmd += ["-t", f"{d:.4f}", "-map", "0:v:0", "-map", amap, "-vf", vf, "-af", af, "-c:v", "libx264",
+                        "-crf", "14" if not a.preview else "30", "-preset", "superfast", "-threads", "4", "-pix_fmt", "yuv420p",
+                        "-r", str(fps), "-c:a", "pcm_s16le", "-ar", "48000", str(pf)]
+                code, err = run_ffmpeg(cmd)
+                if code != 0:
+                    raise ClipError(f"ffmpeg failed on piece {i + 1}", {"detail": err[-600:]})
+                list_lines.append("file '" + str(pf.resolve()).replace("'", "'\\''") + "'")
+                print(f"clip {clip['id']} piece {i + 1}/{len(pieces)}", file=sys.stderr, flush=True)
+            lst = work / "pieces.txt"
+            lst.write_text("\n".join(list_lines) + "\n", encoding="utf-8")
+
+            # 3. captions, overlay text, end card
+            timed = cap.retime(all_words, keep)
+            groups = cap.group(timed, brand.get("captions", {}).get("short", {}).get("max_words_per_line", 3))
+            (d_out / "clip.srt").write_text(cap.to_srt(cap.group(timed)), encoding="utf-8")
+            cards_ct = [{"label": k["label"], "chain": k.get("chain", False), "start": kept_before(keep, k["start"]), "end": kept_before(keep, k["end"]),
+                         "items": [{"text": i["text"], "at": kept_before(keep, i["at"])} for i in k["items"]]} for k in clip.get("cards") or []]
+            clip_flags, lt_until = dict(flags), None
+            if cards_ct and clip_flags["lower_third"]:
+                # the name tag and the cards share the bottom of the frame: show the name until just before the first card,
+                # but only when that leaves at least 3 seconds to read it
+                first_card = min(k["start"] for k in cards_ct)
+                lt_from = float(cfg["title"].get("seconds", 3)) if clip_flags["title"] else 0.5
+                if first_card - 0.5 - lt_from >= 3.0:
+                    lt_until = first_card - 0.5
+                    warnings.append(f"lower third shown from {lt_from:.1f} s to {lt_until:.1f} s, then the cards take over")
+                else:
+                    clip_flags["lower_third"] = False
+                    warnings.append(f"lower third skipped: the first card starts at {first_card:.1f} s, which leaves less than 3 s to show the name")
+            ass = build_ass(brand, res, W, H, groups, clip.get("overlay_title", clip["title"]), clip.get("subtitle", ""),
+                            speaker, cfg, main_dur, clip_flags, cards_ct, lt_until)
+            (work / "overlays.ass").write_text(ass, encoding="utf-8")
+            inputs = ["-f", "concat", "-safe", "0", "-i", str(lst)]
+            meas = measure_loudness(lst, lufs)
+            if meas:
+                ln = (f"loudnorm=I={lufs}:TP=-1.5:LRA=11:measured_I={meas['input_i']}:measured_TP={meas['input_tp']}:"
+                      f"measured_LRA={meas['input_lra']}:measured_thresh={meas['input_thresh']}:offset={meas['target_offset']}:linear=true")
             else:
-                cmd += ["-f", "lavfi", "-t", f"{d:.4f}", "-i", "anullsrc=r=48000:cl=stereo"]
-                amap, af = "1:a:0", "aresample=48000"
-            pf = work / f"p{i:04d}.mkv"
-            cmd += ["-t", f"{d:.4f}", "-map", "0:v:0", "-map", amap, "-vf", vf, "-af", af, "-c:v", "libx264",
-                    "-crf", "14" if not a.preview else "30", "-preset", "superfast", "-threads", "4", "-pix_fmt", "yuv420p",
-                    "-r", str(fps), "-c:a", "pcm_s16le", "-ar", "48000", str(pf)]
-            code, err = run_ffmpeg(cmd)
+                warnings.append("could not measure loudness first; single pass used")
+                ln = f"loudnorm=I={lufs}:TP=-1.5:LRA=11"
+            T = float(cfg["title"].get("seconds", 3))
+            g, vlab = [], "[0:v]"
+            if flags["title"]:
+                ov = cfg["title"].get("blur_overlay", "#041250").replace("#", "0x")
+                al = cfg["title"].get("blur_alpha", 0.72)
+                if a.cover == "reveal":
+                    g.append(f"[0:v]split=2[base][cp];"
+                             f"[cp]trim=0:{T},setpts=PTS-STARTPTS,boxblur=luma_radius={max(8, W // 28)}:luma_power=2,"
+                             f"drawbox=x=0:y=0:w=iw:h=ih:color={ov}@{al}:t=fill,"
+                             f"format=yuva420p,fade=t=out:st={T - 0.5:.2f}:d=0.5:alpha=1[blur];"
+                             f"[base][blur]overlay=eof_action=pass[mv]")
+                else:
+                    g.append(f"[0:v]boxblur=luma_radius={max(8, W // 28)}:luma_power=2:enable='lt(t,{T})',"
+                             f"drawbox=x=0:y=0:w=iw:h=ih:color={ov}@{al}:t=fill:enable='lt(t,{T})'[mv]")
+                vlab = "[mv]"
+            g.append(f"[0:a]{ln}[ma]")
+            total = main_dur
+            if flags["end_card"]:
+                card, err = make_end_card(brand, res, W, H, work)
+                if card is None:
+                    raise ClipError("could not build the end card", {"detail": err})
+                es = float(cfg["end_card"].get("seconds", 3))
+                inputs += ["-loop", "1", "-framerate", str(fps), "-t", str(es), "-i", str(card)]
+                g.append(f"[1:v]scale={W}:{H},setsar=1,fps={fps},format=yuv420p,fade=t=in:st=0:d=0.35[ev]")
+                g.append(f"anullsrc=r=48000:cl=stereo,atrim=0:{es},asetpts=PTS-STARTPTS[ea]")
+                g.append(f"{vlab}[ma][ev][ea]concat=n=2:v=1:a=1[cv][ca]")
+                vlab, alab, total = "[cv]", "[ca]", main_dur + es
+            else:
+                alab = "[ma]"
+            g.append(f"{vlab}ass='{esc(work / 'overlays.ass')}':fontsdir='{esc(res(brand['fonts']['regular']).parent)}'[fv]")
+            script = work / "filtergraph.txt"
+            script.write_text(";\n".join(g), encoding="utf-8")
+            out_mp4 = d_out / "clip.mp4"
+            code, err = run_ffmpeg([*inputs, "-filter_complex_script", str(script), "-map", "[fv]", "-map", alab,
+                                    "-c:v", "libx264", "-crf", crf, "-preset", preset, "-pix_fmt", "yuv420p", "-r", str(fps),
+                                    "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709",
+                                    "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart", str(out_mp4)])
             if code != 0:
-                return die(f"ffmpeg failed on clip {clip['id']} piece {i + 1}", detail=err[-600:])
-            list_lines.append("file '" + str(pf.resolve()).replace("'", "'\\''") + "'")
-            print(f"clip {clip['id']} piece {i + 1}/{len(pieces)}", file=sys.stderr, flush=True)
-        lst = work / "pieces.txt"
-        lst.write_text("\n".join(list_lines) + "\n", encoding="utf-8")
+                raise ClipError("ffmpeg failed on the final pass", {"detail": err[-800:], "filtergraph": str(script)})
+            if flags["title"]:
+                run_ffmpeg(["-ss", f"{float(cfg['title'].get('seconds', 3)) * 0.78:.2f}", "-i", str(out_mp4), "-frames:v", "1", "-q:v", "2", str(d_out / "cover.png")])
+            measured = measured_duration(out_mp4)
+            if measured is not None and abs(measured - total) > 0.5:
+                warnings.append(f"measured length {measured:.2f}s differs from expected {total:.2f}s")
+            (d_out / "meta.md").write_text(
+                f"# {clip['title']}\n\n**Post caption**\n\n{clip.get('caption', '')}\n\n**Why this moment**\n\n{clip.get('reason', '')}\n\n"
+                f"**Source:** {clip['at']} in the recording, about {clip.get('effective_seconds', '')} s before the end card.\n", encoding="utf-8")
+            if not a.keep_work:
+                import shutil
+                shutil.rmtree(work, ignore_errors=True)
+            faces = [p for pl in plans.values() for p in pl["pieces"]]
+            results.append({"id": clip["id"], "ok": True, "video": str(out_mp4), "expected_seconds": round(total, 3),
+                            "measured_seconds": measured, "pieces": len(pieces),
+                            "faces_found": f"{sum(p['faces_found'] > 0 for p in faces)}/{len(faces)} pieces", "warnings": warnings})
+        except ClipError as e:
+            results.append({"id": clip["id"], "ok": False, "error": str(e), "folder": str(out_root / f"clip-{int(clip['id']):02d}-{slug(clip['title'])}"), **e.extra})
+            print(f"clip {clip['id']} failed: {e}", file=sys.stderr, flush=True)
 
-        # 3. captions, overlay text, end card
-        timed = cap.retime(all_words, keep)
-        groups = cap.group(timed, brand.get("captions", {}).get("short", {}).get("max_words_per_line", 3))
-        (d_out / "clip.srt").write_text(cap.to_srt(cap.group(timed)), encoding="utf-8")
-        cards_ct = [{"label": k["label"], "chain": k.get("chain", False), "start": kept_before(keep, k["start"]), "end": kept_before(keep, k["end"]),
-                     "items": [{"text": i["text"], "at": kept_before(keep, i["at"])} for i in k["items"]]} for k in clip.get("cards") or []]
-        clip_flags, lt_until = dict(flags), None
-        if cards_ct and clip_flags["lower_third"]:
-            # the name tag and the cards share the bottom of the frame: show the name until just before the first card,
-            # but only when that leaves at least 3 seconds to read it
-            first_card = min(k["start"] for k in cards_ct)
-            lt_from = float(cfg["title"].get("seconds", 3)) if clip_flags["title"] else 0.5
-            if first_card - 0.5 - lt_from >= 3.0:
-                lt_until = first_card - 0.5
-                warnings.append(f"lower third shown from {lt_from:.1f} s to {lt_until:.1f} s, then the cards take over")
-            else:
-                clip_flags["lower_third"] = False
-                warnings.append(f"lower third skipped: the first card starts at {first_card:.1f} s, which leaves less than 3 s to show the name")
-        ass = build_ass(brand, res, W, H, groups, clip.get("overlay_title", clip["title"]), clip.get("subtitle", ""),
-                        speaker, cfg, main_dur, clip_flags, cards_ct, lt_until)
-        (work / "overlays.ass").write_text(ass, encoding="utf-8")
-        inputs = ["-f", "concat", "-safe", "0", "-i", str(lst)]
-        meas = measure_loudness(lst, lufs)
-        if meas:
-            ln = (f"loudnorm=I={lufs}:TP=-1.5:LRA=11:measured_I={meas['input_i']}:measured_TP={meas['input_tp']}:"
-                  f"measured_LRA={meas['input_lra']}:measured_thresh={meas['input_thresh']}:offset={meas['target_offset']}:linear=true")
-        else:
-            warnings.append("could not measure loudness first; single pass used")
-            ln = f"loudnorm=I={lufs}:TP=-1.5:LRA=11"
-        T = float(cfg["title"].get("seconds", 3))
-        g, vlab = [], "[0:v]"
-        if flags["title"]:
-            ov = cfg["title"].get("blur_overlay", "#041250").replace("#", "0x")
-            al = cfg["title"].get("blur_alpha", 0.72)
-            if a.cover == "reveal":
-                g.append(f"[0:v]split=2[base][cp];"
-                         f"[cp]trim=0:{T},setpts=PTS-STARTPTS,boxblur=luma_radius={max(8, W // 28)}:luma_power=2,"
-                         f"drawbox=x=0:y=0:w=iw:h=ih:color={ov}@{al}:t=fill,"
-                         f"format=yuva420p,fade=t=out:st={T - 0.5:.2f}:d=0.5:alpha=1[blur];"
-                         f"[base][blur]overlay=eof_action=pass[mv]")
-            else:
-                g.append(f"[0:v]boxblur=luma_radius={max(8, W // 28)}:luma_power=2:enable='lt(t,{T})',"
-                         f"drawbox=x=0:y=0:w=iw:h=ih:color={ov}@{al}:t=fill:enable='lt(t,{T})'[mv]")
-            vlab = "[mv]"
-        g.append(f"[0:a]{ln}[ma]")
-        total = main_dur
-        if flags["end_card"]:
-            card, err = make_end_card(brand, res, W, H, work)
-            if card is None:
-                return die("could not build the end card", detail=err)
-            es = float(cfg["end_card"].get("seconds", 3))
-            inputs += ["-loop", "1", "-framerate", str(fps), "-t", str(es), "-i", str(card)]
-            g.append(f"[1:v]scale={W}:{H},setsar=1,fps={fps},format=yuv420p,fade=t=in:st=0:d=0.35[ev]")
-            g.append(f"anullsrc=r=48000:cl=stereo,atrim=0:{es},asetpts=PTS-STARTPTS[ea]")
-            g.append(f"{vlab}[ma][ev][ea]concat=n=2:v=1:a=1[cv][ca]")
-            vlab, alab, total = "[cv]", "[ca]", main_dur + es
-        else:
-            alab = "[ma]"
-        g.append(f"{vlab}ass='{esc(work / 'overlays.ass')}':fontsdir='{esc(res(brand['fonts']['regular']).parent)}'[fv]")
-        script = work / "filtergraph.txt"
-        script.write_text(";\n".join(g), encoding="utf-8")
-        out_mp4 = d_out / "clip.mp4"
-        code, err = run_ffmpeg([*inputs, "-filter_complex_script", str(script), "-map", "[fv]", "-map", alab,
-                                "-c:v", "libx264", "-crf", crf, "-preset", preset, "-pix_fmt", "yuv420p", "-r", str(fps),
-                                "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709",
-                                "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart", str(out_mp4)])
-        if code != 0:
-            return die(f"ffmpeg failed on the final pass of clip {clip['id']}", detail=err[-800:], filtergraph=str(script))
-        if flags["title"]:
-            run_ffmpeg(["-ss", f"{float(cfg['title'].get('seconds', 3)) * 0.78:.2f}", "-i", str(out_mp4), "-frames:v", "1", "-q:v", "2", str(d_out / "cover.png")])
-        measured = measured_duration(out_mp4)
-        if measured is not None and abs(measured - total) > 0.5:
-            warnings.append(f"measured length {measured:.2f}s differs from expected {total:.2f}s")
-        (d_out / "meta.md").write_text(
-            f"# {clip['title']}\n\n**Post caption**\n\n{clip.get('caption', '')}\n\n**Why this moment**\n\n{clip.get('reason', '')}\n\n"
-            f"**Source:** {clip['at']} in the recording, about {clip.get('effective_seconds', '')} s before the end card.\n", encoding="utf-8")
-        if not a.keep_work:
-            import shutil
-            shutil.rmtree(work, ignore_errors=True)
-        faces = [p for pl in plans.values() for p in pl["pieces"]]
-        results.append({"id": clip["id"], "ok": True, "video": str(out_mp4), "expected_seconds": round(total, 3),
-                        "measured_seconds": measured, "pieces": len(pieces),
-                        "faces_found": f"{sum(p['faces_found'] > 0 for p in faces)}/{len(faces)} pieces", "warnings": warnings})
     print(json.dumps({"ok": all(r["ok"] for r in results), "preview": a.preview, "clips": results}, indent=2))
     return 0 if all(r["ok"] for r in results) else 1
 

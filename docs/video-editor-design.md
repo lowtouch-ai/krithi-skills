@@ -159,7 +159,7 @@ Bundled in `skills/video-editor/assets/brand/`:
 | File | Source | Use |
 |---|---|---|
 | `logo-wordmark.png` | `branding/logos/lowtouch.ai-logo-v7.png` | lower thirds, end card |
-| `logo-square-alpha.png` | `branding/logos/lowtouch-logo-square-v7-alpha.png` | corner watermark on shorts |
+| `logo-square-alpha.png` | `branding/logos/lowtouch-logo-square-v7-alpha.png` | reserved for a corner watermark (not used yet) |
 | `intro-card.png` | `branding/pdf-templates/front-page-v11.png` | intro, 3 s with fade |
 | `outro-card.png` | `branding/pdf-templates/last-page-v11.png` | outro, 5 s with fade (logo, tagline, QR code, socials and contact already on the image) |
 | `fonts/Poppins-*.ttf`, `fonts/OFL.txt` | Google Fonts | captions, lower thirds |

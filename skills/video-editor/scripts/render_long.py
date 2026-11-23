@@ -108,7 +108,8 @@ def build_ass(brand, res, W, H, cues, lower_thirds, offset):
     for lt in lower_thirds:
         start, end = lt["start"] + offset, lt["end"] + offset
         x, y = int(W * 0.05), int(H * 0.76)
-        name, title = lt["name"], lt.get("title", "")
+        safe = lambda s_: str(s_).replace("{", "(").replace("}", ")").replace("\\", "")
+        name, title = safe(lt["name"]), safe(lt.get("title", ""))
         w = int(max(len(name) * name_sz * 0.62, len(title) * title_sz * 0.58)) + int(W * 0.03) + 14
         h = int(name_sz * 1.25 + (title_sz * 1.4 if title else 0) + H * 0.02)
         pad = int(W * 0.012)
@@ -122,7 +123,7 @@ def build_ass(brand, res, W, H, cues, lower_thirds, offset):
             lines.append("Dialogue: 2,%s,%s,Title,,0,0,0,,{\\pos(%d,%d)%s}%s" % (t0, t1, x + 8 + pad, y + int(H * 0.008 + name_sz * 1.2), fad, title))
     for c in cues:
         text = " ".join(w["word"] for w in c).strip()
-        body = cap.wrap(text).replace("\n", "\\N")
+        body = cap.wrap(text.replace("{", "(").replace("}", ")").replace("\\", "")).replace("\n", "\\N")
         lines.append("Dialogue: 3,%s,%s,Cap,,0,0,0,,%s" % (ass_time(c[0]["start"] + offset), ass_time(c[-1]["end"] + offset), body))
     return "\n".join(lines) + "\n"
 
@@ -334,7 +335,8 @@ def main():
         timed = cap.retime(words_of(transcript), keep_for_text)
         cues = cap.group(timed)
         if mode in ("srt", "both"):
-            (out_dir / "long.srt").write_text(cap.to_srt(cues), encoding="utf-8")
+            # the video starts with the brand intro (offset seconds), so the sidecar file must start later too
+            (out_dir / "long.srt").write_text(cap.to_srt(cap.shift(cues, offset)), encoding="utf-8")
     elif mode in ("burn", "both", "srt"):
         warnings.append("no transcript given, so no captions were made")
     lts = [] if a.no_lower_thirds else lower_third_events(brand, cl, transcript, keep, main_dur)

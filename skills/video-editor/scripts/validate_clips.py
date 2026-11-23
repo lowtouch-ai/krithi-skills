@@ -127,7 +127,7 @@ def resolve_cards(clip, tag, cw, text, start, end, errors, warnings, keep=None):
             x["end"] = round(y["start"] - 0.25, 3)
     if out and out[0]["start"] - start < 3.0:
         warnings.append(f"{tag}: the first card starts inside the title overlay (first 3 seconds); move its words later or drop it")
-    if len(out) > 1 and (end - start) / len(out) < 7.0:
+    if len(out) > 1 and (end - start) / len(out) < 8.0:
         warnings.append(f"{tag}: {len(out)} cards in {end - start:.0f} s is crowded; about one every 10 to 15 seconds reads better")
     return out
 

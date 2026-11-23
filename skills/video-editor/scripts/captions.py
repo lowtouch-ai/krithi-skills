@@ -79,6 +79,11 @@ def group(words, max_words=None):
     return cues
 
 
+def shift(cues, offset):
+    """The same cues moved later by `offset` seconds (for a video that starts with an intro)."""
+    return [[{**w, "start": w["start"] + offset, "end": w["end"] + offset} for w in c] for c in cues]
+
+
 def wrap(text):
     if len(text) <= MAX_CHARS:
         return text

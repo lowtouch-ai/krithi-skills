@@ -51,13 +51,6 @@
       "style": "box"
     }
   },
-  "watermark": {
-    "enabled": false,
-    "image": "square",
-    "position": "top-right",
-    "opacity": 0.9,
-    "shorts_only": true
-  },
   "output": {
     "long": {
       "resolution": "1920x1080",

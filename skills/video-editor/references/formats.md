@@ -7,7 +7,7 @@ All times are seconds (decimals) unless a name says otherwise. On a multi-clip s
 
 ## transcript.json (transcribe.py)
 ```json
-{ "version": 1, "engine": "faster-whisper", "model": "small", "language": "en",
+{ "version": 2, "engine": "faster-whisper", "model": "small", "language": "en",
   "granularity": "word", "duration": 729.2,
   "segments": [ { "id": 0, "start": 3.1, "end": 6.4, "text": "Yeah, so we can start.",
                   "speaker": "S1",
@@ -52,7 +52,7 @@ All times are seconds (decimals) unless a name says otherwise. On a multi-clip s
 `from` and `to` are sentence ids. `hook` is the opening words copied exactly. `trim_pauses` (default true) removes dead-air pauses inside the clip when counting its length. Optional `cards` (see `cards.md`): `[{"label": "The first week", "chain": false, "items": [{"text": "Set up laptop", "say": "set up the laptop"}]}]`; the resolved file gives each card its `start` and `end` and each item the source time (`at`) its spoken words begin, and the matching times in the finished clip (`clip_start`, `clip_end`, `clip_at`, after dead-air pauses are removed). Optional: `overlay_title` (the cover headline; defaults to `title`) and `subtitle` (a one-line tagline under it). Mark cover tiers with `|`: CAPITAL words are big magenta lines, lowercase words small white ones (`"HUMAN | in the | LEAD"`); with no `|` the title is wrapped into balanced big lines. Use 2 to 4 tiers, and keep each tier to a word or two. The resolved file (`--out`) adds `start`, `end`, `seconds` (raw), `effective_seconds` (after trimmed pauses), `at` and `text`.
 
 ## brand.json
-Colours are referenced by token name (`primary`, `secondary`, `text`, `background`, `surface`, `text_muted`). Asset paths are relative to the brand file. Keys: `name`, `logo`, `intro` and `outro` (`card`, `seconds`, `fade_seconds`), `fonts` (`regular`, `medium`, `semibold`, `bold` TTF files), `colors`, `lower_third`, `captions`, `watermark`, `output` (`long` and `short` resolution, fps and `lufs`), `glossary` (words for Whisper to spell correctly), `corrections` (known mishearings fixed automatically, for example `{"e mail": "email"}`).
+Colours are referenced by token name (`primary`, `secondary`, `text`, `background`, `surface`, `text_muted`). Asset paths are relative to the brand file. Keys: `name`, `logo`, `intro` and `outro` (`card`, `seconds`, `fade_seconds`), `fonts` (`regular`, `medium`, `semibold`, `bold` TTF files), `colors`, `lower_third`, `captions`, `shorts`, `output` (`long` and `short` resolution, fps and `lufs`), `glossary` (words for Whisper to spell correctly), `corrections` (known mishearings fixed automatically, for example `{"e mail": "email"}`).
 
 ## render output (render_long.py)
 `<out-dir>/long.mp4`, `long.srt` (captions `srt` or `both`), `chapters.txt` (chapter times include the intro; the first is always `00:00`), `overlays.ass` and `filtergraph.txt` (the exact captions and ffmpeg settings, for debugging). The script prints JSON with expected and measured length and warnings.

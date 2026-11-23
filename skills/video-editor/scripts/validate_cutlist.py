@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _vlib import TOL, Levels, fmt_clock, hms, kept_before, in_keep, load_json, output_duration, words_of  # noqa: E402
+from _vlib import TOL, Levels, fmt_clock, hms, kept_before, parse_time, in_keep, load_json, output_duration, words_of  # noqa: E402
 
 MIN_CHAPTERS = 3
 MIN_CHAPTER_SECONDS = 10.0
@@ -60,6 +60,12 @@ def validate(cl, transcript=None, levels=None):
         for f in ("start", "end", "kind", "reason"):
             if f not in c or c[f] in ("", None):
                 errors.append(f"cuts[{i}] is missing {f}")
+        for f in ("start", "end"):
+            try:
+                c[f] = parse_time(c[f])
+            except (KeyError, ValueError, TypeError):
+                if f"cuts[{i}] is missing {f}" not in errors:
+                    errors.append(f"cuts[{i}]: '{f}' must be seconds or a time such as 12:40")
     if errors:
         return errors, warnings, {}
 
@@ -115,7 +121,11 @@ def validate(cl, transcript=None, levels=None):
     if chapters:
         prev_out = None
         for i, ch in enumerate(chapters):
-            at = float(ch.get("at", -1))
+            try:
+                at = parse_time(ch.get("at"))
+            except (ValueError, TypeError):
+                errors.append(f"chapters[{i}]: 'at' must be seconds (760) or a time such as 12:40, got {ch.get('at')!r}")
+                continue
             if at < 0:
                 errors.append(f"chapters[{i}] needs a non-negative 'at'")
                 continue
