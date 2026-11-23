@@ -1,0 +1,4 @@
+# Python packages for the video-editor skill (installed into a virtualenv, never the system Python).
+# Scripts that only validate cut lists, build captions or chapters need none of these.
+faster-whisper==1.2.1          # transcription (word-level timestamps)
+opencv-python-headless==4.11.0.86  # face detection for 9:16 reframing

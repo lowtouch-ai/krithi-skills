@@ -1,0 +1,95 @@
+{
+  "name": "lowtouch.ai",
+  "logo": {
+    "wordmark": "logo-wordmark.png",
+    "square": "logo-square-alpha.png"
+  },
+  "intro": {
+    "card": "intro-card.png",
+    "seconds": 3,
+    "fade_seconds": 0.5
+  },
+  "outro": {
+    "card": "outro-card.png",
+    "seconds": 5,
+    "fade_seconds": 0.5
+  },
+  "fonts": {
+    "regular": "fonts/Poppins-Regular.ttf",
+    "medium": "fonts/Poppins-Medium.ttf",
+    "semibold": "fonts/Poppins-SemiBold.ttf",
+    "bold": "fonts/Poppins-Bold.ttf"
+  },
+  "colors": {
+    "background": "#041250",
+    "surface": "#0F1E66",
+    "primary": "#FB47DE",
+    "secondary": "#7ED957",
+    "text": "#FFFFFF",
+    "text_muted": "#81B5A1"
+  },
+  "lower_third": {
+    "name_font": "semibold",
+    "title_font": "regular",
+    "name_color": "text",
+    "title_color": "secondary",
+    "accent_bar": "primary",
+    "box": "background",
+    "show_seconds": 5,
+    "repeat_every_seconds": 600
+  },
+  "captions": {
+    "long": {
+      "mode": "sidecar"
+    },
+    "short": {
+      "font": "bold",
+      "color": "text",
+      "highlight": "primary",
+      "outline": "#000000",
+      "max_words_per_line": 3
+    }
+  },
+  "watermark": {
+    "enabled": false,
+    "image": "square",
+    "position": "top-right",
+    "opacity": 0.9,
+    "shorts_only": true
+  },
+  "output": {
+    "long": {
+      "resolution": "1920x1080",
+      "fps": 30,
+      "lufs": -16
+    },
+    "short": {
+      "resolution": "1080x1920",
+      "fps": 30,
+      "lufs": -15
+    }
+  },
+  "glossary": [
+    "lowtouch.ai",
+    "Krithi"
+  ],
+  "shorts": {
+    "title": {
+      "seconds": 3,
+      "blur_overlay": "#041250",
+      "blur_alpha": 0.72
+    },
+    "lower_third": {
+      "seconds": 16
+    },
+    "end_card": {
+      "seconds": 3,
+      "gradient": [
+        "#0B1250",
+        "#8A3378"
+      ],
+      "url": "www.lowtouch.ai",
+      "logo_width": 0.7
+    }
+  }
+}
