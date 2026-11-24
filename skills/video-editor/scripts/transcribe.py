@@ -3,13 +3,15 @@
 
 Usage:
   transcribe.py --source source.json --out-dir DIR [--model small] [--language auto]
-                [--glossary "lowtouch.ai, Krithi"] [--brand brand.json]
+                [--glossary "lowtouch.ai, Krithi"] [--brand brand.json] [--chunk-seconds 30]
   transcribe.py --import FILE --out-dir DIR [--duration SECONDS]
 
 Writes DIR/transcript.json (words with start/end seconds on the combined timeline) and
 DIR/transcript.md (readable, with [hh:mm:ss] markers). Runs locally with faster-whisper; audio
 never leaves the machine. The model downloads on first use (small is about 0.5 GB).
-Results are cached by audio, model and language: running again with the same inputs is instant.
+The audio is transcribed in pieces of about --chunk-seconds (default 30, 0 = one pass), each cut at a pause: Whisper loses
+its place in one long pass (it skips speech or squashes it into stretched words) but not in short ones.
+Results are cached by audio, model, language and chunk size: running again with the same inputs is instant.
 
 --import accepts Whisper-style JSON (segments[].words[]), a list of {text,startMs,endMs}
 (Remotion / HyperFrames captions), or an SRT file. SRT has phrase timing only, so words are spread
@@ -69,14 +71,14 @@ def read_wav(path):
     return np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
 
 
-def cache_key(clips, model, language, glossary=()):
+def cache_key(clips, model, language, glossary=(), chunk=0.0):
     h = hashlib.sha256()
     for c in clips:
         p = Path(c["path"])
         h.update(f"{p.name}:{p.stat().st_size}:{c['duration']}".encode())
         with open(p, "rb") as f:
             h.update(f.read(4 << 20))
-    h.update(f"|{model}|{language}|{sorted(glossary)}|v{VERSION}".encode())
+    h.update(f"|{model}|{language}|{sorted(glossary)}|c{chunk}|v{VERSION}".encode())
     return h.hexdigest()[:16]
 
 
@@ -200,7 +202,35 @@ def snap_segments(segments, db, offset, step=0.02):
     return segments
 
 
-def run_whisper(clips, model_name, language, work, glossary=(), corrections=None, notes=None):
+def split_points(db, step, total, target=30.0, reach=6.0, min_quiet=0.2):
+    """Where to cut the audio into pieces of about `target` seconds: in the longest quiet stretch within `reach` seconds of
+    each target mark (or the quietest moment when there is none), so a word is never cut in half. Returns the cut times."""
+    if not target or total <= target + reach or not db:
+        return []
+    ref = sorted(db)[int(0.9 * (len(db) - 1))]
+    quiet = ref - 20.0
+    cuts, t = [], 0.0
+    while total - t > target + reach:
+        lo, hi = int((t + target - reach) / step), min(len(db) - 1, int((t + target + reach) / step))
+        best, run = None, None
+        for i in range(lo, hi + 1):
+            if db[i] < quiet:
+                run = run if run is not None else i
+            if (db[i] >= quiet or i == hi) and run is not None:
+                end = i if db[i] < quiet else i - 1
+                if (end - run + 1) * step >= min_quiet and (best is None or end - run > best[1] - best[0]):
+                    best = (run, end)
+                run = None
+        if best:
+            cut = (best[0] + best[1]) / 2.0 * step
+        else:
+            cut = min(range(lo, hi + 1), key=lambda i: db[i]) * step
+        cuts.append(round(cut, 3))
+        t = cut
+    return cuts
+
+
+def run_whisper(clips, model_name, language, work, glossary=(), corrections=None, notes=None, chunk=30.0):
     from faster_whisper import WhisperModel
     notes = notes if notes is not None else []
     cpu = os.cpu_count() or 4
@@ -212,24 +242,29 @@ def run_whisper(clips, model_name, language, work, glossary=(), corrections=None
     segments, lang_seen = [], None
     for c in clips:
         audio = read_wav(audio_wav(c, work))
-        segs, info = model.transcribe(audio, language=None if language == "auto" else language, **kw)
-        lang_seen = lang_seen or info.language
-        last_note, clip_segments = 0.0, []
-        for s in segs:
-            if s.end - last_note >= 60:  # a sign of life on a long file; stdout stays a single JSON object
-                print(f"transcribing... {s.end:.0f} s of {c['duration']:.0f} s", file=sys.stderr, flush=True)
-                last_note = s.end
-            words = [{"word": w.word.strip(), "start": round(c["offset"] + w.start, 3), "end": round(c["offset"] + w.end, 3),
-                      "probability": round(float(w.probability), 3)} for w in (s.words or []) if w.word.strip()]
-            words = merge_fragments(words)
-            if corrections:
-                words, _ = apply_corrections(words, corrections)
-            if not words:
-                continue
-            clip_segments.append({"start": round(c["offset"] + s.start, 3), "end": round(c["offset"] + s.end, 3),
-                                  "text": s.text.strip(), "words": words})
-        decode = lambda chunk, lg=(None if language == "auto" else language) or info.language: model.transcribe(chunk, language=lg, **kw)[0]
         db = frame_db(audio)
+        total = len(audio) / 16000.0
+        edges = [0.0] + split_points(db, 0.02, total, chunk) + [total]
+        lang_use = None if language == "auto" else language
+        last_note, clip_segments = 0.0, []
+        for a0, a1 in zip(edges, edges[1:]):
+            segs, info = model.transcribe(audio[int(a0 * 16000): int(a1 * 16000)], language=lang_use, **kw)
+            lang_seen = lang_seen or info.language
+            lang_use = lang_use or info.language  # detect once, on the first piece
+            for s in segs:
+                if a0 + s.end - last_note >= 60:  # a sign of life on a long file; stdout stays a single JSON object
+                    print(f"transcribing... {a0 + s.end:.0f} s of {c['duration']:.0f} s", file=sys.stderr, flush=True)
+                    last_note = a0 + s.end
+                words = [{"word": w.word.strip(), "start": round(c["offset"] + a0 + w.start, 3), "end": round(c["offset"] + a0 + w.end, 3),
+                          "probability": round(float(w.probability), 3)} for w in (s.words or []) if w.word.strip()]
+                words = merge_fragments(words)
+                if corrections:
+                    words, _ = apply_corrections(words, corrections)
+                if not words:
+                    continue
+                clip_segments.append({"start": round(c["offset"] + a0 + s.start, 3), "end": round(c["offset"] + a0 + s.end, 3),
+                                      "text": s.text.strip(), "words": words})
+        decode = lambda chunk, lg=(None if language == "auto" else language) or info.language: model.transcribe(chunk, language=lg, **kw)[0]
         clip_segments = fill_missing_speech(audio, c["offset"], clip_segments, decode, corrections, notes, db)
         clip_segments = repair_unreliable(model, audio, c["offset"], clip_segments, decode, corrections, notes)
         clip_segments = snap_segments(clip_segments, db, c["offset"])
@@ -319,6 +354,7 @@ def main():
     ap.add_argument("--out-dir", required=True)
     ap.add_argument("--model", default="small")
     ap.add_argument("--language", default="auto")
+    ap.add_argument("--chunk-seconds", type=float, default=30.0, help="transcribe in pieces of about this many seconds, cut at pauses (0 = one pass)")
     ap.add_argument("--duration", type=float)
     ap.add_argument("--glossary", default="", help="comma-separated names/terms Whisper often mishears (e.g. 'lowtouch.ai, Krithi')")
     ap.add_argument("--brand", help="brand.json; its glossary list is added to --glossary, and its corrections (known mishearings) are applied")
@@ -362,7 +398,7 @@ def main():
         corrections = {}
         if a.brand:
             corrections = load_json(a.brand).get("corrections", {}) or {}
-        key = cache_key(clips, a.model, a.language, glossary + sorted(f"{k}=>{v}" for k, v in corrections.items()))
+        key = cache_key(clips, a.model, a.language, glossary + sorted(f"{k}=>{v}" for k, v in corrections.items()), a.chunk_seconds)
         if tpath.exists() and not a.force:
             try:
                 old = load_json(tpath)
@@ -379,7 +415,7 @@ def main():
             return die("faster-whisper is not installed", fix="python3 <skill-dir>/scripts/setup_env.py")
         try:
             repair_notes = []
-            segments, lang = run_whisper(clips, a.model, a.language, out_dir / "proxy", glossary, corrections, repair_notes)
+            segments, lang = run_whisper(clips, a.model, a.language, out_dir / "proxy", glossary, corrections, repair_notes, a.chunk_seconds)
         except Exception as e:  # model download, decode, memory
             return die(f"transcription failed: {e}")
         t = {"version": VERSION, "engine": "faster-whisper", "model": a.model, "language": lang, "granularity": "word",

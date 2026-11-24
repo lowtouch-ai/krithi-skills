@@ -241,6 +241,18 @@ expect(abs(_snapped[1]["start"] - 4.0) < 0.05 and _chg == 2, f"a start that came
 _tight = [_w2("a", 1.5, 1.9), _w2("b", 1.95, 2.2)]
 expect(_vl3.snap_to_sound(_tight, _dbs, _step, _ths)[1] == 0 or _vl3.snap_to_sound(_tight, _dbs, _step, _ths)[1] <= 1, "words already on the sound are left alone")
 
+# ---- transcription in pieces: cut at pauses, never inside speech
+_ds = [-20.0] * int(100 / 0.02)
+for _a, _b in ((31.0, 31.5), (62.0, 62.1), (88.0, 88.6)):
+    for _i in range(int(_a / 0.02), int(_b / 0.02)):
+        _ds[_i] = -80.0
+_cuts = _tr.split_points(_ds, 0.02, 100.0, target=30.0, reach=6.0)
+expect(len(_cuts) >= 2 and abs(_cuts[0] - 31.25) < 0.05 and abs(_cuts[1] - 62.05) < 0.1, f"cuts must land in the pauses near each 30 s mark: {_cuts}")
+expect(_tr.split_points(_ds, 0.02, 100.0, target=0) == [] and _tr.split_points(_ds[:1000], 0.02, 20.0, target=30.0) == [], "no cuts for one pass or a short file")
+_flat = [-20.0] * int(100 / 0.02)
+_cf = _tr.split_points(_flat, 0.02, 100.0, target=30.0)
+expect(all(b - a <= 36.1 for a, b in zip([0.0] + _cf, _cf + [100.0])), f"with no pause at all the pieces still stay near the target length: {_cf}")
+
 # the checker: words over silence, collapsed stretches, and --drop
 chk_t = write("chk_tr.json", {"engine": "t", "granularity": "word", "language": "en", "segments": [{"start": 0, "end": 30, "text": "x", "words": [
     _w2("hello", 0.2, 0.8), _w2("there", 0.9, 1.5), _w2("thank", 22.0, 22.4), _w2("you", 22.5, 22.9), _w2("so", 23.0, 23.3), _w2("much", 23.4, 23.8),
