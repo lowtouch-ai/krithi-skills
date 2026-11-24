@@ -556,6 +556,32 @@ if shutil.which("ffmpeg") and shutil.which("ffprobe"):
 else:
     print("SKIP: ffmpeg/ffprobe not found; media checks not run")
 
+# ---- optional motion-graphics layer (HyperFrames): page content and the not-installed path, no browser needed
+import render_motion as _rm
+_cols = {"magenta": "#FB47DE", "green": "#7ED957", "navy": "#041250", "surface": "#0F1E66", "white": "#FFFFFF"}
+_mc = [{"label": "A <b>tag</b>", "chain": True, "start": 1.0, "end": 6.0,
+        "items": [{"text": "First & one", "at": 1.5}, {"text": "Second", "at": 3.0}]},
+       {"label": "Other", "chain": False, "start": 8.0, "end": 11.0, "items": [{"text": "Solo", "at": 8.5}]}]
+_page = _rm.build_page(_mc, _cols, [("Brand", 600, "a.ttf")], 1080, 1920, 12.0)
+expect("<b>tag</b>" not in _page and "&lt;b&gt;tag&lt;/b&gt;" in _page and "First &amp; one" in _page, "card text must be HTML-escaped")
+expect(_page.count('class="pill"') == 3 and _page.count('class="arrow"') == 1, "pills and one chain arrow expected")
+expect("http://" not in _page and "https://" not in _page, "the page must not load anything from the network")
+expect("background: transparent" in _page and 'data-duration="12.000"' in _page, "overlay must be transparent and last the given time")
+expect(_page.count("immediateRender: false") == 2, "each card's exit tween needs immediateRender: false")
+_half = _rm.build_page(_mc, _cols, [("Brand", 600, "a.ttf")], 540, 960, 12.0)
+expect("font-size: 27.0px" in _half, "sizes must scale with the output width")
+import os
+_old_home = os.environ.get("KRITHI_HOME")
+os.environ["KRITHI_HOME"] = str(tmp / "no_motion_home")
+_st = _rm.status()
+expect(_st["ready"] is False and _st["fix"], f"status must say how to fix a missing install: {_st}")
+_path, _off, _err = _rm.render_overlay([{**_mc[0]}], {}, lambda x: x, 1080, 1920, tmp / "mw")
+expect(_path is None and _err, "render_overlay must report an error, not raise, when the layer is not installed")
+if _old_home is None:
+    os.environ.pop("KRITHI_HOME")
+else:
+    os.environ["KRITHI_HOME"] = _old_home
+
 if problems:
     print("FAIL")
     for p in problems:

@@ -4,7 +4,7 @@
 Usage: render_shorts.py --source source.json --clips clips.resolved.json --transcript transcript.json
          --out-dir DIR [--ids 1,3] [--analysis analysis.json] [--brand brand.json]
          [--speaker "Name|Title"] [--punch-in 1.15] [--preview]
-         [--cover reveal|static] [--no-title] [--no-lower-third] [--no-end-card]
+         [--cover reveal|static] [--motion auto|off|on] [--no-title] [--no-lower-third] [--no-end-card]
 
 clips.resolved.json comes from validate_clips.py. For each chosen clip it writes
 DIR/clip-NN-<title>/clip.mp4, clip.srt and meta.md (title, caption, reason). Each clip is built to
@@ -45,6 +45,7 @@ def reexec_in_venv():
 from _vlib import clip_keep, kept_before, load_json, words_of  # noqa: E402
 from fontmetrics import Font  # noqa: E402
 import captions as cap  # noqa: E402
+import render_motion  # noqa: E402
 from render_long import (DEFAULT_BRAND, FADE, ass_color, ass_time, esc, font_info, load_brand,  # noqa: E402
                          measure_loudness, measured_duration, run_ffmpeg, split_by_clip)
 
@@ -349,6 +350,8 @@ def main():
                     help="reveal (default): staggered title tiers, a green rule and a subtitle over the blurred video, then a crossfade; static: plain title")
     ap.add_argument("--no-lower-third", "--no-lower-thirds", dest="no_lower_third", action="store_true")
     ap.add_argument("--no-end-card", action="store_true")
+    ap.add_argument("--motion", choices=["auto", "off", "on"], default="auto",
+                    help="draw keyword cards with HyperFrames (needs render_motion.py --setup): auto uses it when ready, on requires it, off uses the built-in ffmpeg cards")
     ap.add_argument("--keep-work", action="store_true")
     a = ap.parse_args()
     reexec_in_venv()
@@ -463,8 +466,17 @@ def main():
                 else:
                     clip_flags["lower_third"] = False
                     warnings.append(f"lower third skipped: the first card starts at {first_card:.1f} s, which leaves less than 3 s to show the name")
+            motion_ov, motion_off = None, 0.0
+            if cards_ct and a.motion != "off":
+                motion_ov, motion_off, merr = render_motion.render_overlay(cards_ct, brand, res, W, H, work)
+                if merr and a.motion == "on":
+                    raise ClipError("motion graphics unavailable: " + merr)
+                if merr:
+                    warnings.append("motion graphics not used, built-in cards drawn instead: " + merr)
+                else:
+                    warnings.append("keyword cards drawn with HyperFrames")
             ass = build_ass(brand, res, W, H, groups, clip.get("overlay_title", clip["title"]), clip.get("subtitle", ""),
-                            speaker, cfg, main_dur, clip_flags, cards_ct, lt_until)
+                            speaker, cfg, main_dur, clip_flags, None if motion_ov else cards_ct, lt_until)
             (work / "overlays.ass").write_text(ass, encoding="utf-8")
             inputs = ["-f", "concat", "-safe", "0", "-i", str(lst)]
             meas = measure_loudness(lst, lufs)
@@ -489,6 +501,11 @@ def main():
                     g.append(f"[0:v]boxblur=luma_radius={max(8, W // 28)}:luma_power=2:enable='lt(t,{T})',"
                              f"drawbox=x=0:y=0:w=iw:h=ih:color={ov}@{al}:t=fill:enable='lt(t,{T})'[mv]")
                 vlab = "[mv]"
+            if motion_ov:
+                mi = 1 + (1 if flags["end_card"] else 0)
+                g.append(f"[{mi}:v]setpts=PTS+{motion_off:.3f}/TB,format=yuva420p[mo]")
+                g.append(f"{vlab}[mo]overlay=eof_action=pass:format=auto[mc]")
+                vlab = "[mc]"
             g.append(f"[0:a]{ln}[ma]")
             total = main_dur
             if flags["end_card"]:
@@ -503,6 +520,8 @@ def main():
                 vlab, alab, total = "[cv]", "[ca]", main_dur + es
             else:
                 alab = "[ma]"
+            if motion_ov:
+                inputs += ["-c:v", "libvpx-vp9", "-i", str(motion_ov)]
             g.append(f"{vlab}ass='{esc(work / 'overlays.ass')}':fontsdir='{esc(res(brand['fonts']['regular']).parent)}'[fv]")
             script = work / "filtergraph.txt"
             script.write_text(";\n".join(g), encoding="utf-8")

@@ -105,6 +105,11 @@ def main():
     add("OpenCV (face tracking)", cv, "9:16 reframing" if cv else "needed for 9:16 reframing",
         install_hint("opencv"), required=a.need in ("shorts", "all"))
 
+    from render_motion import status as motion_status  # optional layer: never blocks
+    ms = motion_status()
+    add("motion graphics (optional)", ms["ready"], ms["detail"] if ms["ready"] else "not installed: built-in ffmpeg cards are used",
+        ms["fix"], required=False)
+
     fonts = SKILL_DIR / "assets" / "brand" / "fonts"
     missing = [f for f in ("Poppins-Regular.ttf", "Poppins-Bold.ttf") if not (fonts / f).is_file()]
     add("brand fonts", not missing, str(fonts), "bundled fonts missing: " + ", ".join(missing))
