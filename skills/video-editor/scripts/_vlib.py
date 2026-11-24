@@ -206,6 +206,21 @@ class Levels:
             i -= 1
         return None
 
+    def onset_near(self, t, radius=0.3):
+        """Time the sound really starts after a pause, nearest to `t` (within `radius`), or None.
+
+        A word that follows a quiet stretch starts at the first loud window after it. Whisper's word start can be a
+        fraction of a second off, so a keyword card uses this to land on the sound; words that run on from the
+        previous one have no onset and return None."""
+        i, lo, hi = self._i(t), self._i(t - radius), self._i(t + radius)
+        best = None
+        for j in range(max(lo, self.need), hi + 1):
+            if self.db[j] >= self.thr and self.quiet_run(j - self.need):
+                ti = self._time(j)
+                if best is None or abs(ti - t) < abs(best - t):
+                    best = ti
+        return best
+
     def longest_quiet_run(self, g0, g1, min_len=0.2):
         """(start, end) of the longest unbroken quiet stretch inside [g0, g1], or None. A loud burst in the middle
         of a gap (a missed word, a breath) splits it, and only the longest quiet part is returned."""

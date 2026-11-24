@@ -4,6 +4,7 @@ Keyword cards normally come from ffmpeg subtitle drawing: reliable and quick, bu
 
 ## What it is
 - **HyperFrames** (HeyGen, Apache 2.0, free): an HTML page with seekable animations rendered to video. `render_motion.py` writes that page from the clip's cards and `brand.json` (colours, fonts), renders a transparent WebM, and `render_shorts.py` composites it with ffmpeg. Captions, lower third and end card are unchanged.
+- **Same layout either way.** Both renderers draw a narrow panel with a label and the terms stacked as pills; every term is on the card from the start in a muted colour, turns magenta as it is spoken and white after.
 - **Pinned and local.** `render_motion.py --setup` installs HyperFrames 0.9.88 and GSAP 3.12.5 into `<KRITHI_HOME or ~/.krithi>/video/motion` and the headless Chrome into `~/.cache/hyperframes` (about 300 MB in total, once per machine). Usage telemetry is switched off on every call, and the page loads nothing from the network.
 - **Fallback.** Without Node.js 22+ or the install, or if the render fails, the clip is drawn with the built-in cards and the report's `warnings` say so. `--motion on` turns that fallback into an error.
 

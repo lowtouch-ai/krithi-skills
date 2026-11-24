@@ -556,6 +556,14 @@ if shutil.which("ffmpeg") and shutil.which("ffprobe"):
 else:
     print("SKIP: ffmpeg/ffprobe not found; media checks not run")
 
+# ---- cards land on the sound: onset_near finds the first loud window after a pause
+from _vlib import Levels as _Lv
+_db = [-60.0] * 30 + [-20.0] * 20 + [-60.0] * 10 + [-20.0] * 10   # sound from 0.5 s, pause 1.0 to 1.1 s, sound again at 1.1 s
+_lv = _Lv({"db": _db, "threshold_db": -40.0, "t0": 0.0, "step": 0.0167})
+_on = _lv.onset_near(0.35, 0.3)
+expect(_on is not None and abs(_on - 30 * 0.0167) < 0.02, f"onset after a pause expected near 0.5 s, got {_on}")
+expect(_lv.onset_near(0.75, 0.1) is None, "a word that runs on from the previous one has no onset")
+
 # ---- optional motion-graphics layer (HyperFrames): page content and the not-installed path, no browser needed
 import render_motion as _rm
 _cols = {"magenta": "#FB47DE", "green": "#7ED957", "navy": "#041250", "surface": "#0F1E66", "white": "#FFFFFF"}
@@ -567,9 +575,9 @@ expect("<b>tag</b>" not in _page and "&lt;b&gt;tag&lt;/b&gt;" in _page and "Firs
 expect(_page.count('class="pill"') == 3 and _page.count('class="arrow"') == 1, "pills and one chain arrow expected")
 expect("http://" not in _page and "https://" not in _page, "the page must not load anything from the network")
 expect("background: transparent" in _page and 'data-duration="12.000"' in _page, "overlay must be transparent and last the given time")
-expect(_page.count("immediateRender: false") == 2, "each card's exit tween needs immediateRender: false")
+expect(_page.count('ease: "power2.in", immediateRender: false') == 2, "each card's exit tween needs immediateRender: false")
 _half = _rm.build_page(_mc, _cols, [("Brand", 600, "a.ttf")], 540, 960, 12.0)
-expect("font-size: 27.0px" in _half, "sizes must scale with the output width")
+expect("font-size: 30.0px" in _half, "sizes must scale with the output width")
 import os
 _old_home = os.environ.get("KRITHI_HOME")
 os.environ["KRITHI_HOME"] = str(tmp / "no_motion_home")

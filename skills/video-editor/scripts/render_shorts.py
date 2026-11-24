@@ -50,6 +50,8 @@ from render_long import (DEFAULT_BRAND, FADE, ass_color, ass_time, esc, font_inf
                          measure_loudness, measured_duration, run_ffmpeg, split_by_clip)
 
 TITLE_FADE = 0.35
+COVER_WIDTH, COVER_LINE, COVER_GAP = 0.70, 0.84, 0.02  # widest big word as a share of the width; line height and space between tiers (of the big size)
+PRE = 0.1  # cards start moving this long before the word, so they are in place on it
 
 
 class ClipError(Exception):
@@ -76,7 +78,7 @@ def reveal_cover(ev, Fs, W, H, title, subtitle, T, mag, green, white, safe):
     import textwrap
     Fb, Fsm = Fs["bold"], Fs["semibold"]
     tiers = [t.strip() for t in title.split("|") if t.strip()]
-    max_w = W * 0.84
+    max_w = W * COVER_WIDTH
     if len(tiers) == 1:  # no markup: balanced lines, all big
         n = max(1, math.ceil(len(tiers[0]) / 12))
         tiers = textwrap.wrap(tiers[0], math.ceil(len(tiers[0]) / n) + 1) or tiers
@@ -90,8 +92,8 @@ def reveal_cover(ev, Fs, W, H, title, subtitle, T, mag, green, white, safe):
         if w > max_w:
             big_sz = int(big_sz * max_w / w)
     small_sz = max(int(H * 0.040), int(big_sz * 0.34))
-    heights = [Fb.em(big_sz) * 1.0 if r_ == "big" else Fsm.em(small_sz) * 1.15 for r_ in roles]
-    gap = Fb.em(big_sz) * 0.16
+    heights = [Fb.em(big_sz) * COVER_LINE if r_ == "big" else Fsm.em(small_sz) * 1.0 for r_ in roles]
+    gap = Fb.em(big_sz) * COVER_GAP
     total = sum(heights) + gap * (len(heights) - 1)
     ty = H * 0.42
     ms = lambda x: int(x * 1000)
@@ -158,67 +160,60 @@ def caption_box_events(ev, F, W, H, groups, cap_sz, white, hi, safe, t_min=0.0):
 
 
 def card_events(ev, Fs, W, H, cards, colors, safe):
-    """Keyword cards: a navy panel with a magenta top line, a green label, and white pills that appear one at a
-    time as each term is spoken (the current pill in magenta). Times are in clip seconds."""
+    """Keyword cards, in the reference style: a narrow navy panel with a magenta top line, a green label, and the terms
+    stacked as pills in one column. Each pill appears as its term is spoken (the current one in magenta, earlier ones
+    white). Times are in clip seconds."""
     mag, green, navy, white, surf = colors
-    pill_sz, label_sz = int(H * 0.028), int(H * 0.0205)
     Fp, Fl = Fs["semibold"], Fs["semibold"]
-    em = Fp.em(pill_sz)
-    pad_x, ph, gap, row_gap = 0.62 * em, 1.62 * em, W * 0.016, 0.55 * em
-    arrow_w = W * 0.05
-    panel_w = int(W * 0.92)
-    px0, inner = (W - panel_w) // 2, panel_w - 2 * int(W * 0.035)
     fad = lambda i, o: "\\fad(%d,%d)" % (i, o)
     for card in cards:
-        s_, e_ = card["start"], card["end"]
+        s_, e_ = max(0.0, card["start"] - PRE), card["end"]
         items = card["items"]
-        # lay the pills out in centred rows
-        seq = []
+        n = len(items)
+        scale = 1.0 if n <= 2 else 0.82  # more terms, a little smaller, so the panel stays below the captions
+        pill_sz, label_sz = int(H * 0.0312 * scale / Fp.em(1)), int(H * 0.0213 / Fl.em(1))  # ASS size for the em size wanted
+        em = Fp.em(pill_sz)
+        pad_x, ph = 0.8 * em, 1.5 * em
+        gap = 0.32 * em
+        arrow_h = 0.62 * em if card["chain"] else 0.0
+        col_w = max(Fp.width(it["text"], pill_sz) for it in items) + 2 * pad_x
+        pad_in = W * 0.05
+        panel_w = int(min(W * 0.88, max(W * 0.56, col_w + 2 * pad_in, Fl.width(card["label"], label_sz) + 2 * pad_in)))
+        col_w = min(col_w if col_w > W * 0.30 else W * 0.30, panel_w - 2 * pad_in)
+        label_band = Fl.em(label_sz) * 2.5
+        pad_y = 0.7 * em
+        stack = n * ph + (n - 1) * (gap + arrow_h)
+        panel_h = int(label_band * 0.9 + stack + pad_y * 1.2)
+        px0 = (W - panel_w) // 2
+        y0 = int(H * 0.955) - panel_h
+        r = min(ph * 0.5, panel_w * 0.07)
+        ev(4, s_, e_, "Shape", "{\\pos(%d,%d)\\p1\\1c%s\\1a&H0A&\\bord0%s}%s{\\p0}" % (px0, y0, surf, fad(180, 260), rrect(panel_w, panel_h, r)))
+        ev(5, s_, e_, "Shape", "{\\pos(%d,%d)\\p1\\1c%s\\bord0%s}m 0 0 l %d 0 %d 4 0 4{\\p0}" % (px0 + r * 0.7, y0, mag, fad(180, 260), panel_w - r * 1.4, panel_w - r * 1.4))
+        ev(6, s_, e_, "CardLabel", "{\\an5\\fs%d\\pos(%d,%d)%s}%s" % (label_sz, W // 2, y0 + label_band * 0.5, fad(180, 260), safe(card["label"])))
+        x = (W - col_w) / 2
+        y = y0 + label_band * 0.9
         for k, it in enumerate(items):
-            if card["chain"] and k:
-                seq.append(("arrow", arrow_w, k))
-            seq.append(("pill", Fp.width(it["text"], pill_sz) + 2 * pad_x, k))
-        rows, cur, curw = [], [], 0.0
-        for el in seq:
-            w_ = el[1] + (gap if cur else 0)
-            if cur and curw + w_ > inner:
-                rows.append((cur, curw))
-                cur, curw, w_ = [], 0.0, el[1]
-            cur.append(el)
-            curw += w_
-        rows.append((cur, curw))
-        label_band = Fl.em(label_sz) * 2.4
-        pad_y = 0.75 * em
-        panel_h = int(pad_y + label_band + len(rows) * ph + (len(rows) - 1) * row_gap + pad_y)
-        y0 = min(int(H * 0.795), int(H * 0.955) - panel_h)
-        r = ph * 0.5
-        ev(4, s_, e_, "Shape", "{\\pos(%d,%d)\\p1\\1c%s\\1a&H14&\\bord0%s}%s{\\p0}" % (px0, y0, surf, fad(220, 260), rrect(panel_w, panel_h, r)))
-        ev(5, s_, e_, "Shape", "{\\pos(%d,%d)\\p1\\1c%s\\bord0%s}m 0 0 l %d 0 %d 3 0 3{\\p0}" % (px0 + r * 0.7, y0, mag, fad(220, 260), panel_w - r * 1.4, panel_w - r * 1.4))
-        ev(6, s_, e_, "CardLabel", "{\\an5\\pos(%d,%d)%s}%s" % (W // 2, y0 + pad_y * 0.55 + label_band / 2, fad(220, 260), safe(card["label"])))
-        for ri, (row, rw) in enumerate(rows):
-            x = (W - rw) / 2
-            y = y0 + pad_y + label_band + ri * (ph + row_gap)
-            for kind, w_, k in row:
-                it = items[k]
-                t_i = max(it["at"], s_ + 0.15)
-                if kind == "arrow":
-                    ah = ph * 0.46
-                    ev(6, t_i, e_, "Shape", "{\\pos(%d,%d)\\p1\\1c%s\\bord0%s}m 0 %d l %d %d %d 0 %d %d %d %d %d %d 0 %d{\\p0}" % (
-                        x + w_ * 0.12, y + (ph - ah) / 2, white, fad(180, 260), ah * 0.30, w_ * 0.50, ah * 0.30, w_ * 0.50, w_ * 0.76, ah * 0.5,
-                        w_ * 0.50, ah, w_ * 0.50, ah * 0.70, ah * 0.70))
-                else:
-                    nxt = items[k + 1]["at"] if k + 1 < len(items) else t_i + 1.1
-                    t_act = min(max(nxt, t_i + 0.5), e_)
-                    cx, cy = x + w_ / 2, y + ph / 2
-                    shape = rrect(w_, ph, ph * 0.5)
-                    tail = fad(180, 260 if t_act >= e_ - 0.01 else 0)
-                    mv = "\\move(%d,%d,%d,%d,0,220)"
-                    ev(7, t_i, t_act, "Shape", ("{" + mv + "\\p1\\1c%s\\bord0%s}%s{\\p0}") % (x, y + 0.4 * ph, x, y, mag, tail, shape))
-                    ev(8, t_i, t_act, "CardPill", ("{\\an5" + mv + "\\1c%s%s}%s") % (cx, cy + 0.4 * ph, cx, cy, white, tail, safe(it["text"])))
-                    if t_act < e_ - 0.01:
-                        ev(7, t_act, e_, "Shape", "{\\pos(%d,%d)\\p1\\1c%s\\bord0%s}%s{\\p0}" % (x, y, white, fad(0, 260), shape))
-                        ev(8, t_act, e_, "CardPill", "{\\an5\\pos(%d,%d)\\1c%s%s}%s" % (cx, cy, navy, fad(0, 260), safe(it["text"])))
-                x += w_ + gap
+            t_i = max(it["at"] - PRE, s_)
+            if card["chain"] and k:  # a small down arrow between stacked pills, shown from the start
+                ah = arrow_h * 0.8
+                ax, ay = W / 2 - ah * 0.7, y - arrow_h - gap * 0.5 + (arrow_h - ah) / 2 + gap * 0.5
+                ev(6, s_, e_, "Shape", "{\\pos(%d,%d)\\p1\\1c%s\\1a&HA0&\\bord0%s}m 0 0 l %d 0 %d %d %d %d{\\p0}" % (
+                    ax, ay, white, fad(180, 260), ah * 1.4, ah * 0.7, ah, 0, 0))
+            nxt = items[k + 1]["at"] if k + 1 < n else t_i + 1.1
+            t_act = min(max(nxt - PRE, t_i + 0.5), e_)
+            cx, cy = x + col_w / 2, y + ph / 2
+            shape = rrect(col_w, ph, ph * 0.5)
+            if t_i > s_ + 0.05:  # not spoken yet: shown muted from the start, so the card never has empty space
+                ev(7, s_, t_i, "Shape", "{\\pos(%d,%d)\\p1\\1c%s\\1a&HD2&\\bord0%s}%s{\\p0}" % (x, y, white, fad(180, 0), shape))
+                ev(8, s_, t_i, "CardPill", "{\\an5\\fs%d\\pos(%d,%d)\\1c%s\\1a&H78&%s}%s" % (pill_sz, cx, cy, white, fad(180, 0), safe(it["text"])))
+            tail = fad(150, 260 if t_act >= e_ - 0.01 else 0)
+            mv = "\\move(%d,%d,%d,%d,0,200)"
+            ev(7, t_i, t_act, "Shape", ("{" + mv + "\\p1\\1c%s\\bord0%s}%s{\\p0}") % (x, y + 0.4 * ph, x, y, mag, tail, shape))
+            ev(8, t_i, t_act, "CardPill", ("{\\an5\\fs%d" + mv + "\\1c%s%s}%s") % (pill_sz, cx, cy + 0.4 * ph, cx, cy, white, tail, safe(it["text"])))
+            if t_act < e_ - 0.01:
+                ev(7, t_act, e_, "Shape", "{\\pos(%d,%d)\\p1\\1c%s\\bord0%s}%s{\\p0}" % (x, y, white, fad(0, 260), shape))
+                ev(8, t_act, e_, "CardPill", "{\\an5\\fs%d\\pos(%d,%d)\\1c%s%s}%s" % (pill_sz, cx, cy, navy, fad(0, 260), safe(it["text"])))
+            y += ph + gap + arrow_h
 
 
 def build_ass(brand, res, W, H, words_groups, title, subtitle, speaker, cfg, main_dur, flags, cards=None, lt_until=None):
@@ -253,8 +248,8 @@ def build_ass(brand, res, W, H, words_groups, title, subtitle, speaker, cfg, mai
         f"Style: Name,{bold_fam},{int(H * 0.034)},&H00FFFFFF&,&H00FFFFFF&,&H00000000&,&H00000000&,{-1 if bold_b else 0},0,0,0,100,100,0,0,1,0,0,7,0,0,0,1",
         f"Style: Role,{reg_fam},{int(H * 0.028)},{green},&H00FFFFFF&,&H00000000&,&H00000000&,{-1 if reg_b else 0},0,0,0,100,100,0,0,1,0,0,7,0,0,0,1",
         f"Style: CapW,{cap_fam},{cap_sz},{white},&H00FFFFFF&,{outline},&H00000000&,{-1 if cap_b else 0},0,0,0,100,100,0,0,1,{max(3, int(H * 0.0028))},0,5,0,0,0,1",
-        f"Style: CardLabel,{semi_fam},{int(H * 0.0205)},{green},&H00FFFFFF&,&H00000000&,&H00000000&,{-1 if semi_b else 0},0,0,0,100,100,3,0,1,0,0,5,0,0,0,1",
-        f"Style: CardPill,{semi_fam},{int(H * 0.028)},{navy},&H00FFFFFF&,&H00000000&,&H00000000&,{-1 if semi_b else 0},0,0,0,100,100,0,0,1,0,0,5,0,0,0,1",
+        f"Style: CardLabel,{semi_fam},{int(H * 0.0215)},{green},&H00FFFFFF&,&H00000000&,&H00000000&,{-1 if semi_b else 0},0,0,0,100,100,3,0,1,0,0,5,0,0,0,1",
+        f"Style: CardPill,{semi_fam},{int(H * 0.0315)},{navy},&H00FFFFFF&,&H00000000&,&H00000000&,{-1 if semi_b else 0},0,0,0,100,100,0,0,1,0,0,5,0,0,0,1",
         f"Style: Shape,{reg_fam},20,&H00FFFFFF&,&H00FFFFFF&,&H00000000&,&H00000000&,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1",
         f"Style: Url,{med_fam},{int(H * 0.031)},&H00FFFFFF&,&H00FFFFFF&,&H00000000&,&H00000000&,0,1,0,0,100,100,0,0,1,0,0,5,0,0,0,1",
         "", "[Events]", "Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text"]

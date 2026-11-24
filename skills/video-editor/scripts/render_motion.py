@@ -35,6 +35,7 @@ HF_VERSION = "0.9.88"
 GSAP_VERSION = "3.12.5"
 SKILL_DIR = Path(__file__).resolve().parent.parent
 OVERLAY_FPS = 30
+PRE = 0.1  # animations start this long before the word, so the card is in place on it
 
 
 def motion_home():
@@ -120,28 +121,28 @@ def build_page(cards, colors, fonts, W, H, duration):
     e = html.escape
     css_cards, body, js = [], [], []
     for n, c in enumerate(cards, 1):
-        start, end = float(c["start"]), float(c["end"])
+        start, end = max(0.0, float(c["start"]) - PRE), float(c["end"])
         pills = []
         for k, it in enumerate(c["items"]):
             if c.get("chain") and k:
-                pills.append(f'<span class="arrow" id="c{n}a{k}">&#10142;</span>')
+                pills.append(f'<span class="arrow" id="c{n}a{k}"></span>')
             pills.append(f'<span class="pill" id="c{n}p{k}">{e(it["text"])}</span>')
         body.append(
-            f'<div id="c{n}" class="clip card" data-start="{start:.3f}" data-duration="{end - start:.3f}" data-track-index="0">'
-            f'<div class="line"></div><div class="label" id="c{n}l">{e(c["label"])}</div><div class="pills">{"".join(pills)}</div></div>')
-        js.append(f'tl.fromTo("#c{n}", {{y: {40 * s:.0f}, opacity: 0, scale: 0.95}}, {{y: 0, opacity: 1, scale: 1, duration: 0.4, ease: "back.out(1.5)"}}, {start:.3f});')
+            f'<div id="c{n}" class="clip wrap" data-start="{start:.3f}" data-duration="{end - start:.3f}" data-track-index="0">'
+            f'<div class="card" id="c{n}c"><div class="line"></div><div class="label" id="c{n}l">{e(c["label"])}</div>'
+            f'<div class="pills">{"".join(pills)}</div></div></div>')
+        js.append(f'tl.fromTo("#c{n}c", {{y: {40 * s:.0f}, opacity: 0, scale: 0.95}}, {{y: 0, opacity: 1, scale: 1, duration: 0.28, ease: "back.out(1.5)"}}, {start:.3f});')
         js.append(f'tl.fromTo("#c{n}l", {{x: {-24 * s:.0f}, opacity: 0}}, {{x: 0, opacity: 1, duration: 0.3, ease: "power3.out"}}, {start + 0.12:.3f});')
         for k, it in enumerate(c["items"]):
-            t_i = max(float(it["at"]), start + 0.15)
+            t_i = max(float(it["at"]) - PRE, start)
             nxt = float(c["items"][k + 1]["at"]) if k + 1 < len(c["items"]) else t_i + 1.1
-            t_act = min(max(nxt, t_i + 0.5), end)
-            if c.get("chain") and k:
-                js.append(f'tl.fromTo("#c{n}a{k}", {{opacity: 0, x: {-14 * s:.0f}}}, {{opacity: 1, x: 0, duration: 0.25, ease: "power2.out"}}, {t_i - 0.1:.3f});')
-            js.append(f'tl.fromTo("#c{n}p{k}", {{y: {26 * s:.0f}, opacity: 0, scale: 0.8, backgroundColor: "{colors["magenta"]}", color: "{colors["white"]}"}}, '
-                      f'{{y: 0, opacity: 1, scale: 1, duration: 0.38, ease: "back.out(2)"}}, {t_i:.3f});')
+            t_act = min(max(nxt - PRE, t_i + 0.5), end)
+            # every term is on the card from the start in a muted colour; it lights up magenta as it is spoken, then turns white
+            js.append(f'tl.to("#c{n}p{k}", {{backgroundColor: "{colors["magenta"]}", color: "{colors["white"]}", opacity: 1, duration: 0.18}}, {t_i:.3f});')
+            js.append(f'tl.fromTo("#c{n}p{k}", {{scale: 1}}, {{scale: 1.05, duration: 0.12, yoyo: true, repeat: 1, ease: "power1.out", immediateRender: false}}, {t_i:.3f});')
             if t_act < end - 0.01:
                 js.append(f'tl.to("#c{n}p{k}", {{backgroundColor: "{colors["white"]}", color: "{colors["navy"]}", duration: 0.25}}, {t_act:.3f});')
-        js.append(f'tl.fromTo("#c{n}", {{y: 0, opacity: 1}}, {{y: {50 * s:.0f}, opacity: 0, duration: 0.3, ease: "power2.in", immediateRender: false}}, {max(start, end - 0.3):.3f});')
+        js.append(f'tl.fromTo("#c{n}c", {{y: 0, opacity: 1}}, {{y: {50 * s:.0f}, opacity: 0, duration: 0.3, ease: "power2.in", immediateRender: false}}, {max(start, end - 0.3):.3f});')
     faces = "\n".join(
         f'@font-face {{ font-family: "{fam}"; font-weight: {wt}; src: url("assets/fonts/{fn}"); }}' for fam, wt, fn in fonts)
     return f"""<!doctype html>
@@ -155,14 +156,16 @@ def build_page(cards, colors, fonts, W, H, duration):
       * {{ margin: 0; padding: 0; box-sizing: border-box; }}
       html, body {{ width: {W}px; height: {H}px; overflow: hidden; background: transparent; }}
       #root {{ position: relative; width: {W}px; height: {H}px; font-family: "Brand", sans-serif; }}
-      .card {{ position: absolute; left: {px(43)}; right: {px(43)}; bottom: {px(86)}; padding: {px(34)} {px(34)} {px(38)};
-               background: {colors["surface"]}ee; border-radius: {px(40)}; box-shadow: 0 {px(18)} {px(48)} rgba(0,0,0,.4); text-align: center; }}
-      .line {{ position: absolute; left: {px(60)}; right: {px(60)}; top: 0; height: {px(4)}; background: {colors["magenta"]}; border-radius: 0 0 {px(4)} {px(4)}; }}
-      .label {{ color: {colors["green"]}; font-weight: 600; font-size: {px(34)}; letter-spacing: .12em; text-transform: uppercase; }}
-      .pills {{ display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: {px(16)}; margin-top: {px(24)}; }}
-      .pill {{ background: {colors["magenta"]}; color: {colors["white"]}; font-weight: 600; font-size: {px(54)}; line-height: 1.1;
-               padding: {px(14)} {px(34)}; border-radius: {px(60)}; white-space: nowrap; }}
-      .arrow {{ color: {colors["white"]}; font-size: {px(50)}; }}
+      .wrap {{ position: absolute; left: 0; right: 0; bottom: {px(86)}; display: flex; justify-content: center; }}
+      .card {{ position: relative; min-width: {px(600)}; max-width: {px(950)}; padding: {px(44)} {px(54)} {px(44)};
+               background: {colors["surface"]}f2; border-radius: {px(44)}; box-shadow: 0 {px(18)} {px(48)} rgba(0,0,0,.4); text-align: center; }}
+      .line {{ position: absolute; left: {px(60)}; right: {px(60)}; top: 0; height: {px(5)}; background: {colors["magenta"]}; border-radius: 0 0 {px(5)} {px(5)}; }}
+      .label {{ color: {colors["green"]}; font-weight: 600; font-size: {px(41)}; letter-spacing: .1em; text-transform: uppercase; }}
+      .pills {{ display: flex; flex-direction: column; align-items: stretch; gap: {px(18)}; margin-top: {px(28)}; }}
+      .pill {{ background: rgba(255,255,255,.16); color: rgba(255,255,255,.55); font-weight: 600; font-size: {px(60)}; line-height: 1.1;
+               padding: {px(18)} {px(48)}; border-radius: {px(80)}; white-space: nowrap; }}
+      .arrow {{ align-self: center; width: 0; height: 0; border-left: {px(20)} solid transparent; border-right: {px(20)} solid transparent;
+                border-top: {px(24)} solid rgba(255,255,255,.35); }}
     </style>
   </head>
   <body>
@@ -204,7 +207,7 @@ def render_overlay(cards, brand, res, W, H, work, nice=True):
     st = status()
     if not st["ready"]:
         return None, 0.0, f"{st['detail']} ({st['fix']})"
-    t0 = max(0.0, min(c["start"] for c in cards) - 0.1)
+    t0 = max(0.0, min(c["start"] for c in cards) - PRE - 0.1)
     t1 = max(c["end"] for c in cards) + 0.1
     shifted = [{**c, "start": c["start"] - t0, "end": c["end"] - t0,
                 "items": [{**i, "at": i["at"] - t0} for i in c["items"]]} for c in cards]

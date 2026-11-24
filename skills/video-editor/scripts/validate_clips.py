@@ -50,7 +50,7 @@ def pause_seconds(analysis, start, end):
     return total
 
 
-CARD_LEAD, CARD_HOLD = 0.35, 2.4
+CARD_LEAD, CARD_HOLD = 0.0, 2.4  # a card appears exactly when its first term is spoken
 MAX_ITEMS, MAX_LABEL_WORDS, MAX_LABEL_CHARS, MAX_ITEM_CHARS = 4, 7, 36, 26
 
 
@@ -70,7 +70,7 @@ def find_phrase(words, phrase, after=None):
     return None, earlier
 
 
-def resolve_cards(clip, tag, cw, text, start, end, errors, warnings, keep=None):
+def resolve_cards(clip, tag, cw, text, start, end, errors, warnings, keep=None, levels=None):
     """Check a clip's keyword cards and give every item the time its words are spoken (source seconds)."""
     out, cards = [], clip.get("cards") or []
     clip_start = start
@@ -108,7 +108,12 @@ def resolve_cards(clip, tag, cw, text, start, end, errors, warnings, keep=None):
                     errors.append(f"{ctag} item {k} ('{t}'): the words \"{say}\" are not spoken in this clip")
                 continue
             last_t = hit[0]
-            res_items.append({"text": t, "say": say, "at": round(hit[0], 3)})
+            at = hit[0]
+            if levels is not None:  # land on the sound, not on Whisper's estimate, when the word follows a pause
+                on = levels.onset_near(at)
+                if on is not None:
+                    at = on
+            res_items.append({"text": t, "say": say, "at": round(at, 3)})
         if not res_items:
             continue
         lab_core = " ".join(norm(label))
@@ -221,7 +226,7 @@ def check(clips, sents, analysis, levels=None, tx_words=None, unreliable=()):
                 errors.append(f"{tag}: cards need the transcript; pass --transcript")
             else:
                 cw = [w for w in tx_words if start - 0.05 <= w["start"] <= end + 0.05]
-                cards = resolve_cards(c, tag, cw, text, start, end, errors, warnings, clip_keep({**c, "start": start, "end": end}, analysis))
+                cards = resolve_cards(c, tag, cw, text, start, end, errors, warnings, clip_keep({**c, "start": start, "end": end}, analysis), levels)
         out.append({**c, "cards": cards, "start": round(start, 3), "end": round(end, 3), "seconds": round(raw, 1),
                     "effective_seconds": round(eff, 1), "at": hms(start), "text": text})
     ordered = sorted(out, key=lambda x: x["start"])
