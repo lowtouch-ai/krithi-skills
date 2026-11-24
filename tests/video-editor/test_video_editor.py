@@ -647,6 +647,11 @@ for _say in ("sub-agents", "subagents", "sub agents"):
 expect(_vc.find_phrase(_pw, "agents", 3.0)[0] == (4.3, 4.7), "a later match is found after an earlier time")
 expect(_vc.find_phrase(_pw, "the work")[0] == (2.3, 2.9) and _vc.find_phrase(_pw, "do work")[0] is None, "multi-word phrases keep their order and adjacency")
 
+# card size limits: five pills, four when linked by arrows
+_fiv = _cardl.layout({"label": "THE SUB-AGENTS", "chain": False, "items": [{"text": x} for x in ("Requirements", "Testing", "Coding", "Quality checks", "Compliance checks")]}, 1080, 1920, _semi, _cc)
+expect(_fiv["top"] >= (_cardl.CAPTION_Y + 0.03) * 1920, f"five pills must still clear the captions: top {_fiv['top'] / 1920:.3f}")
+expect(_vc.MAX_ITEMS == 5 and _vc.MAX_ITEMS_CHAIN == 4, "five pills plain, four when linked by arrows")
+
 # a relative work folder must not break the render (it runs inside the project folder)
 import subprocess as _sp, types as _ty2
 _seen = {}

@@ -51,7 +51,7 @@ def pause_seconds(analysis, start, end):
 
 
 CARD_LEAD, CARD_HOLD = 0.0, 2.4  # a card appears exactly when its first term is spoken
-MAX_ITEMS, MAX_LABEL_WORDS, MAX_LABEL_CHARS, MAX_ITEM_CHARS = 4, 7, 36, 26
+MAX_ITEMS, MAX_ITEMS_CHAIN, MAX_LABEL_WORDS, MAX_LABEL_CHARS, MAX_ITEM_CHARS = 5, 4, 7, 36, 26  # a card with arrows between its steps is taller, so it holds one fewer
 
 
 def find_phrase(words, phrase, after=None):
@@ -91,8 +91,10 @@ def resolve_cards(clip, tag, cw, text, start, end, errors, warnings, keep=None, 
         items = card.get("items") or []
         if not label or len(label.split()) > MAX_LABEL_WORDS or len(label) > MAX_LABEL_CHARS:
             errors.append(f"{ctag}: label must be 1 to {MAX_LABEL_WORDS} words and at most {MAX_LABEL_CHARS} characters")
-        if not items or len(items) > MAX_ITEMS:
-            errors.append(f"{ctag}: needs 1 to {MAX_ITEMS} items")
+        limit = MAX_ITEMS_CHAIN if card.get("chain") else MAX_ITEMS
+        if not items or len(items) > limit:
+            errors.append(f"{ctag}: needs 1 to {limit} items" + (f" ({MAX_ITEMS_CHAIN} when the items are linked by arrows)" if limit == MAX_ITEMS_CHAIN else "")
+                          + "; for a longer list use two cards, or merge two items (for example \"Quality and compliance checks\")")
             continue
         for f, v in (("label", label), *((f"item {k}", it.get("text", "")) for k, it in enumerate(items, 1))):
             for p in copy_problems(str(v)):
