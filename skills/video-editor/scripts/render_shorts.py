@@ -45,12 +45,13 @@ def reexec_in_venv():
 from _vlib import clip_keep, kept_before, load_json, words_of  # noqa: E402
 from fontmetrics import Font  # noqa: E402
 import captions as cap  # noqa: E402
+import cardlayout  # noqa: E402
 import render_motion  # noqa: E402
 from render_long import (DEFAULT_BRAND, FADE, ass_color, ass_time, esc, font_info, load_brand,  # noqa: E402
                          measure_loudness, measured_duration, run_ffmpeg, split_by_clip)
 
 TITLE_FADE = 0.35
-COVER_WIDTH, COVER_LINE, COVER_GAP = 0.70, 0.84, 0.02  # widest big word as a share of the width; line height and space between tiers (of the big size)
+COVER_DEFAULTS = {"width": 0.70, "line": 0.92, "gap": 0.09}  # widest big word as a share of the width; line height and space between tiers (of the big size)
 PRE = 0.1  # cards start moving this long before the word, so they are in place on it
 
 
@@ -71,14 +72,14 @@ def rrect(w, h, r):
             f"b {i(r - k)} {i(h)} 0 {i(h - r + k)} 0 {i(h - r)} l 0 {i(r)} b 0 {i(r - k)} {i(r - k)} 0 {i(r)} 0")
 
 
-def reveal_cover(ev, Fs, W, H, title, subtitle, T, mag, green, white, safe):
+def reveal_cover(ev, Fs, W, H, title, subtitle, T, mag, green, white, safe, ccfg):
     """Cover in the reference style: tiers of title text reveal one after another (a big magenta word, a small white
     connector, a big magenta word), then a green rule and a small subtitle. Mark tiers with "|": WORDS IN CAPITALS are
     big, other words are small ("HUMAN | in the | LEAD"). No decoration, no glow."""
     import textwrap
     Fb, Fsm = Fs["bold"], Fs["semibold"]
     tiers = [t.strip() for t in title.split("|") if t.strip()]
-    max_w = W * COVER_WIDTH
+    max_w = W * ccfg["width"]
     if len(tiers) == 1:  # no markup: balanced lines, all big
         n = max(1, math.ceil(len(tiers[0]) / 12))
         tiers = textwrap.wrap(tiers[0], math.ceil(len(tiers[0]) / n) + 1) or tiers
@@ -92,8 +93,8 @@ def reveal_cover(ev, Fs, W, H, title, subtitle, T, mag, green, white, safe):
         if w > max_w:
             big_sz = int(big_sz * max_w / w)
     small_sz = max(int(H * 0.040), int(big_sz * 0.34))
-    heights = [Fb.em(big_sz) * COVER_LINE if r_ == "big" else Fsm.em(small_sz) * 1.0 for r_ in roles]
-    gap = Fb.em(big_sz) * COVER_GAP
+    heights = [Fb.em(big_sz) * ccfg["line"] if r_ == "big" else Fsm.em(small_sz) * 1.0 for r_ in roles]
+    gap = Fb.em(big_sz) * ccfg["gap"]
     total = sum(heights) + gap * (len(heights) - 1)
     ty = H * 0.42
     ms = lambda x: int(x * 1000)
@@ -129,7 +130,7 @@ def caption_box_events(ev, F, W, H, groups, cap_sz, white, hi, safe, t_min=0.0):
     """Captions in the reference style: white text, with the word being spoken on a magenta rounded box.
     Word positions come from the font's real metrics, so the box sits exactly behind the word. A group that would
     be wider than the frame is drawn smaller (and never wraps), so the box always lines up with its word."""
-    capy = int(H * 0.715)
+    capy = int(H * cardlayout.CAPTION_Y)
     max_w = W * 0.90
     for grp in groups:
         size = cap_sz
@@ -159,51 +160,40 @@ def caption_box_events(ev, F, W, H, groups, cap_sz, white, hi, safe, t_min=0.0):
             ev(4, a, b, "CapW", "{\\an5\\q2\\fs%d\\pos(%d,%d)\\1c%s}%s" % (size, W // 2, capy, white, line))
 
 
-def card_events(ev, Fs, W, H, cards, colors, safe):
-    """Keyword cards, in the reference style: a narrow navy panel with a magenta top line, a green label, and the terms
-    stacked as pills in one column. Each pill appears as its term is spoken (the current one in magenta, earlier ones
-    white). Times are in clip seconds."""
+def card_events(ev, Fs, W, H, cards, colors, safe, ccfg):
+    """Keyword cards in the reference style: a compact navy panel with a magenta top line, a green label, and the terms
+    stacked as pills. Every term is on the card from the start in a muted colour; it turns magenta as it is spoken and white
+    after. The size and place come from cardlayout.py (shared with the HyperFrames cards). Times are in clip seconds."""
     mag, green, navy, white, surf = colors
     Fp, Fl = Fs["semibold"], Fs["semibold"]
     fad = lambda i, o: "\\fad(%d,%d)" % (i, o)
     for card in cards:
         s_, e_ = max(0.0, card["start"] - PRE), card["end"]
-        items = card["items"]
-        n = len(items)
-        scale = 1.0 if n <= 2 else 0.82  # more terms, a little smaller, so the panel stays below the captions
-        pill_sz, label_sz = int(H * 0.0312 * scale / Fp.em(1)), int(H * 0.0213 / Fl.em(1))  # ASS size for the em size wanted
-        em = Fp.em(pill_sz)
-        pad_x, ph = 0.8 * em, 1.5 * em
-        gap = 0.32 * em
-        arrow_h = 0.62 * em if card["chain"] else 0.0
-        col_w = max(Fp.width(it["text"], pill_sz) for it in items) + 2 * pad_x
-        pad_in = W * 0.05
-        panel_w = int(min(W * 0.88, max(W * 0.56, col_w + 2 * pad_in, Fl.width(card["label"], label_sz) + 2 * pad_in)))
-        col_w = min(col_w if col_w > W * 0.30 else W * 0.30, panel_w - 2 * pad_in)
-        label_band = Fl.em(label_sz) * 2.5
-        pad_y = 0.7 * em
-        stack = n * ph + (n - 1) * (gap + arrow_h)
-        panel_h = int(label_band * 0.9 + stack + pad_y * 1.2)
+        items, n = card["items"], len(card["items"])
+        L = cardlayout.layout(card, W, H, Fp, ccfg)
+        pill_sz, label_sz = int(L["pill_em"] / Fp.em(1)), int(L["label_em"] / Fl.em(1))  # ASS size for the em size wanted
+        ph, gap, arrow_h = L["ph"], L["gap"], L["arrow_h"]
+        panel_w, panel_h, y0 = int(L["panel_w"]), int(L["panel_h"]), int(L["top"])
         px0 = (W - panel_w) // 2
-        y0 = int(H * 0.955) - panel_h
         r = min(ph * 0.5, panel_w * 0.07)
         ev(4, s_, e_, "Shape", "{\\pos(%d,%d)\\p1\\1c%s\\1a&H0A&\\bord0%s}%s{\\p0}" % (px0, y0, surf, fad(180, 260), rrect(panel_w, panel_h, r)))
         ev(5, s_, e_, "Shape", "{\\pos(%d,%d)\\p1\\1c%s\\bord0%s}m 0 0 l %d 0 %d 4 0 4{\\p0}" % (px0 + r * 0.7, y0, mag, fad(180, 260), panel_w - r * 1.4, panel_w - r * 1.4))
-        ev(6, s_, e_, "CardLabel", "{\\an5\\fs%d\\pos(%d,%d)%s}%s" % (label_sz, W // 2, y0 + label_band * 0.5, fad(180, 260), safe(card["label"])))
-        x = (W - col_w) / 2
-        y = y0 + label_band * 0.9
+        ev(6, s_, e_, "CardLabel", "{\\an5\\fs%d\\fsp%d\\pos(%d,%d)%s}%s" % (label_sz, int(cardlayout.LABEL_SPACING * L["label_em"]), W // 2, y0 + L["pad_y"] + L["label_band"] * 0.42, fad(180, 260), safe(card["label"])))
+        y = y0 + L["pad_y"] + L["label_band"]
         for k, it in enumerate(items):
+            x = (W - L["pill_w"][k]) / 2
+            w_ = L["pill_w"][k]
             t_i = max(it["at"] - PRE, s_)
             if card["chain"] and k:  # a small down arrow between stacked pills, shown from the start
                 ah = arrow_h * 0.8
-                ax, ay = W / 2 - ah * 0.7, y - arrow_h - gap * 0.5 + (arrow_h - ah) / 2 + gap * 0.5
+                ay = y - gap - arrow_h + (arrow_h - ah) / 2 + gap * 0.5
                 ev(6, s_, e_, "Shape", "{\\pos(%d,%d)\\p1\\1c%s\\1a&HA0&\\bord0%s}m 0 0 l %d 0 %d %d %d %d{\\p0}" % (
-                    ax, ay, white, fad(180, 260), ah * 1.4, ah * 0.7, ah, 0, 0))
+                    W / 2 - ah * 0.7, ay, white, fad(180, 260), ah * 1.4, ah * 0.7, ah, 0, 0))
             nxt = items[k + 1]["at"] if k + 1 < n else t_i + 1.1
             t_act = min(max(nxt - PRE, t_i + 0.5), e_)
-            cx, cy = x + col_w / 2, y + ph / 2
-            shape = rrect(col_w, ph, ph * 0.5)
-            if t_i > s_ + 0.05:  # not spoken yet: shown muted from the start, so the card never has empty space
+            cx, cy = x + w_ / 2, y + ph / 2
+            shape = rrect(w_, ph, ph * 0.5)
+            if t_i > s_ + 0.05:  # not spoken yet: shown muted from the start
                 ev(7, s_, t_i, "Shape", "{\\pos(%d,%d)\\p1\\1c%s\\1a&HD2&\\bord0%s}%s{\\p0}" % (x, y, white, fad(180, 0), shape))
                 ev(8, s_, t_i, "CardPill", "{\\an5\\fs%d\\pos(%d,%d)\\1c%s\\1a&H78&%s}%s" % (pill_sz, cx, cy, white, fad(180, 0), safe(it["text"])))
             tail = fad(150, 260 if t_act >= e_ - 0.01 else 0)
@@ -258,7 +248,8 @@ def build_ass(brand, res, W, H, words_groups, title, subtitle, speaker, cfg, mai
     T = float(cfg["title"].get("seconds", 3))
     ty = H * 0.42
     if flags["title"] and title and flags.get("cover", "reveal") == "reveal":
-        reveal_cover(ev, {k: Font(res(fonts[k])) for k in ("bold", "semibold") if k in fonts}, W, H, title, subtitle, T, mag, green, ass_color(col("text")), safe)
+        reveal_cover(ev, {k: Font(res(fonts[k])) for k in ("bold", "semibold") if k in fonts}, W, H, title, subtitle, T, mag, green, ass_color(col("text")), safe,
+                     {**COVER_DEFAULTS, **cfg.get("cover", {})})
     elif flags["title"] and title:
             ev(2, 0, T, "Title", f"{{\\pos({W // 2},{int(ty)})\\fad({int(TITLE_FADE * 1000)},{int(TITLE_FADE * 1000)})}}{safe(title)}")
             ry = int(ty + t_h / 2 + H * 0.014)
@@ -278,7 +269,7 @@ def build_ass(brand, res, W, H, words_groups, title, subtitle, speaker, cfg, mai
                 parts = [("{\\1c" + (hi if j == k else white) + "}") + safe(x["word"]) for j, x in enumerate(grp)]
                 ev(3, a, b, "Cap", " ".join(parts))
     if cards:
-        card_events(ev, Fs, W, H, cards, (mag, green, navy, ass_color(col("text")), ass_color(col("surface"))), safe)
+        card_events(ev, Fs, W, H, cards, (mag, green, navy, ass_color(col("text")), ass_color(col("surface"))), safe, cardlayout.settings(brand))
     if flags["lower_third"] and speaker:
         a = T if flags["title"] else 0.5
         b = min(a + float(cfg["lower_third"].get("seconds", 16)), main_dur)

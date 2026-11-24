@@ -30,6 +30,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _vlib import clip_keep, kept_before, load_json  # noqa: E402
+import cardlayout  # noqa: E402
+from fontmetrics import Font  # noqa: E402
 
 HF_VERSION = "0.9.88"
 GSAP_VERSION = "3.12.5"
@@ -111,16 +113,16 @@ def setup():
 
 # ---------------------------------------------------------------- the page
 
-def build_page(cards, colors, fonts, W, H, duration):
-    """The HTML for a transparent overlay: one panel per card, pills appearing as each term is spoken.
+def build_page(cards, layouts, colors, fonts, W, H, duration):
+    """The HTML for a transparent overlay: one panel per card, laid out by cardlayout.py (the same geometry the built-in
+    cards use), every term on the card from the start in a muted colour that lights up as it is spoken.
 
-    cards: [{label, chain, start, end, items:[{text, at}]}] in overlay seconds. colors: {magenta, green, navy, surface, white}.
-    fonts: {family: file name under assets/fonts}. Everything scales from the 1080 px wide design."""
-    s = W / 1080.0
-    px = lambda v: f"{v * s:.1f}px"
+    cards: [{label, chain, start, end, items:[{text, at}]}] in overlay seconds. layouts: cardlayout.layout() of each card.
+    colors: {magenta, green, navy, surface, white}. fonts: [(family, weight, file name under assets/fonts)]."""
     e = html.escape
-    css_cards, body, js = [], [], []
-    for n, c in enumerate(cards, 1):
+    px = lambda v: f"{v:.1f}px"
+    css, body, js = [], [], []
+    for n, (c, L) in enumerate(zip(cards, layouts), 1):
         start, end = max(0.0, float(c["start"]) - PRE), float(c["end"])
         pills = []
         for k, it in enumerate(c["items"]):
@@ -131,6 +133,14 @@ def build_page(cards, colors, fonts, W, H, duration):
             f'<div id="c{n}" class="clip wrap" data-start="{start:.3f}" data-duration="{end - start:.3f}" data-track-index="0">'
             f'<div class="card" id="c{n}c"><div class="line"></div><div class="label" id="c{n}l">{e(c["label"])}</div>'
             f'<div class="pills">{"".join(pills)}</div></div></div>')
+        css.append(
+            f'#c{n} {{ bottom: {px(H - L["bottom"])}; }}'
+            f' #c{n}c {{ width: {px(L["panel_w"])}; padding: {px(L["pad_y"])} {px(L["pad_x"])} {px(L["pad_y"] * 0.9)}; border-radius: {px(min(L["ph"] * 0.5, L["panel_w"] * 0.07))}; }}'
+            f' #c{n}c .label {{ font-size: {px(L["label_em"])}; height: {px(L["label_band"])}; line-height: {px(L["label_band"] * 0.84)}; }}'
+            f' #c{n}c .pills {{ gap: {px(L["gap"])}; }}'
+            f' #c{n}c .pill {{ font-size: {px(L["pill_em"])}; height: {px(L["ph"])}; line-height: {px(L["ph"])}; padding: 0 {px(L["pad_pill"])}; }}'
+            f' #c{n}c .arrow {{ border-left-width: {px(L["arrow_h"] * 0.5)}; border-right-width: {px(L["arrow_h"] * 0.5)}; border-top-width: {px(L["arrow_h"] * 0.6)}; margin: {px(-L["gap"] * 0.3)} 0; }}')
+        s = W / 1080.0
         js.append(f'tl.fromTo("#c{n}c", {{y: {40 * s:.0f}, opacity: 0, scale: 0.95}}, {{y: 0, opacity: 1, scale: 1, duration: 0.28, ease: "back.out(1.5)"}}, {start:.3f});')
         js.append(f'tl.fromTo("#c{n}l", {{x: {-24 * s:.0f}, opacity: 0}}, {{x: 0, opacity: 1, duration: 0.3, ease: "power3.out"}}, {start + 0.12:.3f});')
         for k, it in enumerate(c["items"]):
@@ -156,16 +166,15 @@ def build_page(cards, colors, fonts, W, H, duration):
       * {{ margin: 0; padding: 0; box-sizing: border-box; }}
       html, body {{ width: {W}px; height: {H}px; overflow: hidden; background: transparent; }}
       #root {{ position: relative; width: {W}px; height: {H}px; font-family: "Brand", sans-serif; }}
-      .wrap {{ position: absolute; left: 0; right: 0; bottom: {px(86)}; display: flex; justify-content: center; }}
-      .card {{ position: relative; min-width: {px(600)}; max-width: {px(950)}; padding: {px(44)} {px(54)} {px(44)};
-               background: {colors["surface"]}f2; border-radius: {px(44)}; box-shadow: 0 {px(18)} {px(48)} rgba(0,0,0,.4); text-align: center; }}
-      .line {{ position: absolute; left: {px(60)}; right: {px(60)}; top: 0; height: {px(5)}; background: {colors["magenta"]}; border-radius: 0 0 {px(5)} {px(5)}; }}
-      .label {{ color: {colors["green"]}; font-weight: 600; font-size: {px(41)}; letter-spacing: .1em; text-transform: uppercase; }}
-      .pills {{ display: flex; flex-direction: column; align-items: stretch; gap: {px(18)}; margin-top: {px(28)}; }}
-      .pill {{ background: rgba(255,255,255,.16); color: rgba(255,255,255,.55); font-weight: 600; font-size: {px(60)}; line-height: 1.1;
-               padding: {px(18)} {px(48)}; border-radius: {px(80)}; white-space: nowrap; }}
-      .arrow {{ align-self: center; width: 0; height: 0; border-left: {px(20)} solid transparent; border-right: {px(20)} solid transparent;
-                border-top: {px(24)} solid rgba(255,255,255,.35); }}
+      .wrap {{ position: absolute; left: 0; right: 0; display: flex; justify-content: center; }}
+      .card {{ position: relative; background: {colors["surface"]}f2; box-shadow: 0 {px(W * 0.012)} {px(W * 0.03)} rgba(0,0,0,.4); text-align: center; }}
+      .line {{ position: absolute; left: 5.5%; right: 5.5%; top: 0; height: {px(max(3, W * 0.0037))}; background: {colors["magenta"]}; border-radius: 0 0 4px 4px; }}
+      .label {{ color: {colors["green"]}; font-weight: 600; letter-spacing: {cardlayout.LABEL_SPACING}em; text-transform: uppercase; white-space: nowrap; }}
+      .pills {{ display: flex; flex-direction: column; align-items: center; }}
+      .pill {{ background: rgba(255,255,255,.16); color: rgba(255,255,255,.55); font-weight: 600; border-radius: 999px; white-space: nowrap; }}
+      .arrow {{ width: 0; height: 0; border-left-style: solid; border-right-style: solid; border-top-style: solid;
+                border-left-color: transparent; border-right-color: transparent; border-top-color: rgba(255,255,255,.35); }}
+      {chr(10).join("      " + x for x in css).strip()}
     </style>
   </head>
   <body>
@@ -174,7 +183,7 @@ def build_page(cards, colors, fonts, W, H, duration):
     </div>
     <script>
       const tl = gsap.timeline({{ paused: true }});
-      {chr(10).join("      " + j for j in js).strip()}
+      {chr(10).join("      " + j_ for j_ in js).strip()}
       window.__timelines["main"] = tl;
       tl.seek(0);
     </script>
@@ -195,7 +204,9 @@ def write_project(proj, cards, brand, res, W, H, duration):
     col = lambda k: brand["colors"][k]
     colors = {"magenta": col("primary"), "green": col("secondary"), "navy": col("background"),
               "surface": col("surface"), "white": col("text")}
-    (proj / "index.html").write_text(build_page(cards, colors, fonts, W, H, duration), encoding="utf-8")
+    F, ccfg = Font(res(brand["fonts"].get("semibold") or brand["fonts"]["regular"])), cardlayout.settings(brand)
+    layouts = [cardlayout.layout(c, W, H, F, ccfg) for c in cards]
+    (proj / "index.html").write_text(build_page(cards, layouts, colors, fonts, W, H, duration), encoding="utf-8")
     (proj / "hyperframes.json").write_text(json.dumps({"name": "cards"}), encoding="utf-8")
     (proj / "meta.json").write_text(json.dumps({"id": "cards", "name": "cards"}), encoding="utf-8")
 

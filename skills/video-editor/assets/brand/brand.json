@@ -84,6 +84,24 @@
       ],
       "url": "www.lowtouch.ai",
       "logo_width": 0.7
+    },
+    "cover": {
+      "width": 0.7,
+      "line": 0.92,
+      "gap": 0.09
+    },
+    "cards": {
+      "label_px": 30,
+      "pill_px": 44,
+      "pill_height": 1.55,
+      "pill_pad_x": 0.75,
+      "gap_px": 14,
+      "pad_x": 40,
+      "pad_y": 30,
+      "width_min": 0.54,
+      "width_max": 0.86,
+      "box_bottom": 0.925,
+      "min_scale": 0.7
     }
   },
   "corrections": {

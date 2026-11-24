@@ -564,20 +564,36 @@ _on = _lv.onset_near(0.35, 0.3)
 expect(_on is not None and abs(_on - 30 * 0.0167) < 0.02, f"onset after a pause expected near 0.5 s, got {_on}")
 expect(_lv.onset_near(0.75, 0.1) is None, "a word that runs on from the previous one has no onset")
 
+import cardlayout as _cardl
+from fontmetrics import Font as _Font
+_semi = _Font(str(scripts / "../assets/brand/fonts/Poppins-SemiBold.ttf"))
+_cc = _cardl.settings({})
+# ---- card layout: the panel stays below the captions and fits its content for 1 to 4 terms
+for _n, _chain in ((1, False), (2, False), (3, True), (4, True)):
+    _L = _cardl.layout({"label": "FOR AN AGENT TO WORK WELL", "chain": _chain, "items": [{"text": "Term number %d" % i} for i in range(_n)]}, 1080, 1920, _semi, _cc)
+    expect(_L["top"] >= (_cardl.CAPTION_Y + 0.03) * 1920, f"{_n} terms: the card must stay below the captions, top at {_L['top'] / 1920:.3f}")
+    expect(_L["bottom"] <= 0.95 * 1920 + 1 and _L["panel_w"] <= 0.86 * 1080 + 1, f"{_n} terms: the card must stay inside the frame")
+_one = _cardl.layout({"label": "A", "chain": False, "items": [{"text": "x"}]}, 1080, 1920, _semi, _cc)
+_two = _cardl.layout({"label": "A", "chain": False, "items": [{"text": "x"}, {"text": "y"}]}, 1080, 1920, _semi, _cc)
+expect(_one["panel_w"] >= 0.54 * 1080 - 1 and _two["panel_h"] > _one["panel_h"], "the panel has a minimum width and grows with the terms")
+_h = _cardl.layout({"label": "A", "chain": False, "items": [{"text": "x"}]}, 540, 960, _semi, _cc)
+expect(abs(_h["panel_w"] * 2 - _one["panel_w"]) < 2 and abs(_h["panel_h"] * 2 - _one["panel_h"]) < 2, "the layout must scale with the output size")
+
 # ---- optional motion-graphics layer (HyperFrames): page content and the not-installed path, no browser needed
 import render_motion as _rm
 _cols = {"magenta": "#FB47DE", "green": "#7ED957", "navy": "#041250", "surface": "#0F1E66", "white": "#FFFFFF"}
 _mc = [{"label": "A <b>tag</b>", "chain": True, "start": 1.0, "end": 6.0,
         "items": [{"text": "First & one", "at": 1.5}, {"text": "Second", "at": 3.0}]},
        {"label": "Other", "chain": False, "start": 8.0, "end": 11.0, "items": [{"text": "Solo", "at": 8.5}]}]
-_page = _rm.build_page(_mc, _cols, [("Brand", 600, "a.ttf")], 1080, 1920, 12.0)
+_lay = lambda W, H: [_cardl.layout(c, W, H, _semi, _cc) for c in _mc]
+_page = _rm.build_page(_mc, _lay(1080, 1920), _cols, [("Brand", 600, "a.ttf")], 1080, 1920, 12.0)
 expect("<b>tag</b>" not in _page and "&lt;b&gt;tag&lt;/b&gt;" in _page and "First &amp; one" in _page, "card text must be HTML-escaped")
 expect(_page.count('class="pill"') == 3 and _page.count('class="arrow"') == 1, "pills and one chain arrow expected")
 expect("http://" not in _page and "https://" not in _page, "the page must not load anything from the network")
 expect("background: transparent" in _page and 'data-duration="12.000"' in _page, "overlay must be transparent and last the given time")
 expect(_page.count('ease: "power2.in", immediateRender: false') == 2, "each card's exit tween needs immediateRender: false")
-_half = _rm.build_page(_mc, _cols, [("Brand", 600, "a.ttf")], 540, 960, 12.0)
-expect("font-size: 30.0px" in _half, "sizes must scale with the output width")
+_half = _rm.build_page(_mc, _lay(540, 960), _cols, [("Brand", 600, "a.ttf")], 540, 960, 12.0)
+expect("font-size: 22.0px" in _half, "sizes must scale with the output width")
 import os
 _old_home = os.environ.get("KRITHI_HOME")
 os.environ["KRITHI_HOME"] = str(tmp / "no_motion_home")

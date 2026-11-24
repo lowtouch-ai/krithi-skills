@@ -14,5 +14,8 @@ Ask the user once, when the clips have cards: "I can draw the cards with HyperFr
 ## Cost
 A card overlay renders only from the first card to the last, at low priority. Measure with the first clip's `seconds_taken` and tell the user the rest will take about the same each. On the slowest machines run clips one at a time.
 
+## Layout and where the numbers live
+Both renderers use `scripts/cardlayout.py`. The panel is sized from the card's own text and number of terms and sits in a box that starts below the captions and ends above the platform buttons, so it cannot reach the captions; with many terms the type shrinks (down to `min_scale`) before the panel grows. The design proportions (type sizes, padding, panel width, box limits) are in `brand.json` under `shorts.cards`, and the cover's line spacing under `shorts.cover`. They were measured from the reference reel at 1080 px wide and scale with the output size. Change them there, not in code.
+
 ## Changing the look
 The card design lives in `build_page()` in `render_motion.py`: layout and sizes scale from a 1080 px wide design, colours and fonts come from `brand.json`. Test a design on its own with `render_motion.py --clips clips.resolved.json --id 1 --out overlay.webm --preview`, then render a clip and look at frames from the finished video.
