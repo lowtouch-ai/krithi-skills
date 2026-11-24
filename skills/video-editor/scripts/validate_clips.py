@@ -56,17 +56,27 @@ MAX_ITEMS, MAX_LABEL_WORDS, MAX_LABEL_CHARS, MAX_ITEM_CHARS = 4, 7, 36, 26
 
 def find_phrase(words, phrase, after=None):
     """(start, end) of the first spoken `phrase` at or after time `after`, or None. Returns the earliest earlier match
-    as a second value when the phrase is only found before `after`."""
-    want = norm(phrase)
-    toks = [norm(w["word"]) for w in words]
-    toks = [t[0] if t else "" for t in toks]
+    as a second value when the phrase is only found before `after`.
+
+    Words are compared as letters only, so "sub-agents", "sub agents" and "subagents" are the same phrase, and a
+    hyphenated transcript word counts as one word."""
+    want = "".join(norm(phrase))
+    if not want:
+        return None, None
+    flat = ["".join(norm(w["word"])) for w in words]
     earlier = None
-    for i in range(len(toks) - len(want) + 1):
-        if toks[i:i + len(want)] == want:
-            hit = (words[i]["start"], words[i + len(want) - 1]["end"])
-            if after is None or hit[0] >= after - 1e-6:
-                return hit, None
-            earlier = earlier or hit
+    for i in range(len(words)):
+        acc = ""
+        for j in range(i, min(len(words), i + len(phrase.split()) + 3)):
+            acc += flat[j]
+            if acc == want:
+                hit = (words[i]["start"], words[j]["end"])
+                if after is None or hit[0] >= after - 1e-6:
+                    return hit, None
+                earlier = earlier or hit
+                break
+            if not want.startswith(acc):
+                break
     return None, earlier
 
 

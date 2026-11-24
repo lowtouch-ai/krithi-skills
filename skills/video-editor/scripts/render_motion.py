@@ -222,18 +222,21 @@ def render_overlay(cards, brand, res, W, H, work, nice=True):
     t1 = max(c["end"] for c in cards) + 0.1
     shifted = [{**c, "start": c["start"] - t0, "end": c["end"] - t0,
                 "items": [{**i, "at": i["at"] - t0} for i in c["items"]]} for c in cards]
-    proj = Path(work) / "motion"
+    work = Path(work).resolve()  # the render runs inside the project folder, so every path must be absolute
+    proj = work / "motion"
     if proj.exists():
         shutil.rmtree(proj)
     proj.mkdir(parents=True)
     write_project(proj, shifted, brand, res, W, H, t1 - t0)
-    out = Path(work) / "cards.webm"
+    out = work / "cards.webm"
     cmd = [str(hf_bin()), "render", "--format", "webm", "--fps", str(OVERLAY_FPS), "--output", str(out)]
     if nice and os.name != "nt" and shutil.which("nice"):
         cmd = ["nice", "-n", "15", *cmd]
     r = subprocess.run(cmd, cwd=proj, env=quiet_env(), capture_output=True, text=True, timeout=1800)
     if r.returncode != 0 or not out.exists() or out.stat().st_size == 0:
-        return None, 0.0, "HyperFrames render failed: " + re.sub(r"\s+", " ", (r.stderr or r.stdout))[-400:]
+        text = re.sub(r"\s+", " ", (r.stderr or r.stdout))
+        why = "exit code %d" % r.returncode if r.returncode else "no output file was written"
+        return None, 0.0, f"HyperFrames render failed ({why}): " + (text[:300] + " ... " if len(text) > 700 else "") + text[-300:]
     return out, t0, None
 
 

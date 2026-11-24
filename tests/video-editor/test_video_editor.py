@@ -638,6 +638,36 @@ expect(_page.count('ease: "power2.in", immediateRender: false') == 2, "each card
 _half = _rm.build_page(_mc, _lay(540, 960), _cols, [("Brand", 600, "a.ttf")], 540, 960, 12.0)
 expect("font-size: 22.0px" in _half, "sizes must scale with the output width")
 import os
+# card phrases match however the word is split or hyphenated
+import validate_clips as _vc
+_pw = [_w2("a", 0, .2), _w2("sub-agents.", 1.0, 1.6), _w2("do", 2.0, 2.2), _w2("the", 2.3, 2.4), _w2("work", 2.5, 2.9), _w2("sub", 4.0, 4.2), _w2("agents", 4.3, 4.7)]
+for _say in ("sub-agents", "subagents", "sub agents"):
+    _h, _ = _vc.find_phrase(_pw, _say)
+    expect(_h == (1.0, 1.6), f"'{_say}' must match the transcript's hyphenated word: {_h}")
+expect(_vc.find_phrase(_pw, "agents", 3.0)[0] == (4.3, 4.7), "a later match is found after an earlier time")
+expect(_vc.find_phrase(_pw, "the work")[0] == (2.3, 2.9) and _vc.find_phrase(_pw, "do work")[0] is None, "multi-word phrases keep their order and adjacency")
+
+# a relative work folder must not break the render (it runs inside the project folder)
+import subprocess as _sp, types as _ty2
+_seen = {}
+def _fake_run(cmd, **kw):
+    _seen["cmd"], _seen["cwd"] = cmd, kw.get("cwd")
+    out = Path(cmd[cmd.index("--output") + 1]); out.write_bytes(b"x")
+    return _ty2.SimpleNamespace(returncode=0, stdout="", stderr="")
+_real_run, _real_status, _real_gsap = _sp.run, _rm.status, _rm.gsap_file
+_rm.status = lambda: {"ready": True, "detail": "", "fix": ""}
+_gs = tmp / "gsap.min.js"; _gs.write_text("//")
+_rm.gsap_file = lambda home=None: _gs
+_rm_brand = {"fonts": {"regular": "a.ttf", "semibold": "a.ttf"}, "colors": {"primary": "#FB47DE", "secondary": "#7ED957", "background": "#041250", "surface": "#0F1E66", "text": "#FFFFFF"}}
+_fp = tmp / "a.ttf"; _fp.write_bytes((scripts / "../assets/brand/fonts/Poppins-SemiBold.ttf").read_bytes())
+_sp.run = _fake_run
+_cwd0 = os.getcwd(); os.chdir(tmp)
+try:
+    _p, _o, _e = _rm.render_overlay([{**_mc[0]}], _rm_brand, lambda x: _fp, 1080, 1920, "rel_work")
+finally:
+    os.chdir(_cwd0); _sp.run, _rm.status, _rm.gsap_file = _real_run, _real_status, _real_gsap
+expect(_e is None and _p is not None and Path(_seen["cmd"][_seen["cmd"].index("--output") + 1]).is_absolute() and _p.exists(),
+       f"the overlay path must be absolute and found even when the work folder is given relative: {_e} {_seen}")
 _old_home = os.environ.get("KRITHI_HOME")
 os.environ["KRITHI_HOME"] = str(tmp / "no_motion_home")
 _st = _rm.status()
