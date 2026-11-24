@@ -30,9 +30,10 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _vlib import apply_corrections, hms, load_json, merge_fragments, save_json, unreliable_spans  # noqa: E402
+from _vlib import (apply_corrections, hms, load_json, merge_fragments, missing_speech_spans, save_json,  # noqa: E402
+                   snap_to_sound, sound_threshold, unreliable_spans)
 
-VERSION = 2
+VERSION = 3
 
 
 def reexec_in_venv():
@@ -141,6 +142,64 @@ def repair_unreliable(model, audio, offset, segments, decode, corrections, notes
     return out
 
 
+def frame_db(audio, step=0.02):
+    """Loudness (dB) of every `step` seconds of a 16 kHz mono array, as a plain list."""
+    import numpy as np
+    n = int(len(audio) / 16000.0 / step)
+    if n <= 0:
+        return []
+    fr = audio[: n * int(16000 * step)].reshape(n, int(16000 * step))
+    return (20 * np.log10(np.sqrt((fr ** 2).mean(1)) + 1e-9)).tolist()
+
+
+def fill_missing_speech(audio, offset, segments, decode, corrections, notes, db, step=0.02):
+    """Whisper sometimes skips speech when it decodes a long file in one go (seconds of talking with no words). Find
+    stretches that are loud but have no words, decode each on its own with a few seconds of context, and add the words
+    it hears. The words come back when the stretch is decoded alone, which is the same remedy as for lost timing."""
+    flat = [w for s in segments for w in s["words"]]
+    if not flat:
+        return segments
+    thr = sound_threshold(db, step, flat, offset)
+    spans = missing_speech_spans(flat, db, step, thr, offset)
+    dur = len(audio) / 16000.0
+    for g0, g1 in spans:
+        w0, w1 = max(0.0, g0 - offset - 3.0), min(dur, g1 - offset + 3.0)
+        entry = {"at": round(g0, 2), "start": round(g0, 2), "end": round(g1, 2), "old": "", "new": ""}
+        try:
+            words = []
+            for s in decode(audio[int(w0 * 16000): int(w1 * 16000)]):
+                words += [{"word": x.word.strip(), "start": round(offset + w0 + x.start, 3), "end": round(offset + w0 + x.end, 3),
+                           "probability": round(float(x.probability), 3)} for x in (s.words or []) if x.word.strip()]
+            words = merge_fragments(words)
+            if corrections:
+                words, _ = apply_corrections(words, corrections)
+            words = [w for w in words if g0 < (w["start"] + w["end"]) / 2 < g1]  # only what lies in the hole
+        except Exception as e:
+            notes.append({**entry, "status": "kept", "reason": f"re-transcription failed: {e}"})
+            continue
+        if not words:
+            notes.append({**entry, "status": "nothing heard"})
+            continue
+        segments.append({"start": words[0]["start"], "end": words[-1]["end"], "text": " ".join(w["word"] for w in words), "words": words})
+        notes.append({**entry, "new": " ".join(w["word"] for w in words)[:200], "status": "filled"})
+    segments.sort(key=lambda s: s["start"])
+    return segments
+
+
+def snap_segments(segments, db, offset, step=0.02):
+    """Put every word's start and end on the sound (see _vlib.snap_to_sound)."""
+    flat = [w for s in segments for w in s["words"]]
+    if not flat:
+        return segments
+    thr = sound_threshold(db, step, flat, offset)
+    new, _ = snap_to_sound(flat, db, step, thr, offset)
+    it = iter(new)
+    for s in segments:
+        s["words"] = [next(it) for _ in s["words"]]
+        s["start"], s["end"] = s["words"][0]["start"], s["words"][-1]["end"]
+    return segments
+
+
 def run_whisper(clips, model_name, language, work, glossary=(), corrections=None, notes=None):
     from faster_whisper import WhisperModel
     notes = notes if notes is not None else []
@@ -170,7 +229,10 @@ def run_whisper(clips, model_name, language, work, glossary=(), corrections=None
             clip_segments.append({"start": round(c["offset"] + s.start, 3), "end": round(c["offset"] + s.end, 3),
                                   "text": s.text.strip(), "words": words})
         decode = lambda chunk, lg=(None if language == "auto" else language) or info.language: model.transcribe(chunk, language=lg, **kw)[0]
+        db = frame_db(audio)
+        clip_segments = fill_missing_speech(audio, c["offset"], clip_segments, decode, corrections, notes, db)
         clip_segments = repair_unreliable(model, audio, c["offset"], clip_segments, decode, corrections, notes)
+        clip_segments = snap_segments(clip_segments, db, c["offset"])
         segments.extend(clip_segments)
     return segments, lang_seen or language
 
@@ -333,7 +395,9 @@ def main():
     print(json.dumps({"ok": True, "cached": False, "seconds_taken": took,
                       "seconds_per_audio_second": round(took / max(t["duration"], 1), 2) if took else None,
                       "repaired_stretches": sum(1 for r in rep if r.get("status") == "repaired"),
-                      "still_unreliable": [{"at": r["at"], "heard": r["old"][:80]} for r in rep if r.get("status") != "repaired"], "transcript": str(tpath), "readable": str(out_dir / "transcript.md"),
+                      "filled_stretches": sum(1 for r in rep if r.get("status") == "filled"),
+                      "sound_without_words": [{"at": r["at"], "seconds": round(r["end"] - r["start"], 1)} for r in rep if r.get("status") == "nothing heard"],
+                      "still_unreliable": [{"at": r["at"], "heard": r["old"][:80]} for r in rep if r.get("status") not in ("repaired", "filled", "nothing heard")], "transcript": str(tpath), "readable": str(out_dir / "transcript.md"),
                       "engine": t["engine"], "granularity": t["granularity"], "language": t["language"],
                       "segments": len(t["segments"]), "words": n_words}))
     return 0

@@ -340,3 +340,83 @@ def unreliable_spans(words, min_run=3, tiny=0.05, low_p=0.4, low_run=6, before=1
             merged.append((a, b))
     return merged
 
+
+
+# ---------------------------------------------------------------- word timing against the sound
+
+def sound_threshold(db, step, words, offset=0.0, margin=15.0):
+    """dB level above which a frame counts as sound: the loudness of speech (the 70th percentile of frames that carry
+    words) minus `margin`. db is a list of frame levels `step` seconds apart, starting at `offset`."""
+    vals = []
+    for w in words:
+        i0, i1 = int((w["start"] - offset) / step), int((w["end"] - offset) / step) + 1
+        vals.extend(db[max(0, i0):min(len(db), i1)])
+    if not vals:
+        return -40.0
+    vals.sort()
+    return vals[int(0.7 * (len(vals) - 1))] - margin
+
+
+def missing_speech_spans(words, db, step, thr, offset=0.0, min_gap=0.9, min_sound=1.0, min_frac=0.30):
+    """Stretches between words (and before the first, after the last) that sound like speech but have no words.
+
+    Whisper sometimes skips speech in a long file. A gap of at least `min_gap` s in which at least `min_sound` s, and at
+    least `min_frac` of the gap, is above `thr` is reported as (start, end) in the words' time base."""
+    dur = len(db) * step + offset
+    edges = [(offset, words[0]["start"] if words else dur)]
+    edges += [(a["end"], b["start"]) for a, b in zip(words, words[1:])]
+    if words:
+        edges.append((words[-1]["end"], dur))
+    out = []
+    for g0, g1 in edges:
+        if g1 - g0 < min_gap:
+            continue
+        i0, i1 = max(0, int((g0 - offset) / step)), min(len(db), int((g1 - offset) / step))
+        if i1 <= i0:
+            continue
+        loud = sum(1 for v in db[i0:i1] if v > thr)
+        if loud * step >= min_sound and loud / (i1 - i0) >= min_frac:
+            out.append((round(g0, 3), round(g1, 3)))
+    return out
+
+
+def snap_to_sound(words, db, step, thr, offset=0.0, reach=0.4):
+    """Pull each word's start and end onto the sound it was really spoken in. Returns (new_words, changed).
+
+    Whisper's word times can sit well inside the silence before a word (a highlight that comes early) or after the sound
+    has started (late), and can stretch a word across the pause around it. A word's start moves to the first frame of
+    sound when its first stretch is silent, and, when there is a gap before it in the transcript, back to where the sound
+    began; its end moves back to where the sound stopped when its last stretch is silent."""
+    n = len(db)
+    at = lambda t: min(max(int((t - offset) / step), 0), n - 1)
+    loud = lambda t: db[at(t)] > thr
+    out, changed = [], 0
+    for k, w in enumerate(words):
+        s_, e_ = w["start"], w["end"]
+        prev_end = words[k - 1]["end"] if k else offset
+        # start: silent at the start -> the first loud frame inside the word
+        if not loud(s_):
+            t = s_
+            while t < e_ - step and not loud(t):
+                t += step
+            if loud(t) and t > s_ + step:
+                s_ = t
+        elif s_ - prev_end >= 0.15:  # sound already running at the start, with a gap before: find where it began
+            t = s_
+            while t > max(prev_end, s_ - reach) and loud(t - step):
+                t -= step
+            if s_ - t >= step * 2:
+                s_ = t
+        # end: silent at the end -> back to the last loud frame
+        if e_ - s_ > 2 * step and not loud(e_ - step):
+            t = e_
+            while t > s_ + step and not loud(t - step):
+                t -= step
+            if loud(t - step) and e_ - t > step:
+                e_ = t + 0.02
+        if e_ - s_ < 0.04:
+            e_ = s_ + 0.04
+        if abs(s_ - w["start"]) > 1e-6 or abs(e_ - w["end"]) > 1e-6:
+            changed += 1
+        out.append({**w, "start": round(s_, 3), "end": round(e_, 3)})
+    return out, changed

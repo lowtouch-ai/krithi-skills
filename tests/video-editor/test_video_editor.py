@@ -210,6 +210,37 @@ _notes2 = []
 _out2 = _tr.repair_unreliable(None, _audio, 0.0, _segs, _still, None, _notes2)
 expect(_notes2 and _notes2[0]["status"] == "still unreliable" and any("thank" in sg["text"] for sg in _out2), f"a repair that is still broken must keep the original: {_notes2}")
 
+# ---- speech Whisper skipped, and word times pulled onto the sound
+_step = 0.02
+def _db(n_s, loud_ranges):
+    d = [-80.0] * int(n_s / _step)
+    for a_, b_ in loud_ranges:
+        for i_ in range(int(a_ / _step), int(b_ / _step)):
+            d[i_] = -20.0
+    return d
+_dbh = _db(12.0, [(0.5, 1.0), (3.0, 6.0), (8.0, 8.5)])
+_wh = [_w2("one", 0.5, 1.0), _w2("end", 8.0, 8.5)]
+_thr = _vl3.sound_threshold(_dbh, _step, _wh)
+_holes = _vl3.missing_speech_spans(_wh, _dbh, _step, _thr)
+expect(len(_holes) == 1 and abs(_holes[0][0] - 1.0) < 0.01 and abs(_holes[0][1] - 8.0) < 0.01, f"sound with no words between two words must be found: {_holes}")
+expect(_vl3.missing_speech_spans(_wh, _db(12.0, [(0.5, 1.0), (8.0, 8.5)]), _step, _thr) == [], "a silent gap is not missing speech")
+_fill = lambda chunk: [_ty.SimpleNamespace(start=0.0, end=4.0, words=[_mk("one", 0.6, 0.9), _mk("hello", 3.2, 3.5), _mk("there", 3.6, 4.0)])]
+_nf = []
+_segf = _tr.fill_missing_speech([0.0] * (16000 * 12), 0.0, [_seg([_wh[0]]), _seg([_wh[1]])], _fill, None, _nf, _dbh)
+_txt = " ".join(sg["text"] for sg in _segf)
+expect(_nf and _nf[0]["status"] == "filled" and _txt == "one hello there end", f"words heard in the hole must be added in order, and only those: {_txt} {_nf}")
+_ne = []
+_tr.fill_missing_speech([0.0] * (16000 * 12), 0.0, [_seg([_wh[0]]), _seg([_wh[1]])], lambda chunk: [], None, _ne, _dbh)
+expect(_ne and _ne[0]["status"] == "nothing heard", f"a hole that decodes to nothing is noted, not an error: {_ne}")
+_dbs = _db(6.0, [(1.5, 2.2), (4.0, 4.6)])
+_sw = [_w2("early", 1.0, 3.0), _w2("late", 4.3, 4.6)]   # starts 0.5 s before the sound, runs 0.8 s past it; second starts 0.3 s late
+_ths = -50.0
+_snapped, _chg = _vl3.snap_to_sound(_sw, _dbs, _step, _ths)
+expect(abs(_snapped[0]["start"] - 1.5) < 0.05 and abs(_snapped[0]["end"] - 2.2) < 0.08, f"start and end must move onto the sound: {_snapped[0]}")
+expect(abs(_snapped[1]["start"] - 4.0) < 0.05 and _chg == 2, f"a start that came after the sound began moves back to it: {_snapped[1]} {_chg}")
+_tight = [_w2("a", 1.5, 1.9), _w2("b", 1.95, 2.2)]
+expect(_vl3.snap_to_sound(_tight, _dbs, _step, _ths)[1] == 0 or _vl3.snap_to_sound(_tight, _dbs, _step, _ths)[1] <= 1, "words already on the sound are left alone")
+
 # the checker: words over silence, collapsed stretches, and --drop
 chk_t = write("chk_tr.json", {"engine": "t", "granularity": "word", "language": "en", "segments": [{"start": 0, "end": 30, "text": "x", "words": [
     _w2("hello", 0.2, 0.8), _w2("there", 0.9, 1.5), _w2("thank", 22.0, 22.4), _w2("you", 22.5, 22.9), _w2("so", 23.0, 23.3), _w2("much", 23.4, 23.8),

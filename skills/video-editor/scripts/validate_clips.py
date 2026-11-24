@@ -254,7 +254,7 @@ def main():
         levels = Levels.load(lv_path) if lv_path and Path(lv_path).is_file() else None
         tdata = load_json(a.transcript) if a.transcript else None
         words = words_of(tdata) if tdata else None
-        unreliable = [r for r in (tdata or {}).get("meta", {}).get("repairs", []) if r.get("status") != "repaired" and "start" in r]
+        unreliable = [r for r in (tdata or {}).get("meta", {}).get("repairs", []) if r.get("status") not in ("repaired", "filled", "nothing heard") and "start" in r]
     except (OSError, ValueError, KeyError) as e:
         print(json.dumps({"ok": False, "error": f"cannot read input: {e}"}))
         return 1
