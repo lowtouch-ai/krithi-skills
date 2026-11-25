@@ -592,6 +592,28 @@ if shutil.which("ffmpeg") and shutil.which("ffprobe"):
         expect(_code == 1 and len(_rep["clips"]) == 2 and _rep["clips"][0]["ok"] is False and "face detection failed" in _rep["clips"][0]["error"] and _rep["clips"][1]["ok"] is True,
                f"a failing clip must be recorded while the next one still renders: {_rep}")
 
+        # a folder left by an earlier failed run (only empty work folders) must not block a new render
+        (tmp / "shorts_left" / "clip-01-first" / "work").mkdir(parents=True)
+        _calls[0] = 5
+        _rf2.detect = _flaky
+        _buf2 = _io.StringIO()
+        _argv = sys.argv
+        sys.argv = ["render_shorts.py", "--source", str(src), "--clips", two, "--transcript", rt, "--out-dir", str(tmp / "shorts_left"), "--ids", "1", "--preview", "--no-lower-third"]
+        try:
+            with _cl.redirect_stdout(_buf2):
+                _code2 = _rs.main()
+        finally:
+            sys.argv = _argv
+            _rf2.detect = _real_detect
+        expect(_code2 == 0 and (tmp / "shorts_left" / "clip-01-first" / "clip.mp4").exists(), f"leftover empty work folders must not block a render: {_buf2.getvalue()[:300]}")
+        _buf3 = _io.StringIO(); sys.argv = ["render_shorts.py", "--source", str(src), "--clips", two, "--transcript", rt, "--out-dir", str(tmp / "shorts_left"), "--ids", "1", "--preview"]
+        try:
+            with _cl.redirect_stdout(_buf3):
+                _code3 = _rs.main()
+        finally:
+            sys.argv = _argv
+        expect(_code3 != 0 and "finished clips" in _buf3.getvalue(), f"a folder with a finished clip must still be refused: {_buf3.getvalue()[:200]}")
+
         # an invalid cut list is refused before ffmpeg runs
         badcl = write("render_bad.json", {"version": 1, "source": {"duration": 30.0}, "keep": [{"start": 5.0, "end": 2.0}]})
         rb = run("render_long.py", "--source", str(src), "--cutlist", badcl, "--out-dir", str(tmp / "r_bad"))
@@ -651,6 +673,15 @@ expect(_vc.find_phrase(_pw, "the work")[0] == (2.3, 2.9) and _vc.find_phrase(_pw
 _fiv = _cardl.layout({"label": "THE SUB-AGENTS", "chain": False, "items": [{"text": x} for x in ("Requirements", "Testing", "Coding", "Quality checks", "Compliance checks")]}, 1080, 1920, _semi, _cc)
 expect(_fiv["top"] >= (_cardl.CAPTION_Y + 0.03) * 1920, f"five pills must still clear the captions: top {_fiv['top'] / 1920:.3f}")
 expect(_vc.MAX_ITEMS == 5 and _vc.MAX_ITEMS_CHAIN == 4, "five pills plain, four when linked by arrows")
+
+# ffmpeg 7 and later spell "filter graph from a file" differently
+import render_long as _rlg
+_fa = ["-i", "in.mp4", "-filter_complex_script", "g.txt", "-map", "[v]"]
+expect(_rlg.translate_filter_args(_fa, "new") == ["-i", "in.mp4", "-/filter_complex", "g.txt", "-map", "[v]"], "ffmpeg 7 and later: -/filter_complex")
+expect(_rlg.translate_filter_args(_rlg.translate_filter_args(_fa, "new"), "old") == _fa, "older ffmpeg: -filter_complex_script")
+expect(_rlg.filter_script_style() in ("old", "new"), "the style is detected from the installed ffmpeg")
+import render_shorts as _rsh
+expect(isinstance(_rsh.face_model_present(), bool), "the face-model check answers yes or no")
 
 # a relative work folder must not break the render (it runs inside the project folder)
 import subprocess as _sp, types as _ty2

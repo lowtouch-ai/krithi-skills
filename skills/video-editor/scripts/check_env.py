@@ -45,6 +45,21 @@ def has_module(name):
     return False
 
 
+FACE_PROBE = ("import cv2,os,sys;sys.exit(0 if os.path.exists(os.path.join(cv2.data.haarcascades,"
+              "'haarcascade_frontalface_default.xml')) else 1)")
+
+
+def has_face_model():
+    """True if OpenCV with its bundled face model is importable here or in the skill's virtualenv (OpenCV 5 has no model)."""
+    for py in (sys.executable, str(venv_python())):
+        if py == str(venv_python()) and not venv_python().exists():
+            continue
+        code, _ = run([py, "-c", FACE_PROBE])
+        if code == 0:
+            return True
+    return False
+
+
 def transcriber_status(has_faster_whisper, which):
     """(ok, detail). Only faster-whisper satisfies the check, because transcribe.py supports only that backend.
     Other Whisper tools that are installed are reported, but they cannot be used by this skill."""
@@ -101,8 +116,8 @@ def main():
     ok_t, detail_t = transcriber_status(has_module("faster_whisper"), shutil.which)
     add("transcriber", ok_t, detail_t, install_hint("faster-whisper"))
 
-    cv = has_module("cv2")
-    add("OpenCV (face tracking)", cv, "9:16 reframing" if cv else "needed for 9:16 reframing",
+    cv = has_face_model()
+    add("OpenCV (face tracking)", cv, "9:16 reframing" if cv else "needed for 9:16 reframing (OpenCV 4 with its face model; OpenCV 5 does not work)",
         install_hint("opencv"), required=a.need in ("shorts", "all"))
 
     from render_motion import status as motion_status  # optional layer: never blocks

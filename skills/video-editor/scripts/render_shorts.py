@@ -29,12 +29,18 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
-def reexec_in_venv():
+def face_model_present():
+    """True when this interpreter's OpenCV can load the face detector (OpenCV 5 dropped the bundled Haar models)."""
     try:
-        import cv2  # noqa: F401
+        import cv2
+        return os.path.exists(os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml"))
+    except (ImportError, AttributeError):
+        return False
+
+
+def reexec_in_venv():
+    if face_model_present():
         return
-    except ImportError:
-        pass
     from setup_env import venv_python
     vpy = venv_python()
     if vpy.exists() and not os.environ.get("VE_REEXEC"):
@@ -362,8 +368,8 @@ def main():
     if not clips:
         return die("no clips selected")
     out_root = Path(a.out_dir)
-    if out_root.exists() and any(out_root.iterdir()):
-        return die(f"{out_root} is not empty; use a new --out-dir (earlier renders are kept)")
+    if out_root.exists() and any(out_root.glob("clip-*/clip.mp4")):
+        return die(f"{out_root} already holds finished clips; use a new --out-dir (earlier renders are kept)")
     out_root.mkdir(parents=True, exist_ok=True)
 
     speaker = [s.strip() for s in a.speaker.split("|")] if a.speaker else None

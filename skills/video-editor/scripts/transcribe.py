@@ -55,6 +55,7 @@ def audio_wav(clip, work):
     Path(work).mkdir(parents=True, exist_ok=True)
     out = Path(work) / (Path(clip["path"]).stem + ".16k.wav")
     if not out.exists():
+        print("extracting the audio...", file=sys.stderr, flush=True)
         r = subprocess.run(["ffmpeg", "-hide_banner", "-nostdin", "-y", "-i", clip["path"], "-vn", "-ac", "1", "-ar", "16000",
                             "-c:a", "pcm_s16le", str(out)], capture_output=True, text=True)
         if r.returncode != 0:
@@ -234,7 +235,12 @@ def run_whisper(clips, model_name, language, work, glossary=(), corrections=None
     from faster_whisper import WhisperModel
     notes = notes if notes is not None else []
     cpu = os.cpu_count() or 4
-    model = WhisperModel(model_name, device="auto", compute_type="auto", cpu_threads=min(cpu, 8))
+    print("loading the speech model...", file=sys.stderr, flush=True)
+    try:  # a model that is already on this machine loads without contacting the model hub
+        model = WhisperModel(model_name, device="auto", compute_type="auto", cpu_threads=min(cpu, 8), local_files_only=True)
+    except Exception:
+        print("downloading the speech model (first use only)...", file=sys.stderr, flush=True)
+        model = WhisperModel(model_name, device="auto", compute_type="auto", cpu_threads=min(cpu, 8))
     kw = dict(word_timestamps=True, vad_filter=True, vad_parameters={"min_silence_duration_ms": 500},
               condition_on_previous_text=False,
               initial_prompt=("Terms: " + ", ".join(glossary) + ".") if glossary else None,

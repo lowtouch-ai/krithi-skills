@@ -16,6 +16,7 @@ Prints JSON with the output path, expected and measured duration, and warnings.
 """
 import argparse
 import json
+import re
 import subprocess
 import sys
 import time
@@ -182,8 +183,37 @@ def cap_map(keep, t):
     return kept_before(keep, t)
 
 
+_FILTER_STYLE = []  # cached: "old" (-filter_complex_script FILE) or "new" (-/filter_complex FILE, ffmpeg 7 and later)
+
+
+def filter_script_style():
+    """Which spelling of "read the filter graph from a file" this ffmpeg understands. ffmpeg 7 replaced
+    -filter_complex_script with -/filter_complex and later versions removed the old one."""
+    if not _FILTER_STYLE:
+        style = "old"
+        try:
+            out = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True, timeout=20).stdout
+            m = re.search(r"version\s+[nN]?(\d+)\.", out)
+            if m and int(m.group(1)) >= 7:
+                style = "new"
+        except (OSError, subprocess.SubprocessError):
+            pass
+        _FILTER_STYLE.append(style)
+    return _FILTER_STYLE[0]
+
+
+def translate_filter_args(args, style):
+    """The ffmpeg arguments with -filter_complex_script written the way this ffmpeg wants it."""
+    if style == "new":
+        return ["-/filter_complex" if a == "-filter_complex_script" else a for a in args]
+    return ["-filter_complex_script" if a == "-/filter_complex" else a for a in args]
+
+
 def run_ffmpeg(args):
-    r = subprocess.run(["ffmpeg", "-hide_banner", "-nostdin", "-y", *args], capture_output=True, text=True)
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-nostdin", "-y", *translate_filter_args(args, filter_script_style())], capture_output=True, text=True)
+    if r.returncode != 0 and "Unrecognized option" in r.stderr and ("filter_complex_script" in r.stderr or "filter_complex'" in r.stderr):
+        _FILTER_STYLE[:] = ["new" if filter_script_style() == "old" else "old"]  # the version check guessed wrong: use the other spelling
+        r = subprocess.run(["ffmpeg", "-hide_banner", "-nostdin", "-y", *translate_filter_args(args, _FILTER_STYLE[0])], capture_output=True, text=True)
     return r.returncode, r.stderr
 
 
