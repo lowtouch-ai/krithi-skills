@@ -737,6 +737,30 @@ expect(len(_evs) == 4 and any("ExpName" in e_[3] for e_ in _evs) and any("ExpRol
 _evs.clear(); _ex.name_tag_events(_evf, 1080, 1920, None, _ecf, "", "", lambda s_: s_, 0, 1)
 expect(_evs == [], "no speaker, no name tag")
 
+# panel scenes (explainer style): checks, spoken moments, page
+import scenes as _scn
+_w3 = [_w2(x, 0.4 * i, 0.4 * i + 0.3) for i, x in enumerate("so there is a managing agent and sub-agents do requirements then testing then coding".split())]
+_ok_sc = {"type": "flow", "say": "managing agent", "tag": "A", "data": {"nodes": [{"title": "Manager", "say": "managing agent"}, {"title": "Subs", "say": "subagents"}]}}
+expect(_scn.check_scene(_ok_sc, "s") == [], f"a valid scene has no errors: {_scn.check_scene(_ok_sc, 's')}")
+expect(any("one of" in e_ for e_ in _scn.check_scene({"type": "chart", "say": "x"}, "s")), "an unknown scene type is refused")
+expect(any("say" in e_ for e_ in _scn.check_scene({"type": "terminal", "data": {"lines": [{"text": "x"}]}}, "s")), "a scene needs its 'say'")
+expect(any("at most" in e_ or "needs 1 to" in e_ for e_ in _scn.check_scene({"type": "terminal", "say": "x", "data": {"lines": [{"text": "l"}] * 9}}, "s")), "too many terminal lines are refused")
+expect(any("longer than" in e_ for e_ in _scn.check_scene({"type": "flow", "say": "x", "data": {"nodes": [{"title": "t" * 60}]}}, "s")), "a title that is too long is refused")
+_errs, _warns = [], []
+_res = _scn.resolve_scenes({"scenes": [_ok_sc, {"type": "terminal", "say": "requirements", "data": {"lines": [{"kind": "cmd", "text": "go", "say": "testing"}, {"kind": "ok", "text": "done", "say": "coding"}]}}]},
+                           "clip 1", _w3, 0.0, 6.0, _errs, _warns, _vc.find_phrase)
+expect(not _errs and len(_res) == 2 and abs(_res[0]["at"] - 0.4 * 4) < 0.01 and _res[0]["end"] == _res[1]["at"], f"scenes get their spoken times and run until the next one: {_errs} {_res}")
+expect(_res[0]["data"]["nodes"][1].get("at") is not None and _res[1]["data"]["lines"][0]["at"] < _res[1]["data"]["lines"][1]["at"], "each part gets its own spoken time")
+_errs2 = []
+_scn.resolve_scenes({"scenes": [{"type": "terminal", "say": "coding", "data": {"lines": [{"text": "x"}]}}, {"type": "terminal", "say": "requirements", "data": {"lines": [{"text": "x"}]}}]},
+                    "clip 1", _w3, 0.0, 6.0, _errs2, [], _vc.find_phrase)
+expect(any("order spoken" in e_ for e_ in _errs2), f"scenes out of order are refused: {_errs2}")
+_pg = _scn.build_page([{"type": "terminal", "tag": "TIP <1>", "start": 0.0, "end": 6.0, "els": [1.0, 2.0], "data": {"title": "t & t", "lines": [{"kind": "cmd", "text": "/init <x>"}, {"kind": "ok", "text": "done"}]}}],
+                      {"accent": "#7ED957", "accent2": "#FB47DE", "text": "#fff", "dim": "#999", "card": "#111", "border": "#222"}, [("Brand", 600, "a.ttf")], 1080, 768, 7.0)
+expect("TIP &lt;1&gt;" in _pg and "/init &lt;x&gt;" in _pg and "t &amp; t" in _pg and "<x>" not in _pg, "scene text is escaped")
+expect("http://" not in _pg and "https://" not in _pg and "background: transparent" in _pg, "the page loads nothing from the network and is transparent")
+expect(_pg.count("immediateRender: false") == 1 and 'steps(9)' in _pg, "the exit tween has immediateRender false and a 9-character command is typed in 9 steps")
+
 # a relative work folder must not break the render (it runs inside the project folder)
 import subprocess as _sp, types as _ty2
 _seen = {}

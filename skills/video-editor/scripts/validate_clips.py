@@ -159,7 +159,7 @@ def resolve_cards(clip, tag, cw, text, start, end, errors, warnings, keep=None, 
     return out
 
 
-def check(clips, sents, analysis, levels=None, tx_words=None, unreliable=(), limits=None):
+def check(clips, sents, analysis, levels=None, tx_words=None, unreliable=(), limits=None, style="reel"):
     hard_min, hard_max, soft_min, soft_max = limits or (HARD_MIN, HARD_MAX, SOFT_MIN, SOFT_MAX)
     errors, warnings, out = [], [], []
     by_id = {s["id"]: s for s in sents}
@@ -240,7 +240,17 @@ def check(clips, sents, analysis, levels=None, tx_words=None, unreliable=(), lim
             else:
                 cw = [w for w in tx_words if start - 0.05 <= w["start"] <= end + 0.05]
                 cards = resolve_cards(c, tag, cw, text, start, end, errors, warnings, clip_keep({**c, "start": start, "end": end}, analysis), levels)
-        out.append({**c, "cards": cards, "start": round(start, 3), "end": round(end, 3), "seconds": round(raw, 1),
+        scenes_out = []
+        if c.get("scenes"):
+            if style != "explainer":
+                warnings.append(f"{tag}: scenes are drawn only in the explainer style; run with --style explainer")
+            elif not tx_words:
+                errors.append(f"{tag}: scenes need the transcript; pass --transcript")
+            else:
+                import scenes as scn
+                cw2 = [w for w in tx_words if start - 0.05 <= w["start"] <= end + 0.05]
+                scenes_out = scn.resolve_scenes(c, tag, cw2, start, end, errors, warnings, find_phrase)
+        out.append({**c, "cards": cards, "scenes": scenes_out if c.get("scenes") else c.get("scenes"), "start": round(start, 3), "end": round(end, 3), "seconds": round(raw, 1),
                     "effective_seconds": round(eff, 1), "at": hms(start), "text": text})
     ordered = sorted(out, key=lambda x: x["start"])
     for x, y in zip(ordered, ordered[1:]):
@@ -279,7 +289,7 @@ def main():
         from render_long import DEFAULT_BRAND, load_brand
         ln = explainer.settings(load_brand(a.brand or DEFAULT_BRAND)[0])["length"]
         limits = (float(ln["hard_min"]), float(ln["hard_max"]), float(ln["soft_min"]), float(ln["soft_max"]))
-    errors, warnings, resolved = check(clips, sents, analysis, levels, words, unreliable, limits)
+    errors, warnings, resolved = check(clips, sents, analysis, levels, words, unreliable, limits, a.style)
     if a.out and not errors:
         save_json(a.out, {"version": 1, "clips": resolved})
     print(json.dumps({"ok": not errors, "errors": errors, "warnings": warnings, "clips": len(resolved), "edges_snapped_to_audio": levels is not None,

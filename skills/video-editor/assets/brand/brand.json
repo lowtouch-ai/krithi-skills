@@ -19,7 +19,8 @@
     "medium": "fonts/Poppins-Medium.ttf",
     "semibold": "fonts/Poppins-SemiBold.ttf",
     "bold": "fonts/Poppins-Bold.ttf",
-    "mono": "fonts/JetBrainsMono-Bold.ttf"
+    "mono": "fonts/JetBrainsMono-Bold.ttf",
+    "mono_medium": "fonts/JetBrainsMono-Medium.ttf"
   },
   "colors": {
     "background": "#041250",
@@ -122,6 +123,9 @@
       "panel_bottom": "#0A0E33",
       "panel_glow": "#3A1B5C",
       "name_tag_seconds": 5.0,
+      "scene_card": "#0E1140",
+      "scene_border": "#262B6E",
+      "scene_dim": "#8D93C6",
       "length": {
         "soft_min": 30,
         "soft_max": 150,

@@ -22,6 +22,9 @@ DEFAULTS = {
     "panel_bottom": "#0A0E33",
     "panel_glow": "#3A1B5C",
     "name_tag_seconds": 5.0,
+    "scene_card": "#0E1140",   # panel scenes: window and node colours
+    "scene_border": "#262B6E",
+    "scene_dim": "#8D93C6",
     "length": {"soft_min": 30, "soft_max": 150, "hard_min": 20, "hard_max": 180},
 }
 
@@ -41,8 +44,9 @@ def _rgb(h):
     return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
 
 
-def make_panel(brand, res, W, H, cfg, work, run_ffmpeg):
-    """The panel background as one PNG: a dark gradient with a soft purple glow and the brand wordmark. Returns (path, error)."""
+def make_panel(brand, res, W, H, cfg, work, run_ffmpeg, logo_on=True):
+    """The panel background as one PNG: a dark gradient with a soft purple glow and, unless scenes fill the panel, the brand
+    wordmark. Returns (path, error)."""
     (r0, g0, b0), (r1, g1, b1), (rg, gg, bg) = _rgb(cfg["panel_top"]), _rgb(cfg["panel_bottom"]), _rgb(cfg["panel_glow"])
     py = int(H * cfg["panel_share"])
     lerp = lambda a, b: f"{a}+({b}-{a})*Y/{py}"
@@ -56,12 +60,14 @@ def make_panel(brand, res, W, H, cfg, work, run_ffmpeg):
     px = subprocess.run(["ffmpeg", "-v", "error", "-i", str(logo), "-vf", "crop=1:1:5:5,format=rgb24", "-f", "rawvideo", "-"],
                         capture_output=True).stdout[:3]
     key = "0x%02X%02X%02X" % tuple(px) if len(px) == 3 else "0x041250"
-    code, err = run_ffmpeg(["-f", "lavfi", "-i",
-                            f"color=c=black:s={W}x{H}:r=1:d=1,format=gbrp,geq=r='{comp(r0, r1, rg)}':g='{comp(g0, g1, gg)}':b='{comp(b0, b1, bg)}'",
-                            "-i", str(logo), "-filter_complex",
-                            f"[1:v]colorkey={key}:0.14:0.10,scale={lw}:-1,format=rgba,colorchannelmixer=aa=0.55[l];"
-                            f"[0:v][l]overlay=(W-w)/2:{py}*0.5-h/2:format=auto,format=yuv420p",
-                            "-frames:v", "1", str(out)])
+    bg_src = f"color=c=black:s={W}x{H}:r=1:d=1,format=gbrp,geq=r='{comp(r0, r1, rg)}':g='{comp(g0, g1, gg)}':b='{comp(b0, b1, bg)}'"
+    if logo_on:
+        code, err = run_ffmpeg(["-f", "lavfi", "-i", bg_src, "-i", str(logo), "-filter_complex",
+                                f"[1:v]colorkey={key}:0.14:0.10,scale={lw}:-1,format=rgba,colorchannelmixer=aa=0.55[l];"
+                                f"[0:v][l]overlay=(W-w)/2:{py}*0.5-h/2:format=auto,format=yuv420p",
+                                "-frames:v", "1", str(out)])
+    else:
+        code, err = run_ffmpeg(["-f", "lavfi", "-i", bg_src, "-vf", "format=yuv420p", "-frames:v", "1", str(out)])
     return (out, None) if code == 0 else (None, err[-400:])
 
 

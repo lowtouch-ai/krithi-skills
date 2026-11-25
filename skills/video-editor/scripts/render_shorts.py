@@ -480,6 +480,25 @@ def main():
             cards_ct = [{"label": k["label"], "chain": k.get("chain", False), "start": kept_before(keep, k["start"]), "end": kept_before(keep, k["end"]),
                          "items": [{"text": i["text"], "at": kept_before(keep, i["at"])} for i in k["items"]]} for k in clip.get("cards") or []]
             clip_flags, lt_until = dict(flags), None
+            scenes_ct = []
+            if ecfg:
+                import scenes as scn
+                for sc in clip.get("scenes") or []:
+                    if "at" not in sc:
+                        raise ClipError("the clip's scenes were not resolved; run validate_clips.py --style explainer")
+                    scenes_ct.append({"type": sc["type"], "tag": sc.get("tag", ""), "data": sc.get("data") or {},
+                                      "start": kept_before(keep, sc["at"]), "end": kept_before(keep, sc["end"]),
+                                      "els": [kept_before(keep, p["at"]) if "at" in p else None for _, _, p in scn._parts(sc)]})
+            scene_ov, scene_off = None, 0.0
+            if scenes_ct and a.motion != "off":
+                scene_ov, scene_off, serr2 = render_motion.render_scenes_overlay(scenes_ct, brand, res, W, video_y, work, ecfg)
+                if serr2 and a.motion == "on":
+                    raise ClipError("panel scenes unavailable: " + serr2)
+                warnings.append("panel scenes drawn with HyperFrames" if not serr2 else "panel scenes not drawn, the panel shows the backdrop: " + serr2)
+            elif scenes_ct:
+                warnings.append("panel scenes are skipped because --motion off was given")
+            if scenes_ct:
+                mark("panel scenes (HyperFrames)")
             if ecfg and cards_ct:
                 warnings.append("keyword cards are not used in the explainer style (the panel above the speaker carries the graphics)")
                 cards_ct = []
@@ -538,13 +557,18 @@ def main():
                 g.append(f"{vlab}[mo]overlay=eof_action=pass:format=auto[mc]")
                 vlab = "[mc]"
             if ecfg:  # panel behind and seam over the speaker's picture, before the end card is joined on
-                panel_png, perr = explainer.make_panel(brand, res, W, H, ecfg, work, run_ffmpeg)
+                panel_png, perr = explainer.make_panel(brand, res, W, H, ecfg, work, run_ffmpeg, logo_on=not scenes_ct)
                 seam_png, serr = explainer.make_seam(brand, W, H, ecfg, work, run_ffmpeg)
                 if panel_png is None or seam_png is None:
                     raise ClipError("could not build the explainer panel", {"detail": perr or serr})
                 pi = 1 + (1 if flags["end_card"] else 0) + (1 if motion_ov else 0)
                 g.append(f"[{pi}:v]scale={W}:{H},setsar=1,format=yuv420p[pbg]")
-                g.append(f"[pbg]{vlab}overlay=0:{video_y}:shortest=1,format=yuv420p[pv]")
+                base = "[pbg]"
+                if scene_ov:
+                    g.append(f"[{pi + 2}:v]setpts=PTS+{scene_off:.3f}/TB,format=yuva420p[scv]")
+                    g.append("[pbg][scv]overlay=0:0:eof_action=pass:format=auto[pbs]")
+                    base = "[pbs]"
+                g.append(f"{base}{vlab}overlay=0:{video_y}:shortest=1,format=yuv420p[pv]")
                 g.append(f"[pv][{pi + 1}:v]overlay=0:{video_y}:format=auto:shortest=1[pvs]")
                 vlab = "[pvs]"
             g.append(f"[0:a]{ln}[ma]")
@@ -565,6 +589,8 @@ def main():
                 inputs += ["-c:v", "libvpx-vp9", "-i", str(motion_ov)]
             if ecfg:  # the panel and the seam fade are further inputs, after the end card and the motion overlay
                 inputs += ["-loop", "1", "-framerate", str(fps), "-i", str(panel_png), "-loop", "1", "-framerate", str(fps), "-i", str(seam_png)]
+                if scene_ov:
+                    inputs += ["-c:v", "libvpx-vp9", "-i", str(scene_ov)]
             g.append(f"{vlab}ass='{esc(work / 'overlays.ass')}':fontsdir='{esc(res(brand['fonts']['regular']).parent)}'[fv]")
             script = work / "filtergraph.txt"
             script.write_text(";\n".join(g), encoding="utf-8")

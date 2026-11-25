@@ -211,6 +211,53 @@ def write_project(proj, cards, brand, res, W, H, duration):
     (proj / "meta.json").write_text(json.dumps({"id": "cards", "name": "cards"}), encoding="utf-8")
 
 
+def hf_render(proj, out, nice=True):
+    """Render the HyperFrames project in `proj` to a transparent WebM at `out`. Returns an error message, or None when it worked."""
+    cmd = [str(hf_bin()), "render", "--format", "webm", "--fps", str(OVERLAY_FPS), "--output", str(out)]
+    if nice and os.name != "nt" and shutil.which("nice"):
+        cmd = ["nice", "-n", "15", *cmd]
+    r = subprocess.run(cmd, cwd=proj, env=quiet_env(), capture_output=True, text=True, timeout=3600)
+    if r.returncode != 0 or not Path(out).exists() or Path(out).stat().st_size == 0:
+        text = re.sub(r"\s+", " ", (r.stderr or r.stdout))
+        why = "exit code %d" % r.returncode if r.returncode else "no output file was written"
+        return f"HyperFrames render failed ({why}): " + (text[:300] + " ... " if len(text) > 700 else "") + text[-300:]
+    return None
+
+
+def render_scenes_overlay(scenes, brand, res, W, panel_h, work, ecfg, nice=True):
+    """Render the explainer's panel scenes (clip seconds; see scenes.py) to a transparent WebM the size of the panel.
+
+    Returns (path, offset_seconds, error); the caller delays the overlay by `offset`."""
+    import scenes as scn
+    st = status()
+    if not st["ready"]:
+        return None, 0.0, f"{st['detail']} ({st['fix']})"
+    t0 = max(0.0, min(sc["start"] for sc in scenes) - PRE - 0.1)
+    t1 = max(sc["end"] for sc in scenes) + 0.1
+    shifted = [{**sc, "start": sc["start"] - t0, "end": sc["end"] - t0,
+                "els": [None if t is None else t - t0 for t in sc.get("els", [])]} for sc in scenes]
+    work = Path(work).resolve()
+    proj = work / "scenes"
+    if proj.exists():
+        shutil.rmtree(proj)
+    (proj / "assets" / "fonts").mkdir(parents=True)
+    fonts = []
+    for fam, wt, key in (("Brand", 600, "semibold"), ("Mono", 500, "mono_medium"), ("Mono", 700, "mono")):
+        src = res(brand["fonts"].get(key) or brand["fonts"].get("bold") or brand["fonts"]["regular"])
+        shutil.copy(src, proj / "assets" / "fonts" / src.name)
+        fonts.append((fam, wt, src.name))
+    shutil.copy(gsap_file(), proj / "assets" / "gsap.min.js")
+    col = lambda k: brand["colors"][k]
+    colors = {"accent": col("secondary"), "accent2": col("primary"), "text": col("text"), "dim": ecfg["scene_dim"],
+              "card": ecfg["scene_card"], "border": ecfg["scene_border"]}
+    (proj / "index.html").write_text(scn.build_page(shifted, colors, fonts, W, panel_h, t1 - t0), encoding="utf-8")
+    (proj / "hyperframes.json").write_text(json.dumps({"name": "scenes"}), encoding="utf-8")
+    (proj / "meta.json").write_text(json.dumps({"id": "scenes", "name": "scenes"}), encoding="utf-8")
+    out = work / "scenes.webm"
+    err = hf_render(proj, out, nice)
+    return (None, 0.0, err) if err else (out, t0, None)
+
+
 def render_overlay(cards, brand, res, W, H, work, nice=True):
     """Render `cards` (clip seconds) to a transparent WebM. Returns (path, offset_seconds, error).
 
@@ -229,15 +276,8 @@ def render_overlay(cards, brand, res, W, H, work, nice=True):
     proj.mkdir(parents=True)
     write_project(proj, shifted, brand, res, W, H, t1 - t0)
     out = work / "cards.webm"
-    cmd = [str(hf_bin()), "render", "--format", "webm", "--fps", str(OVERLAY_FPS), "--output", str(out)]
-    if nice and os.name != "nt" and shutil.which("nice"):
-        cmd = ["nice", "-n", "15", *cmd]
-    r = subprocess.run(cmd, cwd=proj, env=quiet_env(), capture_output=True, text=True, timeout=1800)
-    if r.returncode != 0 or not out.exists() or out.stat().st_size == 0:
-        text = re.sub(r"\s+", " ", (r.stderr or r.stdout))
-        why = "exit code %d" % r.returncode if r.returncode else "no output file was written"
-        return None, 0.0, f"HyperFrames render failed ({why}): " + (text[:300] + " ... " if len(text) > 700 else "") + text[-300:]
-    return out, t0, None
+    err = hf_render(proj, out, nice)
+    return (None, 0.0, err) if err else (out, t0, None)
 
 
 def main():
