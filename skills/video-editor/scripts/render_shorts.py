@@ -370,9 +370,11 @@ def main():
     sizes = brand.get("output", {}).get("short", {})
     W, H = map(int, sizes.get("resolution", "1080x1920").lower().split("x"))
     fps, lufs = float(sizes.get("fps", 30)), float(sizes.get("lufs", -15))
-    crf, preset = "17", "medium"
+    # encode settings live in brand.json (output.short): the final pass, and the intermediate pieces it re-encodes
+    crf, preset = str(sizes.get("crf", 21)), str(sizes.get("preset", "veryfast"))
+    piece_crf, piece_preset = str(sizes.get("piece_crf", 18)), str(sizes.get("piece_preset", "ultrafast"))
     if a.preview:
-        W, H, crf, preset = 540, 960, "30", "veryfast"
+        W, H, crf, preset, piece_crf, piece_preset = 540, 960, "30", "veryfast", "30", "superfast"
     flags = {"cover": a.cover, "title": not a.no_title, "lower_third": not a.no_lower_third, "end_card": not a.no_end_card}
     cfg = brand["shorts"]
     snap = lambda t: round(t * fps) / fps
@@ -392,6 +394,14 @@ def main():
                 results.append({"id": clip["id"], "ok": False, "error": "no kept ranges inside the source"})
                 continue
 
+            steps, t_mark = {}, time.time()
+
+            def mark(name):  # seconds spent since the last mark, for the report
+                nonlocal t_mark
+                now = time.time()
+                steps[name] = round(steps.get(name, 0.0) + now - t_mark, 1)
+                t_mark = now
+
             # 1. face-aware crop per piece (grouped by source clip)
             plans = {}
             for ci in sorted({p[0] for p in pieces}):
@@ -402,6 +412,7 @@ def main():
                     raise ClipError(f"face detection failed: {e}")
             counters = {ci: 0 for ci in plans}
 
+            mark("face detection")
             # 2. cut and crop each piece on its own (memory stays flat)
             list_lines, main_dur = [], 0.0
             for i, (ci, ls, le) in enumerate(pieces):
@@ -424,7 +435,7 @@ def main():
                     amap, af = "1:a:0", "aresample=48000"
                 pf = work / f"p{i:04d}.mkv"
                 cmd += ["-t", f"{d:.4f}", "-map", "0:v:0", "-map", amap, "-vf", vf, "-af", af, "-c:v", "libx264",
-                        "-crf", "14" if not a.preview else "30", "-preset", "superfast", "-threads", "4", "-pix_fmt", "yuv420p",
+                        "-crf", piece_crf, "-preset", piece_preset, "-threads", "4", "-pix_fmt", "yuv420p",
                         "-r", str(fps), "-c:a", "pcm_s16le", "-ar", "48000", str(pf)]
                 code, err = run_ffmpeg(cmd)
                 if code != 0:
@@ -434,6 +445,7 @@ def main():
             lst = work / "pieces.txt"
             lst.write_text("\n".join(list_lines) + "\n", encoding="utf-8")
 
+            mark("cut and encode pieces")
             # 3. captions, overlay text, end card
             timed = cap.retime(all_words, keep, dedupe=not a.keep_repeats)
             groups = cap.group(timed, brand.get("captions", {}).get("short", {}).get("max_words_per_line", 3))
@@ -461,11 +473,14 @@ def main():
                     warnings.append("motion graphics not used, built-in cards drawn instead: " + merr)
                 else:
                     warnings.append("keyword cards drawn with HyperFrames")
+            mark("cards (HyperFrames)") if motion_ov or (cards_ct and a.motion != "off") else None
             ass = build_ass(brand, res, W, H, groups, clip.get("overlay_title", clip["title"]), clip.get("subtitle", ""),
                             speaker, cfg, main_dur, clip_flags, None if motion_ov else cards_ct, lt_until)
             (work / "overlays.ass").write_text(ass, encoding="utf-8")
             inputs = ["-f", "concat", "-safe", "0", "-i", str(lst)]
+            mark("captions and overlays")
             meas = measure_loudness(lst, lufs)
+            mark("loudness measure")
             if meas:
                 ln = (f"loudnorm=I={lufs}:TP=-1.5:LRA=11:measured_I={meas['input_i']}:measured_TP={meas['input_tp']}:"
                       f"measured_LRA={meas['input_lra']}:measured_thresh={meas['input_thresh']}:offset={meas['target_offset']}:linear=true")
@@ -518,8 +533,10 @@ def main():
                                     "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart", str(out_mp4)])
             if code != 0:
                 raise ClipError("ffmpeg failed on the final pass", {"detail": err[-800:], "filtergraph": str(script)})
+            mark("final encode")
             if flags["title"]:
                 run_ffmpeg(["-ss", f"{float(cfg['title'].get('seconds', 3)) * 0.78:.2f}", "-i", str(out_mp4), "-frames:v", "1", "-q:v", "2", str(d_out / "cover.png")])
+            mark("cover and checks")
             measured = measured_duration(out_mp4)
             if measured is not None and abs(measured - total) > 0.5:
                 warnings.append(f"measured length {measured:.2f}s differs from expected {total:.2f}s")
@@ -531,7 +548,7 @@ def main():
                 shutil.rmtree(work, ignore_errors=True)
             faces = [p for pl in plans.values() for p in pl["pieces"]]
             results.append({"id": clip["id"], "ok": True, "video": str(out_mp4), "expected_seconds": round(total, 3),
-                        "seconds_taken": round(time.time() - t_clip, 1),
+                        "seconds_taken": round(time.time() - t_clip, 1), "step_seconds": steps,
                             "measured_seconds": measured, "pieces": len(pieces),
                             "faces_found": f"{sum(p['faces_found'] > 0 for p in faces)}/{len(faces)} pieces", "warnings": warnings})
         except ClipError as e:

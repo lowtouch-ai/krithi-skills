@@ -60,7 +60,11 @@
     "short": {
       "resolution": "1080x1920",
       "fps": 30,
-      "lufs": -15
+      "lufs": -15,
+      "crf": 21,
+      "preset": "veryfast",
+      "piece_crf": 18,
+      "piece_preset": "ultrafast"
     }
   },
   "glossary": [
