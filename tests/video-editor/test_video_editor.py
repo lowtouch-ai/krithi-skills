@@ -761,6 +761,21 @@ expect("TIP &lt;1&gt;" in _pg and "/init &lt;x&gt;" in _pg and "t &amp; t" in _p
 expect("http://" not in _pg and "https://" not in _pg and "background: transparent" in _pg, "the page loads nothing from the network and is transparent")
 expect(_pg.count("immediateRender: false") == 1 and 'steps(9)' in _pg, "the exit tween has immediateRender false and a 9-character command is typed in 9 steps")
 
+# structure elements: call-to-action pills and the recap end card
+_e1, _w1 = [], []
+_ct, _rc = _ex.check_extras({"cta": [{"text": "DM us", "say": "managing agent", "seconds": 3}], "recap": {"label": "3 ideas", "items": [{"n": "01", "text": "One"}, {"text": "Two"}], "follow": "Follow us"}},
+                            "clip 1", _w3, 0.0, _vc.find_phrase, _e1, _w1)
+expect(not _e1 and len(_ct) == 1 and abs(_ct[0]["at"] - 1.6) < 0.01 and _rc["label"] == "3 ideas", f"a valid pill and recap pass: {_e1} {_ct}")
+_e2 = []
+_ex.check_extras({"cta": [{"text": "x" * 30, "say": "managing agent"}, {"text": "ok", "say": "nowhere at all"}, {"text": "ok", "say": "agent", "seconds": 20}],
+                  "recap": {"items": [{"text": "a"}] * 6}}, "clip 1", _w3, 0.0, _vc.find_phrase, _e2, [])
+expect(len(_e2) == 4, f"a long pill, an unspoken phrase, a bad length and too many recap items are all refused: {_e2}")
+_evs.clear()
+_ex.cta_events(_evf, 1080, 1920, 768, [{"text": "DM lowtouch.ai", "start": 2.0, "end": 6.0}], _mono, "&H00DE47FB&", "&H00FFFFFF&", lambda s_: s_, lambda w_, h_, r_: "m 0 0", 5.0)
+expect(len(_evs) == 2 and _evs[0][2] == 5.0 and "DM lowtouch.ai" in _evs[1][4], f"the pill is drawn and cut off at the end of the clip: {_evs}")
+_rows = _ex.recap_rows([{"n": "01", "text": "Docs first"}, {"n": "02", "text": "Prompt builder"}, {"n": "03", "text": "Plan mode, then challenge it"}], _mono, 60, 1080)
+expect(len(_rows) >= 2 and sum(len(r_) for r_ in _rows) == 3, f"recap items wrap into rows that fit the width: {[len(r_) for r_ in _rows]}")
+
 # a relative work folder must not break the render (it runs inside the project folder)
 import subprocess as _sp, types as _ty2
 _seen = {}

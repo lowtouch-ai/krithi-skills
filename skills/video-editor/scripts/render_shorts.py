@@ -256,7 +256,9 @@ def build_ass(brand, res, W, H, words_groups, title, subtitle, speaker, cfg, mai
         mono_fi, semi_fi = font_info(res(mono)), font_info(res(fonts.get("semibold", fonts["regular"])))
         Fm = Font(res(mono))
         cap_ass = int(H * ecfg["caption_em"] / Fm.em(1))  # the ASS size that gives the em size wanted
-        ex = explainer.style_lines(mono_fi, (reg_fam, reg_b), semi_fi, H, white, green, ass_color("#9AA0C8"), ecfg, cap_ass)
+        Fsemi_e, Freg_e = Font(res(fonts.get("semibold", fonts["regular"]))), Font(res(fonts["regular"]))
+        ex = explainer.style_lines({"mono": mono_fi, "reg": (reg_fam, reg_b), "semi": semi_fi}, {"mono": Fm, "semi": Fsemi_e, "reg": Freg_e},
+                                   H, white, green, ass_color("#9AA0C8"), ecfg, cap_ass)
         L[len(L) - 3:len(L) - 3] = ex
     ev = lambda layer, a, b, style, text: L.append(f"Dialogue: {layer},{ass_time(a)},{ass_time(b)},{style},,0,0,0,,{text}")
     safe = lambda s: s.replace("{", "(").replace("}", ")").replace("\\", "")
@@ -278,6 +280,7 @@ def build_ass(brand, res, W, H, words_groups, title, subtitle, speaker, cfg, mai
         explainer.panel_title_events(ev, W, H, (clip or {}).get("panel_title", ""), ecfg, safe, 0.0, main_dur)
         if flags["lower_third"] and speaker:
             explainer.name_tag_events(ev, W, H, speaker, ecfg, navy, green, safe, 0.5, min(0.5 + ecfg["name_tag_seconds"], main_dur))
+        explainer.cta_events(ev, W, H, int(round(H * ecfg["panel_share"] / 2.0)) * 2, (clip or {}).get("cta_ct") or [], Fm, mag, white, safe, rrect, main_dur)
     elif capc.get("style", "box") == "box":
         caption_box_events(ev, Fs[capc.get("font", "bold")], W, H, words_groups, cap_sz, white, hi, safe,
                            t_min=(T - 0.45) if (flags["title"] and title) else 0.0)
@@ -303,7 +306,10 @@ def build_ass(brand, res, W, H, words_groups, title, subtitle, speaker, cfg, mai
         ev(5, a, b, "Name", f"{{\\pos({bx + int(bw * 0.07)},{by + int(bh * 0.10)}){fad}}}{safe(speaker[0])}")
         if len(speaker) > 1 and speaker[1]:
             ev(5, a, b, "Role", f"{{\\pos({bx + int(bw * 0.07)},{by + int(bh * 0.10 + H * 0.034 * 1.05)}){fad}}}{safe(speaker[1])}")
-    if flags["end_card"]:
+    if flags["end_card"] and ecfg and (clip or {}).get("recap"):
+        e0 = main_dur
+        explainer.recap_events(ev, W, H, clip["recap"], e0, e0 + ecfg["recap_seconds"], white, green, Fsemi_e, int(H * 0.0265 / Fsemi_e.em(1)), safe)
+    elif flags["end_card"]:
         e0, e1 = main_dur, main_dur + float(cfg["end_card"].get("seconds", 3))
         url = cfg["end_card"].get("url", "")
         if url:
@@ -489,6 +495,13 @@ def main():
                     scenes_ct.append({"type": sc["type"], "tag": sc.get("tag", ""), "data": sc.get("data") or {},
                                       "start": kept_before(keep, sc["at"]), "end": kept_before(keep, sc["end"]),
                                       "els": [kept_before(keep, p["at"]) if "at" in p else None for _, _, p in scn._parts(sc)]})
+            cta_ct = []
+            if ecfg:
+                for c_ in clip.get("cta") or []:
+                    if "at" not in c_:
+                        raise ClipError("the clip's call-to-action pills were not resolved; run validate_clips.py --style explainer")
+                    s0 = kept_before(keep, c_["at"])
+                    cta_ct.append({"text": c_["text"], "start": s0, "end": s0 + float(c_.get("seconds", 4))})
             scene_ov, scene_off = None, 0.0
             if scenes_ct and a.motion != "off":
                 scene_ov, scene_off, serr2 = render_motion.render_scenes_overlay(scenes_ct, brand, res, W, video_y, work, ecfg)
@@ -524,7 +537,7 @@ def main():
                     warnings.append("keyword cards drawn with HyperFrames")
             mark("cards (HyperFrames)") if motion_ov or (cards_ct and a.motion != "off") else None
             ass = build_ass(brand, res, W, H, groups, clip.get("overlay_title", clip["title"]), clip.get("subtitle", ""),
-                            speaker, cfg, main_dur, clip_flags, None if motion_ov else cards_ct, lt_until, a.style, clip)
+                            speaker, cfg, main_dur, clip_flags, None if motion_ov else cards_ct, lt_until, a.style, {**clip, "cta_ct": cta_ct})
             (work / "overlays.ass").write_text(ass, encoding="utf-8")
             inputs = ["-f", "concat", "-safe", "0", "-i", str(lst)]
             mark("captions and overlays")
@@ -574,10 +587,11 @@ def main():
             g.append(f"[0:a]{ln}[ma]")
             total = main_dur
             if flags["end_card"]:
-                card, err = make_end_card(brand, res, W, H, work)
+                recap = bool(ecfg and clip.get("recap"))
+                card, err = (explainer.make_panel(brand, res, W, H, ecfg, work, run_ffmpeg, True, True, "recap") if recap else make_end_card(brand, res, W, H, work))
                 if card is None:
                     raise ClipError("could not build the end card", {"detail": err})
-                es = float(cfg["end_card"].get("seconds", 3))
+                es = ecfg["recap_seconds"] if recap else float(cfg["end_card"].get("seconds", 3))
                 inputs += ["-loop", "1", "-framerate", str(fps), "-t", str(es), "-i", str(card)]
                 g.append(f"[1:v]scale={W}:{H},setsar=1,fps={fps},format=yuv420p,fade=t=in:st=0:d=0.35[ev]")
                 g.append(f"anullsrc=r=48000:cl=stereo,atrim=0:{es},asetpts=PTS-STARTPTS[ea]")

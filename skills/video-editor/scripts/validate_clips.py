@@ -250,7 +250,17 @@ def check(clips, sents, analysis, levels=None, tx_words=None, unreliable=(), lim
                 import scenes as scn
                 cw2 = [w for w in tx_words if start - 0.05 <= w["start"] <= end + 0.05]
                 scenes_out = scn.resolve_scenes(c, tag, cw2, start, end, errors, warnings, find_phrase)
-        out.append({**c, "cards": cards, "scenes": scenes_out if c.get("scenes") else c.get("scenes"), "start": round(start, 3), "end": round(end, 3), "seconds": round(raw, 1),
+        extras = {}
+        if c.get("cta") or c.get("recap"):
+            if style != "explainer":
+                warnings.append(f"{tag}: call-to-action pills and the recap are drawn only in the explainer style; run with --style explainer")
+            elif not tx_words:
+                errors.append(f"{tag}: call-to-action pills need the transcript; pass --transcript")
+            else:
+                import explainer as expl
+                ctas, recap = expl.check_extras(c, tag, [w for w in tx_words if start - 0.05 <= w["start"] <= end + 0.05], start, find_phrase, errors, warnings)
+                extras = {"cta": ctas, "recap": recap}
+        out.append({**c, **extras, "cards": cards, "scenes": scenes_out if c.get("scenes") else c.get("scenes"), "start": round(start, 3), "end": round(end, 3), "seconds": round(raw, 1),
                     "effective_seconds": round(eff, 1), "at": hms(start), "text": text})
     ordered = sorted(out, key=lambda x: x["start"])
     for x, y in zip(ordered, ordered[1:]):

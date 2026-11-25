@@ -10,7 +10,9 @@ Only when the user asks in words ("split-screen", "explainer", "graphics above t
 - **Panel:** a dark gradient with an optional `panel_title` label at the top left. It holds animated **scenes** (below); with no scenes it shows the brand wordmark.
 - **Captions:** monospace (JetBrains Mono), upper case, up to four words at a time, centred at the seam. Words listed in the clip's `highlights` are drawn in the accent colour. A caption that is too wide is drawn smaller.
 - **Name tag:** bottom left with an accent bar, for the first few seconds.
-- **Not drawn:** keyword cards (the panel replaces them) and the blurred cover title. The end card is unchanged.
+- **Call-to-action pill:** a magenta pill at the bottom left of the panel (`cta`).
+- **Recap end card:** a dark card with the wordmark, a label, the points and a follow line (`recap`). Without a `recap` the normal end card is used.
+- **Not drawn:** keyword cards (the panel replaces them) and the blurred cover title.
 
 ## Panel scenes (templates)
 A clip's `scenes` list puts animated graphics in the panel, each starting when its `say` words are spoken and staying until the next scene starts. Pick the scene type that shows what the speaker is saying; fill in short text, and give parts their own `say` so they appear as the speaker reaches them (parts without one are spread evenly). Aim for about one scene every 10 seconds, at least 3 seconds each. Optional `tag` (up to 14 characters, such as "STEP 1") is drawn as a small outlined label above the scene.
@@ -32,8 +34,15 @@ Text limits: node and item titles 34 characters, subtitles 24, lines and rows 38
 ```
 Scenes are drawn with HyperFrames, so the explainer needs it installed (`render_motion.py --setup`). Without it the render says so and shows the backdrop. A scene that no template fits is not supported yet; choose the closest template or leave the panel to the backdrop.
 
+## Shape of a tips-style explainer
+The reference video follows this shape, and the template parts build it:
+1. **Opening:** a `title` scene at the first words: a label ("TOPIC · 3 TIPS"), an icon and a name, and optionally the points as `items` that appear as they are announced.
+2. **One scene per point,** each with a `tag` such as "TIP 01", "TIP 02", so the viewer sees where they are. Choose `terminal`, `tree` or `flow` to show the point.
+3. **Call-to-action pills:** `"cta": [{"text": "DM lowtouch.ai", "say": "words where it appears", "seconds": 4}]`, text up to 24 characters, shown 2 to 8 seconds. One or two per clip.
+4. **Recap end card:** `"recap": {"label": "3 tips", "items": [{"n": "01", "text": "Docs first"}, ...], "follow": "Follow lowtouch.ai for more AI agent tips"}`, one to four items (up to 34 characters each); it stays 5 seconds (`recap_seconds`).
+
 ## What to write in clips.json
-Everything in `formats.md`, plus `scenes`, `highlights` (the product names and key terms the viewer should catch, a handful per clip) and `panel_title` (two to four words). Check clips with `validate_clips.py --style explainer`: the length range is 30 to 150 seconds, with 20 to 180 allowed (`shorts.explainer.length` in `brand.json`).
+Everything in `formats.md`, plus `scenes`, `cta`, `recap`, `highlights` (the product names and key terms the viewer should catch, a handful per clip) and `panel_title` (two to four words). Check clips with `validate_clips.py --style explainer`: the length range is 30 to 150 seconds, with 20 to 180 allowed (`shorts.explainer.length` in `brand.json`).
 
 ## Where the numbers live
 `brand.json` under `shorts.explainer`: panel share, seam height, speaker zoom, caption size and spacing, panel colours and the length range. The captions' font is `fonts.mono`. Change them there, not in code.

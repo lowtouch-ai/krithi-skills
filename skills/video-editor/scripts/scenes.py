@@ -157,8 +157,6 @@ def resolve_scenes(clip, tag, words, start, end, errors, warnings, find_phrase, 
             warnings.append(f"{tag}: scene '{a.get('type')}' is replaced {b['at'] - a['at']:.1f} s after it appears; give each scene at least 3 s")
     if out:
         out[-1]["end"] = round(end - 0.3, 3)
-        if out[0]["at"] - start < 3.0:
-            warnings.append(f"{tag}: the first scene starts in the first 3 s, when the name tag shows; that is fine, but check they do not clash")
     return out
 
 
@@ -268,7 +266,7 @@ def build_page(scenes, colors, fonts, W, panel_h, duration):
               font-family: "Mono"; font-size: {px(24)}; color: {c["dim"]}; }}
       .bar i {{ width: {px(14)}; height: {px(14)}; border-radius: 50%; background: {c["border"]}; display: inline-block; }}
       .bar span {{ margin-left: {px(8)}; }}
-      .wb {{ padding: {px(20)} {px(18)} {px(24)}; min-height: {px(300)}; }}
+      .wb {{ padding: {px(20)} {px(18)} {px(24)}; min-height: {px(250)}; }}
       .ln {{ font-family: "Mono"; font-weight: 500; font-size: {px(32)}; line-height: {px(50)}; white-space: nowrap; display: flex; padding-left: {px(8)}; }}
       .ln .pr {{ width: {px(36)}; flex: none; color: {c["accent2"]}; }}
       .ln .tx {{ display: inline-block; overflow: hidden; }}
