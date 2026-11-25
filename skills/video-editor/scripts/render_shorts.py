@@ -52,6 +52,7 @@ from _vlib import clip_keep, kept_before, load_json, words_of  # noqa: E402
 from fontmetrics import Font  # noqa: E402
 import captions as cap  # noqa: E402
 import cardlayout  # noqa: E402
+import explainer  # noqa: E402
 import render_motion  # noqa: E402
 from render_long import (DEFAULT_BRAND, FADE, ass_color, ass_time, esc, font_info, load_brand,  # noqa: E402
                          measure_loudness, measured_duration, run_ffmpeg, split_by_clip)
@@ -212,7 +213,7 @@ def card_events(ev, Fs, W, H, cards, colors, safe, ccfg):
             y += ph + gap + arrow_h
 
 
-def build_ass(brand, res, W, H, words_groups, title, subtitle, speaker, cfg, main_dur, flags, cards=None, lt_until=None):
+def build_ass(brand, res, W, H, words_groups, title, subtitle, speaker, cfg, main_dur, flags, cards=None, lt_until=None, style="reel", clip=None):
     colors = brand["colors"]
     col = lambda n: colors.get(n, n if str(n).startswith("#") else "#FFFFFF")
     fonts = brand["fonts"]
@@ -249,6 +250,14 @@ def build_ass(brand, res, W, H, words_groups, title, subtitle, speaker, cfg, mai
         f"Style: Shape,{reg_fam},20,&H00FFFFFF&,&H00FFFFFF&,&H00000000&,&H00000000&,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,1",
         f"Style: Url,{med_fam},{int(H * 0.031)},&H00FFFFFF&,&H00FFFFFF&,&H00000000&,&H00000000&,0,1,0,0,100,100,0,0,1,0,0,5,0,0,0,1",
         "", "[Events]", "Format: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text"]
+    ecfg = explainer.settings(brand) if style == "explainer" else None
+    if ecfg:
+        mono = fonts.get("mono", fonts.get("bold", fonts["regular"]))
+        mono_fi, semi_fi = font_info(res(mono)), font_info(res(fonts.get("semibold", fonts["regular"])))
+        Fm = Font(res(mono))
+        cap_ass = int(H * ecfg["caption_em"] / Fm.em(1))  # the ASS size that gives the em size wanted
+        ex = explainer.style_lines(mono_fi, (reg_fam, reg_b), semi_fi, H, white, green, ass_color("#9AA0C8"), ecfg, cap_ass)
+        L[len(L) - 3:len(L) - 3] = ex
     ev = lambda layer, a, b, style, text: L.append(f"Dialogue: {layer},{ass_time(a)},{ass_time(b)},{style},,0,0,0,,{text}")
     safe = lambda s: s.replace("{", "(").replace("}", ")").replace("\\", "")
     T = float(cfg["title"].get("seconds", 3))
@@ -264,7 +273,12 @@ def build_ass(brand, res, W, H, words_groups, title, subtitle, speaker, cfg, mai
             if subtitle:
                 ev(2, 0, T, "Sub", f"{{\\pos({W // 2},{int(ry + H * 0.05)})\\fad({int(TITLE_FADE * 1000)},{int(TITLE_FADE * 1000)})}}{safe(subtitle)}")
     Fs = {k: Font(res(fonts[k])) for k in ("regular", "medium", "semibold", "bold") if k in fonts}
-    if capc.get("style", "box") == "box":
+    if ecfg:
+        explainer.caption_events(ev, Fm, W, H, words_groups, ecfg, white, green, "", safe, (clip or {}).get("highlights"), cap_ass)
+        explainer.panel_title_events(ev, W, H, (clip or {}).get("panel_title", ""), ecfg, safe, 0.0, main_dur)
+        if flags["lower_third"] and speaker:
+            explainer.name_tag_events(ev, W, H, speaker, ecfg, navy, green, safe, 0.5, min(0.5 + ecfg["name_tag_seconds"], main_dur))
+    elif capc.get("style", "box") == "box":
         caption_box_events(ev, Fs[capc.get("font", "bold")], W, H, words_groups, cap_sz, white, hi, safe,
                            t_min=(T - 0.45) if (flags["title"] and title) else 0.0)
     else:
@@ -274,9 +288,9 @@ def build_ass(brand, res, W, H, words_groups, title, subtitle, speaker, cfg, mai
                 b = grp[k + 1]["start"] if k + 1 < len(grp) else grp[-1]["end"]
                 parts = [("{\\1c" + (hi if j == k else white) + "}") + safe(x["word"]) for j, x in enumerate(grp)]
                 ev(3, a, b, "Cap", " ".join(parts))
-    if cards:
+    if cards and not ecfg:
         card_events(ev, Fs, W, H, cards, (mag, green, navy, ass_color(col("text")), ass_color(col("surface"))), safe, cardlayout.settings(brand))
-    if flags["lower_third"] and speaker:
+    if flags["lower_third"] and speaker and not ecfg:
         a = T if flags["title"] else 0.5
         b = min(a + float(cfg["lower_third"].get("seconds", 16)), main_dur)
         if lt_until is not None:
@@ -342,6 +356,8 @@ def main():
                     help="reveal (default): staggered title tiers, a green rule and a subtitle over the blurred video, then a crossfade; static: plain title")
     ap.add_argument("--no-lower-third", "--no-lower-thirds", dest="no_lower_third", action="store_true")
     ap.add_argument("--no-end-card", action="store_true")
+    ap.add_argument("--style", choices=["reel", "explainer"], default="reel",
+                    help="reel: the speaker fills the frame (default); explainer: a graphic panel on top, the speaker below, monospace captions")
     ap.add_argument("--motion", choices=["auto", "off", "on"], default="auto",
                     help="draw keyword cards with HyperFrames (needs render_motion.py --setup): auto uses it when ready, on requires it, off uses the built-in ffmpeg cards")
     ap.add_argument("--keep-work", action="store_true")
@@ -383,6 +399,10 @@ def main():
         W, H, crf, preset, piece_crf, piece_preset = 540, 960, "30", "veryfast", "30", "superfast"
     flags = {"cover": a.cover, "title": not a.no_title, "lower_third": not a.no_lower_third, "end_card": not a.no_end_card}
     cfg = brand["shorts"]
+    ecfg = explainer.settings(brand) if a.style == "explainer" else None
+    video_y, PH = explainer.geometry(W, H, ecfg) if ecfg else (0, H)  # PH: height of the speaker's picture
+    if ecfg:
+        flags["title"] = False  # the explainer has no blurred cover; its panel carries the opening
     snap = lambda t: round(t * fps) / fps
     all_words = words_of(transcript)
     results, clipsrc = [], src["clips"]
@@ -413,7 +433,8 @@ def main():
             for ci in sorted({p[0] for p in pieces}):
                 rng = [(ls, le) for (c, ls, le) in pieces if c == ci]
                 try:
-                    plans[ci] = detect(clipsrc[ci]["path"], rng, a.punch_in)
+                    plans[ci] = (detect(clipsrc[ci]["path"], rng, a.punch_in, W / float(PH), ecfg["speaker_zoom"], ecfg["face_at"]) if ecfg
+                                 else detect(clipsrc[ci]["path"], rng, a.punch_in))
                 except (RuntimeError, ImportError) as e:
                     raise ClipError(f"face detection failed: {e}")
             counters = {ci: 0 for ci in plans}
@@ -430,7 +451,7 @@ def main():
                 lsn, len_ = snap(ls), snap(le)
                 d = max(len_ - lsn, 1 / fps)
                 main_dur += d
-                vf = (f"crop={cx['w']}:{cx['h']}:{cx['x']}:{cx['y']},scale={W}:{H}:flags=lanczos,setsar=1,fps={fps},format=yuv420p")
+                vf = (f"crop={cx['w']}:{cx['h']}:{cx['x']}:{cx['y']},scale={W}:{PH}:flags=lanczos,setsar=1,fps={fps},format=yuv420p")
                 cmd = ["-ss", f"{lsn:.4f}", "-i", clipsrc[ci]["path"]]
                 if clipsrc[ci].get("has_audio"):
                     amap = "0:a:0"
@@ -454,11 +475,14 @@ def main():
             mark("cut and encode pieces")
             # 3. captions, overlay text, end card
             timed = cap.retime(all_words, keep, dedupe=not a.keep_repeats)
-            groups = cap.group(timed, brand.get("captions", {}).get("short", {}).get("max_words_per_line", 3))
+            groups = cap.group(timed, ecfg["caption_words"] if ecfg else brand.get("captions", {}).get("short", {}).get("max_words_per_line", 3))
             (d_out / "clip.srt").write_text(cap.to_srt(cap.group(timed)), encoding="utf-8")
             cards_ct = [{"label": k["label"], "chain": k.get("chain", False), "start": kept_before(keep, k["start"]), "end": kept_before(keep, k["end"]),
                          "items": [{"text": i["text"], "at": kept_before(keep, i["at"])} for i in k["items"]]} for k in clip.get("cards") or []]
             clip_flags, lt_until = dict(flags), None
+            if ecfg and cards_ct:
+                warnings.append("keyword cards are not used in the explainer style (the panel above the speaker carries the graphics)")
+                cards_ct = []
             if cards_ct and clip_flags["lower_third"]:
                 # the name tag and the cards share the bottom of the frame: show the name until just before the first card,
                 # but only when that leaves at least 3 seconds to read it
@@ -481,7 +505,7 @@ def main():
                     warnings.append("keyword cards drawn with HyperFrames")
             mark("cards (HyperFrames)") if motion_ov or (cards_ct and a.motion != "off") else None
             ass = build_ass(brand, res, W, H, groups, clip.get("overlay_title", clip["title"]), clip.get("subtitle", ""),
-                            speaker, cfg, main_dur, clip_flags, None if motion_ov else cards_ct, lt_until)
+                            speaker, cfg, main_dur, clip_flags, None if motion_ov else cards_ct, lt_until, a.style, clip)
             (work / "overlays.ass").write_text(ass, encoding="utf-8")
             inputs = ["-f", "concat", "-safe", "0", "-i", str(lst)]
             mark("captions and overlays")
@@ -513,6 +537,16 @@ def main():
                 g.append(f"[{mi}:v]setpts=PTS+{motion_off:.3f}/TB,format=yuva420p[mo]")
                 g.append(f"{vlab}[mo]overlay=eof_action=pass:format=auto[mc]")
                 vlab = "[mc]"
+            if ecfg:  # panel behind and seam over the speaker's picture, before the end card is joined on
+                panel_png, perr = explainer.make_panel(brand, res, W, H, ecfg, work, run_ffmpeg)
+                seam_png, serr = explainer.make_seam(brand, W, H, ecfg, work, run_ffmpeg)
+                if panel_png is None or seam_png is None:
+                    raise ClipError("could not build the explainer panel", {"detail": perr or serr})
+                pi = 1 + (1 if flags["end_card"] else 0) + (1 if motion_ov else 0)
+                g.append(f"[{pi}:v]scale={W}:{H},setsar=1,format=yuv420p[pbg]")
+                g.append(f"[pbg]{vlab}overlay=0:{video_y}:shortest=1,format=yuv420p[pv]")
+                g.append(f"[pv][{pi + 1}:v]overlay=0:{video_y}:format=auto:shortest=1[pvs]")
+                vlab = "[pvs]"
             g.append(f"[0:a]{ln}[ma]")
             total = main_dur
             if flags["end_card"]:
@@ -529,6 +563,8 @@ def main():
                 alab = "[ma]"
             if motion_ov:
                 inputs += ["-c:v", "libvpx-vp9", "-i", str(motion_ov)]
+            if ecfg:  # the panel and the seam fade are further inputs, after the end card and the motion overlay
+                inputs += ["-loop", "1", "-framerate", str(fps), "-i", str(panel_png), "-loop", "1", "-framerate", str(fps), "-i", str(seam_png)]
             g.append(f"{vlab}ass='{esc(work / 'overlays.ass')}':fontsdir='{esc(res(brand['fonts']['regular']).parent)}'[fv]")
             script = work / "filtergraph.txt"
             script.write_text(";\n".join(g), encoding="utf-8")
@@ -540,8 +576,8 @@ def main():
             if code != 0:
                 raise ClipError("ffmpeg failed on the final pass", {"detail": err[-800:], "filtergraph": str(script)})
             mark("final encode")
-            if flags["title"]:
-                run_ffmpeg(["-ss", f"{float(cfg['title'].get('seconds', 3)) * 0.78:.2f}", "-i", str(out_mp4), "-frames:v", "1", "-q:v", "2", str(d_out / "cover.png")])
+            if flags["title"] or ecfg:
+                run_ffmpeg(["-ss", "2.5" if ecfg else f"{float(cfg['title'].get('seconds', 3)) * 0.78:.2f}", "-i", str(out_mp4), "-frames:v", "1", "-q:v", "2", str(d_out / "cover.png")])
             mark("cover and checks")
             measured = measured_duration(out_mp4)
             if measured is not None and abs(measured - total) > 0.5:

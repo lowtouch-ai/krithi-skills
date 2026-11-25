@@ -614,6 +614,31 @@ if shutil.which("ffmpeg") and shutil.which("ffprobe"):
             sys.argv = _argv
         expect(_code3 != 0 and "finished clips" in _buf3.getvalue(), f"a folder with a finished clip must still be refused: {_buf3.getvalue()[:200]}")
 
+        # the explainer style renders: split layout, upper-case mono captions, cards ignored
+        _rf2.detect = _flaky
+        _calls[0] = 5
+        two_e = write("explainer_clip.json", {"version": 1, "clips": [
+            {"id": 1, "title": "Ex", "start": 0.0, "end": 12.0, "at": "00:00:00", "effective_seconds": 12.0, "caption": "c", "reason": "r", "hook": "Welcome",
+             "highlights": ["welcome"], "panel_title": "A topic", "cards": [{"label": "L", "chain": False, "start": 3.0, "end": 6.0, "items": [{"text": "x", "at": 3.5}]}]}]})
+        _bufe = _io.StringIO()
+        sys.argv = ["render_shorts.py", "--source", str(src), "--clips", two_e, "--transcript", rt, "--out-dir", str(tmp / "shorts_exp"), "--style", "explainer", "--preview", "--keep-work", "--no-end-card"]
+        try:
+            with _cl.redirect_stdout(_bufe):
+                _codee = _rs.main()
+        finally:
+            sys.argv = _argv
+            _rf2.detect = _real_detect
+        _repe = json.loads(_bufe.getvalue()) if _bufe.getvalue().strip().startswith("{") else {}
+        _vid = tmp / "shorts_exp" / "clip-01-ex" / "clip.mp4"
+        expect(_codee == 0 and _vid.exists(), f"the explainer style must render: {_bufe.getvalue()[:400]}")
+        if _vid.exists():
+            _pr = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=width,height", "-of", "csv=p=0", str(_vid)], capture_output=True, text=True).stdout.split()
+            expect(_pr and _pr[0].startswith("540,960"), f"the explainer output is 9:16: {_pr}")
+            _assf = (tmp / "shorts_exp" / "clip-01-ex" / "work" / "overlays.ass").read_text(encoding="utf-8")
+            expect("ExpCap" in _assf and "WELCOME" in _assf and "Style: Cap," in _assf, "the explainer captions are upper case in the mono style")
+            expect("CardPill" not in _assf.split("[Events]")[1], "keyword cards are not drawn in the explainer style")
+            expect(any("not used in the explainer" in w_ for c_ in _repe.get("clips", []) for w_ in c_.get("warnings", [])), "a clip with cards says they are not used")
+
         # an invalid cut list is refused before ffmpeg runs
         badcl = write("render_bad.json", {"version": 1, "source": {"duration": 30.0}, "keep": [{"start": 5.0, "end": 2.0}]})
         rb = run("render_long.py", "--source", str(src), "--cutlist", badcl, "--out-dir", str(tmp / "r_bad"))
@@ -682,6 +707,35 @@ expect(_rlg.translate_filter_args(_rlg.translate_filter_args(_fa, "new"), "old")
 expect(_rlg.filter_script_style() in ("old", "new"), "the style is detected from the installed ffmpeg")
 import render_shorts as _rsh
 expect(isinstance(_rsh.face_model_present(), bool), "the face-model check answers yes or no")
+
+# explainer style: crop shape, geometry, captions and name tag
+import explainer as _ex
+import reframe as _rfm
+_bx = _rfm.crop_box(1920, 1080, 960, 450, 1.0, 1080 / 1152.0, 0.40)
+expect(abs(_bx[2] / _bx[3] - 1080 / 1152.0) < 0.01 and _bx[0] >= 0 and _bx[0] + _bx[2] <= 1920, f"the crop must have the requested shape and stay inside the frame: {_bx}")
+_bz = _rfm.crop_box(1920, 1080, 960, 450, 1.25, 1080 / 1152.0, 0.40)
+expect(_bz[3] < _bx[3], "a zoom must give a tighter crop")
+_ecf = _ex.settings({})
+_vy, _vh = _ex.geometry(1080, 1920, _ecf)
+expect(_vy % 2 == 0 and _vh % 2 == 0 and _vy + _vh == 1920 and abs(_vy - 0.40 * 1920) < 3, f"geometry: {_vy} {_vh}")
+_evs = []
+_evf = lambda layer, a_, b_, sty, txt: _evs.append((layer, a_, b_, sty, txt))
+_mono = _Font(str(scripts / "../assets/brand/fonts/JetBrainsMono-Bold.ttf"))
+_cap_size = int(1920 * _ecf["caption_em"] / _mono.em(1))
+_grp = [[_w2("so", 0.0, 0.2), _w2("agents", 0.3, 0.7), _w2("managing", 0.8, 1.2)], [_w2("agents.", 1.3, 1.8)]]
+_ex.caption_events(_evf, _mono, 1080, 1920, _grp, _ecf, "&H00FFFFFF&", "&H0057D97E&", "", lambda s_: s_, ["Agents"], _cap_size)
+_t0 = _evs[0][4]
+expect(len(_evs) == 2 and "SO" in _t0 and "AGENTS" in _t0 and "MANAGING" in _t0, f"captions are upper case: {_t0}")
+expect(_t0.count("&H0057D97E&") == 1 and _evs[1][4].count("&H0057D97E&") == 1, f"only the keyword is in the accent colour: {_t0} {_evs[1][4]}")
+expect(_evs[0][2] <= _grp[1][0]["start"] + 1e-6, "a caption ends when the next one starts")
+_long = [[_w2("extraordinarily", 0, .5), _w2("complicated", .6, 1), _w2("orchestration", 1.1, 1.6), _w2("infrastructure", 1.7, 2.2)]]
+_evs.clear(); _ex.caption_events(_evf, _mono, 1080, 1920, _long, _ecf, "&H00FFFFFF&", "&H0057D97E&", "", lambda s_: s_, None, _cap_size)
+_fs = int(__import__("re").search(r"\\fs(\d+)", _evs[0][4]).group(1))
+expect(_fs < _cap_size, f"a caption that is too wide for the frame is drawn smaller: {_fs} < {_cap_size}")
+_evs.clear(); _ex.name_tag_events(_evf, 1080, 1920, ["Ann Lee", "CEO"], _ecf, "&H00000000&", "&H0057D97E&", lambda s_: s_, 0.5, 5.5)
+expect(len(_evs) == 4 and any("ExpName" in e_[3] for e_ in _evs) and any("ExpRole" in e_[3] for e_ in _evs), "name tag: box, bar, name and role")
+_evs.clear(); _ex.name_tag_events(_evf, 1080, 1920, None, _ecf, "", "", lambda s_: s_, 0, 1)
+expect(_evs == [], "no speaker, no name tag")
 
 # a relative work folder must not break the render (it runs inside the project folder)
 import subprocess as _sp, types as _ty2

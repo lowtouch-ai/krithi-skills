@@ -159,7 +159,8 @@ def resolve_cards(clip, tag, cw, text, start, end, errors, warnings, keep=None, 
     return out
 
 
-def check(clips, sents, analysis, levels=None, tx_words=None, unreliable=()):
+def check(clips, sents, analysis, levels=None, tx_words=None, unreliable=(), limits=None):
+    hard_min, hard_max, soft_min, soft_max = limits or (HARD_MIN, HARD_MAX, SOFT_MIN, SOFT_MAX)
     errors, warnings, out = [], [], []
     by_id = {s["id"]: s for s in sents}
     for i, c in enumerate(clips):
@@ -199,10 +200,10 @@ def check(clips, sents, analysis, levels=None, tx_words=None, unreliable=()):
         eff = raw - trimmed
         text = " ".join(by_id[k]["text"] for k in range(a, b + 1) if k in by_id)
 
-        if eff < HARD_MIN or eff > HARD_MAX:
-            errors.append(f"{tag}: {eff:.0f}s is outside {HARD_MIN:.0f}-{HARD_MAX:.0f}s")
-        elif eff < SOFT_MIN or eff > SOFT_MAX:
-            warnings.append(f"{tag}: {eff:.0f}s is outside the usual {SOFT_MIN:.0f}-{SOFT_MAX:.0f}s")
+        if eff < hard_min or eff > hard_max:
+            errors.append(f"{tag}: {eff:.0f}s is outside {hard_min:.0f}-{hard_max:.0f}s")
+        elif eff < soft_min or eff > soft_max:
+            warnings.append(f"{tag}: {eff:.0f}s is outside the usual {soft_min:.0f}-{soft_max:.0f}s")
         words = norm(text)
         hook = norm(c.get("hook", ""))
         if not hook:
@@ -256,6 +257,8 @@ def main():
     ap.add_argument("--levels", help="fine audio levels from analyse.py (default: next to --analysis)")
     ap.add_argument("--transcript", help="transcript.json; required for keyword cards (their pills are timed to the spoken words)")
     ap.add_argument("--out")
+    ap.add_argument("--style", choices=["reel", "explainer"], default="reel", help="explainer clips may run longer (see shorts.explainer.length in brand.json)")
+    ap.add_argument("--brand", help="brand.json, for the explainer length limits (default: the bundled one)")
     a = ap.parse_args()
     try:
         data = load_json(a.clips)
@@ -270,7 +273,13 @@ def main():
     except (OSError, ValueError, KeyError) as e:
         print(json.dumps({"ok": False, "error": f"cannot read input: {e}"}))
         return 1
-    errors, warnings, resolved = check(clips, sents, analysis, levels, words, unreliable)
+    limits = None
+    if a.style == "explainer":
+        import explainer
+        from render_long import DEFAULT_BRAND, load_brand
+        ln = explainer.settings(load_brand(a.brand or DEFAULT_BRAND)[0])["length"]
+        limits = (float(ln["hard_min"]), float(ln["hard_max"]), float(ln["soft_min"]), float(ln["soft_max"]))
+    errors, warnings, resolved = check(clips, sents, analysis, levels, words, unreliable, limits)
     if a.out and not errors:
         save_json(a.out, {"version": 1, "clips": resolved})
     print(json.dumps({"ok": not errors, "errors": errors, "warnings": warnings, "clips": len(resolved), "edges_snapped_to_audio": levels is not None,

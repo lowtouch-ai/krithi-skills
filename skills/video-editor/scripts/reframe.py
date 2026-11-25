@@ -23,20 +23,23 @@ SAMPLE_FPS = 2.0
 DEAD_ZONE = 0.06  # fraction of crop width
 
 
-def crop_box(sw, sh, cx, cy, punch=1.0):
-    """9:16 crop (x, y, w, h), even integers, inside a sw x sh frame, centred on a face at (cx, cy)."""
+def crop_box(sw, sh, cx, cy, punch=1.0, aspect=9 / 16, face_at=0.42):
+    """Crop (x, y, w, h) of width:height = `aspect` (9:16 by default), even integers, inside a sw x sh frame, with the
+    face at (cx, cy) placed `face_at` of the way down the crop."""
     ch = sh / punch
-    cw = ch * 9 / 16
+    cw = ch * aspect
     if cw > sw:
         cw = float(sw)
-        ch = cw * 16 / 9
+        ch = cw / aspect
     x = min(max(cx - cw / 2, 0), sw - cw)
-    y = min(max(cy - ch * 0.42, 0), sh - ch)
+    y = min(max(cy - ch * face_at, 0), sh - ch)
     ev = lambda v: int(v) // 2 * 2
     return ev(x), ev(y), ev(cw), ev(ch)
 
 
-def detect(video, ranges, punch_in=1.0):
+def detect(video, ranges, punch_in=1.0, aspect=9 / 16, zoom=1.0, face_at=0.42):
+    """Crop plan per range. `aspect` is the crop shape (the explainer style uses a nearly square one), `zoom` tightens every
+    crop, and `punch_in` alternates a tighter crop on every second piece."""
     import cv2
     path = os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml")
     cascade = cv2.CascadeClassifier(path)
@@ -69,16 +72,16 @@ def detect(video, ranges, punch_in=1.0):
         if faces:
             cx = statistics.median(f[0] for f in faces)
             cy = statistics.median(f[1] for f in faces)
-            punch = punch_in if (punch_in > 1 and i % 2 == 1) else 1.0
-            _, _, cw, _ = crop_box(sw, sh, cx, cy, punch)
+            punch = zoom * (punch_in if (punch_in > 1 and i % 2 == 1) else 1.0)
+            _, _, cw, _ = crop_box(sw, sh, cx, cy, punch, aspect, face_at)
             if prev_cx is not None and abs(cx - prev_cx) < DEAD_ZONE * cw:
                 cx, cy = prev_cx, prev_cy
         else:
             flag = "no face found; kept the previous framing" if prev_cx is not None else "no face found; centred"
             cx, cy = (prev_cx, prev_cy) if prev_cx is not None else (sw / 2, sh * 0.42)
-            punch = punch_in if (punch_in > 1 and i % 2 == 1) else 1.0
+            punch = zoom * (punch_in if (punch_in > 1 and i % 2 == 1) else 1.0)
         prev_cx, prev_cy = cx, cy
-        x, y, w, h = crop_box(sw, sh, cx, cy, punch)
+        x, y, w, h = crop_box(sw, sh, cx, cy, punch, aspect, face_at)
         plan.append({"range": [round(ls, 3), round(le, 3)], "crop": {"x": x, "y": y, "w": w, "h": h},
                      "faces_found": len(faces), "samples": n, "flag": flag})
     cap.release()
