@@ -503,6 +503,8 @@ def main():
                     s0 = kept_before(keep, c_["at"])
                     cta_ct.append({"text": c_["text"], "start": s0, "end": s0 + float(c_.get("seconds", 4))})
             scene_ov, scene_off = None, 0.0
+            if scenes_ct:
+                scenes_ct = scn.place(scenes_ct, cta_ct)
             if scenes_ct and a.motion != "off":
                 scene_ov, scene_off, serr2 = render_motion.render_scenes_overlay(scenes_ct, brand, res, W, video_y, work, ecfg)
                 if serr2 and a.motion == "on":

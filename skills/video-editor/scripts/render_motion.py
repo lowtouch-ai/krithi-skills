@@ -224,20 +224,9 @@ def hf_render(proj, out, nice=True):
     return None
 
 
-def render_scenes_overlay(scenes, brand, res, W, panel_h, work, ecfg, nice=True):
-    """Render the explainer's panel scenes (clip seconds; see scenes.py) to a transparent WebM the size of the panel.
-
-    Returns (path, offset_seconds, error); the caller delays the overlay by `offset`."""
+def write_scenes_project(proj, scenes, brand, res, W, panel_h, ecfg, duration, measure=False):
+    """Write the HyperFrames project for the panel scenes (page, fonts, animation library) into `proj`."""
     import scenes as scn
-    st = status()
-    if not st["ready"]:
-        return None, 0.0, f"{st['detail']} ({st['fix']})"
-    t0 = max(0.0, min(sc["start"] for sc in scenes) - PRE - 0.1)
-    t1 = max(sc["end"] for sc in scenes) + 0.1
-    shifted = [{**sc, "start": sc["start"] - t0, "end": sc["end"] - t0,
-                "els": [None if t is None else t - t0 for t in sc.get("els", [])]} for sc in scenes]
-    work = Path(work).resolve()
-    proj = work / "scenes"
     if proj.exists():
         shutil.rmtree(proj)
     (proj / "assets" / "fonts").mkdir(parents=True)
@@ -250,9 +239,55 @@ def render_scenes_overlay(scenes, brand, res, W, panel_h, work, ecfg, nice=True)
     col = lambda k: brand["colors"][k]
     colors = {"accent": col("secondary"), "accent2": col("primary"), "text": col("text"), "dim": ecfg["scene_dim"],
               "card": ecfg["scene_card"], "border": ecfg["scene_border"]}
-    (proj / "index.html").write_text(scn.build_page(shifted, colors, fonts, W, panel_h, t1 - t0), encoding="utf-8")
+    (proj / "index.html").write_text(scn.build_page(scenes, colors, fonts, W, panel_h, duration, measure), encoding="utf-8")
     (proj / "hyperframes.json").write_text(json.dumps({"name": "scenes"}), encoding="utf-8")
     (proj / "meta.json").write_text(json.dumps({"id": "scenes", "name": "scenes"}), encoding="utf-8")
+
+
+def chrome_binary():
+    base = Path.home() / ".cache" / "hyperframes" / "chrome"
+    for p in sorted(base.rglob("chrome-headless-shell*")) if base.is_dir() else []:
+        if p.is_file() and os.access(p, os.X_OK):
+            return str(p)
+    return None
+
+
+def measure_scene_heights(scenes, brand, res, work, ecfg, W=1080, panel_h=768):
+    """The height (design pixels at 1080 wide, tag included) each scene takes, measured in the headless Chrome HyperFrames uses.
+
+    Returns a list in the order given, or None when the layer is not installed. Used to refuse a custom scene that is too tall."""
+    st = status()
+    chrome = chrome_binary()
+    if not st["ready"] or not chrome:
+        return None
+    work = Path(work).resolve()
+    proj = work / "measure"
+    shifted = [{**sc, "start": 0.0, "end": 5.0, "els": []} for sc in scenes]
+    write_scenes_project(proj, shifted, brand, res, W, panel_h, ecfg, 6.0, measure=True)
+    r = subprocess.run([chrome, "--headless", "--disable-gpu", "--no-sandbox", "--allow-file-access-from-files", "--virtual-time-budget=5000",
+                        "--dump-dom", (proj / "index.html").as_uri()], capture_output=True, text=True, timeout=120)
+    heights = {}
+    for m in re.finditer(r'<div id="(s\d+)"[^>]*?data-h="(\d+)"', r.stdout):
+        heights[m.group(1)] = int(m.group(2))
+    if len(heights) != len(shifted):
+        return None
+    return [heights[f"s{i + 1}"] * 1080.0 / W for i in range(len(shifted))]
+
+
+def render_scenes_overlay(scenes, brand, res, W, panel_h, work, ecfg, nice=True):
+    """Render the explainer's panel scenes (clip seconds; see scenes.py) to a transparent WebM the size of the panel.
+
+    Returns (path, offset_seconds, error); the caller delays the overlay by `offset`."""
+    st = status()
+    if not st["ready"]:
+        return None, 0.0, f"{st['detail']} ({st['fix']})"
+    t0 = max(0.0, min(sc["start"] for sc in scenes) - PRE - 0.1)
+    t1 = max(sc["end"] for sc in scenes) + 0.1
+    shifted = [{**sc, "start": sc["start"] - t0, "end": sc["end"] - t0,
+                "els": [None if t is None else t - t0 for t in sc.get("els", [])]} for sc in scenes]
+    work = Path(work).resolve()
+    proj = work / "scenes"
+    write_scenes_project(proj, shifted, brand, res, W, panel_h, ecfg, t1 - t0)
     out = work / "scenes.webm"
     err = hf_render(proj, out, nice)
     return (None, 0.0, err) if err else (out, t0, None)

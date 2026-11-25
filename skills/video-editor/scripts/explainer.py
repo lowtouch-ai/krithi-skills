@@ -112,7 +112,7 @@ def cta_events(ev, W, H, video_y, ctas, Fm, mag, white, safe, rrect, cap=None):
         txt = safe(c["text"])
         w = int(Fm.width(c["text"], size) + 0.9 * em * 2)
         h = int(em * 2.5)
-        x, y = int(W * 0.065), video_y - int(H * 0.042) - h
+        x, y = int(W * 0.065), video_y - int(H * 0.016) - h
         a, b = c["start"], c["end"] if cap is None else min(c["end"], cap)
         if b <= a:
             continue

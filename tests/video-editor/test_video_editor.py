@@ -761,6 +761,62 @@ expect("TIP &lt;1&gt;" in _pg and "/init &lt;x&gt;" in _pg and "t &amp; t" in _p
 expect("http://" not in _pg and "https://" not in _pg and "background: transparent" in _pg, "the page loads nothing from the network and is transparent")
 expect(_pg.count("immediateRender: false") == 1 and 'steps(9)' in _pg, "the exit tween has immediateRender false and a 9-character command is typed in 9 steps")
 
+# more scene types: checklist, bubble, steps
+_ck = {"type": "checklist", "say": "managing agent", "data": {"heading": "PLAN", "toggles": ["Build", "Plan"], "items": [{"text": "One", "say": "sub-agents"}, {"text": "Two", "flag": "?"}], "bubble": {"text": "Why?", "say": "testing"}}}
+expect(_scn.check_scene(_ck, "s") == [], f"a valid checklist: {_scn.check_scene(_ck, 's')}")
+expect(len(_scn._parts(_ck)) == 3, "a checklist's parts are its items, then its bubble")
+expect(any("1 to 5" in e_ for e_ in _scn.check_scene({"type": "checklist", "say": "x", "data": {"items": [{"text": "a"}] * 7}}, "s")), "too many checklist items are refused")
+expect(any("state" in e_ for e_ in _scn.check_scene({"type": "checklist", "say": "x", "data": {"items": [{"text": "a", "state": "maybe"}]}}, "s")), "an unknown item state is refused")
+_bb = {"type": "bubble", "say": "managing agent", "data": {"bubbles": [{"from": "user", "text": "Hi"}, {"from": "agent", "text": "Hello"}]}}
+expect(_scn.check_scene(_bb, "s") == [] and any("from must be" in e_ for e_ in _scn.check_scene({"type": "bubble", "say": "x", "data": {"bubbles": [{"from": "bot", "text": "x"}]}}, "s")), "bubbles: from is user or agent")
+_stp = {"type": "steps", "say": "managing agent", "data": {"label": "Jobs", "steps": [{"title": "One", "sub": "a"}, {"title": "Two"}]}}
+expect(_scn.check_scene(_stp, "s") == [] and any("1 to 4" in e_ for e_ in _scn.check_scene({"type": "steps", "say": "x", "data": {"steps": [{"title": "t"}] * 6}}, "s")), "steps: one to four")
+_cols = {"accent": "#7ED957", "accent2": "#FB47DE", "text": "#fff", "dim": "#999", "card": "#111", "border": "#222"}
+_pg2 = _scn.build_page([{**_ck, "tag": "T", "start": 0.0, "end": 8.0, "els": [1.0, 2.0, 3.0]}, {**_bb, "start": 8.0, "end": 14.0, "els": [9.0, 10.0]}, {**_stp, "start": 14.0, "end": 20.0, "els": [15.0, 16.0]}],
+                       _cols, [("Brand", 600, "a.ttf")], 1080, 768, 21.0)
+expect(_pg2.count('class="ln ck') == 2 and "flagged" in _pg2 and '<b class=on>Plan</b>' in _pg2, "the checklist draws its rows, the flag and the active toggle")
+expect('class="bub user"' in _pg2 and 'class="bub agent"' in _pg2 and 'class="num"' in _pg2 and "id=\"s1b0\"" in _pg2, "bubbles and numbered steps are drawn")
+
+# custom (free-form) scenes: what is allowed, and what is refused
+_cu = lambda **k_: {"type": "custom", "say": "managing agent", "data": {"html": '<div id="a" class="x"><b>Hi</b></div>', "css": ".x{color:var(--accent)}", "anim": [{"el": "a", "effect": "rise"}], **k_}}
+expect(_scn.check_scene(_cu(), "s") == [], f"a valid custom scene: {_scn.check_scene(_cu(), 's')}")
+for _bad_html, _why in (('<script>alert(1)</script>', "a script tag"), ('<div onclick="x()">a</div>', "an event attribute"), ('<img src="http://x/y.png">', "an image tag"),
+                        ('<div style="background:url(http://x)">a</div>', "url() in a style"), ('<div style="position: fixed">a</div>', "position fixed"),
+                        ('<div style="font-family: Arial">a</div>', "a font that is not available"), ('<div id="Bad Id">a</div>', "a bad id"), ('<a href="x">a</a>', "a link")):
+    expect(_scn.check_scene(_cu(html=_bad_html), "s") != [], f"refused: {_why}")
+for _bad_css, _why in (("@import 'x';", "an @rule"), (".a{background:url(x)}", "url() in css"), ("body{color:red}", "styling body"), (".a{font-family:Arial}", "an unavailable font"), (".a{color:red", "unbalanced braces")):
+    expect(_scn.check_scene(_cu(css=_bad_css), "s") != [], f"refused css: {_why}")
+expect(any("'el' must be the id" in e_ for e_ in _scn.check_scene(_cu(anim=[{"el": "nope"}]), "s")), "a reveal must point at an id in the html")
+expect(any("effect must be" in e_ for e_ in _scn.check_scene(_cu(anim=[{"el": "a", "effect": "explode"}]), "s")), "a reveal effect must be a known one")
+expect(any("html is at most" in e_ for e_ in _scn.check_scene(_cu(html="<div>" + "x" * 6000 + "</div>"), "s")), "html size is limited")
+expect(_scn.scope_css(".a, .b > i { color: red; } p { margin: 0 }", "s3") == "#s3 .a, #s3 .b > i { color: red; }\n      #s3 p { margin: 0 }", "css is scoped to the scene")
+_pc = _scn.build_page([{**_cu(), "start": 0.0, "end": 6.0, "els": [1.0], "tag": "T"}], {"accent": "#7ED957", "accent2": "#FB47DE", "text": "#fff", "dim": "#999", "card": "#111", "border": "#222"}, [("Brand", 600, "a.ttf")], 1080, 768, 7.0)
+expect('id="s1-a"' in _pc and "#s1 .x" in _pc and 'tl.fromTo("#s1-a"' in _pc and "<script>alert" not in _pc, "ids are prefixed, css is scoped and the reveal is timed")
+_pm = _scn.build_page([{**_cu(), "start": 0.0, "end": 6.0, "els": []}], {"accent": "#7ED957", "accent2": "#FB47DE", "text": "#fff", "dim": "#999", "card": "#111", "border": "#222"}, [("Brand", 600, "a.ttf")], 1080, 768, 7.0, measure=True)
+expect("setAttribute('data-h'" in _pm and "setAttribute('data-h'" not in _pc, "the measuring script is added only when asked for")
+
+# a pill and a tall scene must not share the panel
+_tall = {"type": "terminal", "tag": "T", "at": 10.0, "end": 30.0, "data": {"lines": [{"text": "a"}] * 6}}
+_short = {"type": "flow", "tag": "T", "at": 30.0, "end": 50.0, "data": {"nodes": [{"title": "a"}]}}
+expect(len(_scn.cta_conflicts([_tall, _short], [{"at": 20.0, "seconds": 4}])) == 1, "a pill during a tall scene is a conflict")
+expect(_scn.cta_conflicts([_tall, _short], [{"at": 35.0, "seconds": 4}]) == [] and _scn.cta_conflicts([_tall], [{"at": 31.0, "seconds": 4}]) == [], "a pill over a short scene, or between scenes, is fine")
+expect(_scn.est_height({"type": "terminal", "data": {"lines": [{"text": "a"}]}}) >= 310, "a window is at least as tall as its minimum body")
+
+# panel spacing: small scenes are scaled up and centred; a pill keeps the bottom clear
+_small = {"type": "flow", "tag": "T", "start": 0.0, "end": 10.0, "data": {"nodes": [{"title": "a"}, {"title": "b"}]}}
+_pl = _scn.place([_small], [])[0]
+expect(1.2 < _pl["fit"] <= 1.4 and _pl["top"] >= 180 and _pl["top"] + _scn.est_height(_small) * _pl["fit"] <= 740, f"a small scene is scaled up and kept inside the panel: {_pl['fit']} {_pl['top']}")
+_big = {"type": "terminal", "tag": "T", "start": 0.0, "end": 10.0, "data": {"lines": [{"text": "a"}] * 6}}
+_pb = _scn.place([_big], [])[0]
+expect(_pb["top"] >= 180 and _pb["top"] + _scn.est_height(_big) * _pb["fit"] <= 740 + 1, f"a big scene is scaled only as far as the panel allows: {_pb}")
+_wp = _scn.place([_small], [{"start": 4.0, "end": 8.0}])[0]
+expect(_wp["top"] + _scn.est_height(_small) * _wp["fit"] <= 650 + 1, f"a scene shown with a pill stays above it: {_wp}")
+_cu0 = _scn.place([{"type": "custom", "start": 0.0, "end": 5.0, "data": {"html": "<div></div>"}}], [])[0]
+expect(_cu0["fit"] == 1.0 and _cu0["top"] == 250, "an unmeasured custom scene is left alone")
+_one = _scn.build_page([{"type": "title", "tag": "", "start": 0.0, "end": 6.0, "els": [1.0], "fit": 1.3, "top": 200, "data": {"label": "L", "items": [{"n": "1", "text": "Only point"}]}}],
+                       {"accent": "#7ED957", "accent2": "#FB47DE", "text": "#fff", "dim": "#999", "card": "#111", "border": "#222"}, [("Brand", 600, "a.ttf")], 1080, 768, 7.0)
+expect("<span>1</span>" not in _one and "Only point" in _one and "zoom:1.300" in _one and "top:200.0px" in _one, "a lone item is not numbered, and the scene is scaled and placed")
+
 # structure elements: call-to-action pills and the recap end card
 _e1, _w1 = [], []
 _ct, _rc = _ex.check_extras({"cta": [{"text": "DM us", "say": "managing agent", "seconds": 3}], "recap": {"label": "3 ideas", "items": [{"n": "01", "text": "One"}, {"text": "Two"}], "follow": "Follow us"}},

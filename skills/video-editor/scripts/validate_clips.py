@@ -300,6 +300,31 @@ def main():
         ln = explainer.settings(load_brand(a.brand or DEFAULT_BRAND)[0])["length"]
         limits = (float(ln["hard_min"]), float(ln["hard_max"]), float(ln["soft_min"]), float(ln["soft_max"]))
     errors, warnings, resolved = check(clips, sents, analysis, levels, words, unreliable, limits, a.style)
+    if a.style == "explainer" and not errors:
+        import scenes as scn_c
+        for c in resolved:
+            errors += [f"clip {c['id']}: {m}" for m in scn_c.cta_conflicts(c.get("scenes"), c.get("cta"))] if c.get("cta") and c.get("scenes") else []
+        customs = [(c["id"], k, sc) for c in resolved for k, sc in enumerate(c.get("scenes") or [], 1) if sc.get("type") == "custom"]
+        if customs:
+            import tempfile
+            import render_motion as rmo
+            from render_long import DEFAULT_BRAND, load_brand
+            import explainer as expl
+            brand, res = load_brand(a.brand or DEFAULT_BRAND)
+            with tempfile.TemporaryDirectory() as td:
+                hs = rmo.measure_scene_heights([sc for _, _, sc in customs], brand, res, td, expl.settings(brand))
+            for n, (cid, k, sc) in enumerate(customs):
+                warnings.append(f"clip {cid} scene {k} is a custom (free-form) scene; say so at the approval step so the user can ask for a template instead")
+                if hs is None:
+                    warnings.append(f"clip {cid} scene {k}: its height was not measured (the HyperFrames layer is not installed); a scene that is too tall is cut off")
+                    continue
+                sc["data"]["measured_height"] = hs[n]
+                import scenes as scn_
+                if hs[n] > scn_.MAX_HEIGHT:
+                    errors.append(f"clip {cid} scene {k}: the custom scene is {hs[n]:.0f} px tall, but the panel has room for {scn_.MAX_HEIGHT}; make it shorter")
+            for c in resolved:
+                if c.get("cta") and c.get("scenes"):
+                    errors += [f"clip {c['id']}: {m}" for m in scn_.cta_conflicts([s_ for s_ in c["scenes"] if s_.get("type") == "custom"], c["cta"])]
     if a.out and not errors:
         save_json(a.out, {"version": 1, "clips": resolved})
     print(json.dumps({"ok": not errors, "errors": errors, "warnings": warnings, "clips": len(resolved), "edges_snapped_to_audio": levels is not None,

@@ -19,12 +19,15 @@ A clip's `scenes` list puts animated graphics in the panel, each starting when i
 
 | type | data | use it for |
 |---|---|---|
-| `terminal` | `title`, `lines`: up to 7 of `{kind: cmd \| out \| ok \| dim, text, say}`; a `cmd` line is typed | a command and its result |
-| `tree` | `title`, `rows`: up to 8 of `{text, depth 0 to 3, kind: dir \| file, hl, say}`; `hl` marks the row | a folder or outline |
+| `terminal` | `title`, `lines`: up to 6 of `{kind: cmd \| out \| ok \| dim, text, say}`; a `cmd` line is typed | a command and its result |
+| `tree` | `title`, `rows`: up to 6 of `{text, depth 0 to 3, kind: dir \| file, hl, say}`; `hl` marks the row | a folder or outline |
 | `flow` | `label`, `nodes`: up to 4 of `{title, sub, say}` joined by arrows, or `rows` (up to 2) of `{label, nodes}` | a process, a chain of steps |
 | `title` | `label`, `icon` (up to 4 characters), `name`, `items`: up to 3 of `{n, text, say}` | an opening or a list of points |
+| `checklist` | `title`, `heading`, `toggles` (up to 3 chips; `active` is the lit one), `items`: up to 5 of `{text, say, state: done \| todo, flag}` (a `flag` of up to 2 characters marks the row), and an optional `bubble`: `{text, say}` | a plan or a review, with a question raised on one step |
+| `bubble` | `bubbles`: up to 3 of `{from: user \| agent, text, say}` (text up to 60 characters) | a question and an answer, or a prompt |
+| `steps` | `label`, `steps`: up to 4 of `{title, sub, say}` (sub up to 40 characters), numbered | a short numbered process |
 
-Text limits: node and item titles 34 characters, subtitles 24, lines and rows 38. Invented example:
+Text limits: node and item titles 34 characters, subtitles 24, lines and rows 38. A scene must also fit the panel: the checker estimates its height and refuses one that is too tall (for example a checklist of 5 items with a question bubble and a tag); use fewer lines, or drop the tag. Invented example:
 ```json
 {"type": "flow", "say": "every pull request", "tag": "STEP 1",
  "data": {"label": "From idea to release", "nodes": [
@@ -32,7 +35,20 @@ Text limits: node and item titles 34 characters, subtitles 24, lines and rows 38
    {"title": "Build", "sub": "small changes", "say": "build"},
    {"title": "Review", "sub": "a second pair of eyes", "say": "review"}]}}
 ```
-Scenes are drawn with HyperFrames, so the explainer needs it installed (`render_motion.py --setup`). Without it the render says so and shows the backdrop. A scene that no template fits is not supported yet; choose the closest template or leave the panel to the backdrop.
+### When no template fits: the `custom` scene
+Use it only when the six templates cannot show the point, and say so at the approval step so the user can ask for a template instead. A custom scene is a small piece of HTML and CSS plus timed reveals, with no script:
+```json
+{"type": "custom", "say": "words that start it", "tag": "THE SETUP",
+ "data": {"html": "<div class=\"cmp\"><div id=\"a\" class=\"col\"><b>Before</b></div><div id=\"b\" class=\"col\"><b>After</b></div></div>",
+          "css": ".cmp{display:flex;gap:24px} .col{flex:1;background:var(--card);border:2px solid var(--border);border-radius:18px;padding:30px;text-align:center}",
+          "anim": [{"el": "a", "say": "before", "effect": "rise"}, {"el": "b", "say": "after", "effect": "pop"}]}}
+```
+- **Allowed markup:** div, span, b, i, em, strong, p, br, ul, li, and simple SVG shapes (svg, path, rect, circle, ellipse, line, polyline, polygon, g, text). Attributes: id, class, style and SVG drawing attributes. No scripts, links, images, event handlers or `url()`; nothing is fetched. At most 5000 characters of html and 3000 of css.
+- **Look:** use the variables `--accent`, `--accent2`, `--text`, `--dim`, `--card`, `--border` and the fonts `Brand` (headings) and `Mono` (code and labels), so the scene matches the others. Content is about 940 px wide. Selectors are scoped to the scene automatically; style your own elements only.
+- **Timing:** `anim` lists reveals: `el` is an id in your html, `say` the words where it appears, `effect` one of fade, rise, pop, slide, wipe (up to 12). Elements not listed are visible from the start.
+- **Height:** `validate_clips.py` measures the scene in a browser (when HyperFrames is installed) and refuses one taller than the panel allows (about 490 px, tag included).
+
+Scenes are drawn with HyperFrames, so the explainer needs it installed (`render_motion.py --setup`). Without it the render says so and shows the backdrop. 
 
 ## Shape of a tips-style explainer
 The reference video follows this shape, and the template parts build it:
