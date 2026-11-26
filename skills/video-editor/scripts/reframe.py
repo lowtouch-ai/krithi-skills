@@ -37,17 +37,58 @@ def crop_box(sw, sh, cx, cy, punch=1.0, aspect=9 / 16, face_at=0.42):
     return ev(x), ev(y), ev(cw), ev(ch)
 
 
-def detect(video, ranges, punch_in=1.0, aspect=9 / 16, zoom=1.0, face_at=0.42):
-    """Crop plan per range. `aspect` is the crop shape (the explainer style uses a nearly square one), `zoom` tightens every
-    crop, and `punch_in` alternates a tighter crop on every second piece."""
+def upright_size(w, h, rotation):
+    """The size of a picture after its rotation flag is applied: a phone video stored 1920x1440 with a 90 or 270 degree
+    flag plays as 1440x1920."""
+    return (h, w) if int(rotation) % 180 == 90 else (w, h)
+
+
+def open_upright(video):
+    """Open `video` with OpenCV so that frames come out the way ffmpeg (and every player) shows them, with the rotation flag
+    applied. OpenCV reads a phone video sideways unless asked, which put the face detection and the crop in the wrong
+    coordinates. Returns (capture, read) where read(t_seconds) gives an upright frame or None, and the upright (width, height)."""
+    import cv2
+    cap = cv2.VideoCapture(str(video))
+    cap.set(cv2.CAP_PROP_ORIENTATION_AUTO, 1)
+    meta = int(round(cap.get(cv2.CAP_PROP_ORIENTATION_META) or 0)) % 360
+    # newer OpenCV rotates by itself once asked; older versions ignore the request, so the frame is turned here
+    manual = {90: cv2.ROTATE_90_CLOCKWISE, 180: cv2.ROTATE_180, 270: cv2.ROTATE_90_COUNTERCLOCKWISE}.get(meta)
+    raw_w, raw_h = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    def read(t):
+        cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
+        ok, frame = cap.read()
+        if not ok:
+            return None
+        if manual is not None and (frame.shape[1], frame.shape[0]) == (raw_w, raw_h) and cap.get(cv2.CAP_PROP_ORIENTATION_AUTO) != 1.0:
+            frame = cv2.rotate(frame, manual)
+        return frame
+    first = read(0.0)
+    size = (first.shape[1], first.shape[0]) if first is not None else upright_size(raw_w, raw_h, meta)
+    return cap, read, size
+
+
+def fit_zoom(face_heights, sh, face_frac, max_zoom=1.6, fallback=1.0):
+    """The zoom that makes the speaker's face `face_frac` of the crop's height, from the faces found (their heights in source
+    pixels). One zoom serves the whole clip, so a cut between pieces never jumps in size. It is never below 1 (a crop cannot be
+    taller than the picture) and never above `max_zoom` (more would look soft). With no faces, `fallback`."""
+    if not face_heights or not face_frac:
+        return fallback
+    fh = statistics.median(face_heights)
+    return max(1.0, min(max_zoom, sh * face_frac / max(fh, 1.0)))
+
+
+def detect(video, ranges, punch_in=1.0, aspect=9 / 16, zoom=1.0, face_at=0.42, face_frac=None, max_zoom=1.6):
+    """Crop plan per range. `aspect` is the crop shape (the explainer style uses a nearly square one). The zoom tightens every
+    crop: fixed at `zoom`, or, when `face_frac` is given, chosen so the face takes that share of the crop's height (`fit_zoom`).
+    `punch_in` alternates a tighter crop on every second piece."""
     import cv2
     path = os.path.join(cv2.data.haarcascades, "haarcascade_frontalface_default.xml")
     cascade = cv2.CascadeClassifier(path)
     if cascade.empty():
         raise RuntimeError("OpenCV's face model is missing; install opencv-python-headless 4.x (setup_env.py)")
-    cap = cv2.VideoCapture(str(video))
-    sw, sh = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    plan, prev_cx, prev_cy = [], None, None
+    cap, read_frame, (sw, sh) = open_upright(video)
+    sampled = []  # per range: (faces as (cx, cy, face height) in source pixels, samples taken)
     for i, (ls, le) in enumerate(ranges):
         faces, n, t = [], 0, ls + 0.05
         points = []
@@ -57,35 +98,37 @@ def detect(video, ranges, punch_in=1.0, aspect=9 / 16, zoom=1.0, face_at=0.42):
         if not points:
             points = [(ls + le) / 2]
         for t in points:
-            cap.set(cv2.CAP_PROP_POS_MSEC, t * 1000)
-            ok, frame = cap.read()
+            frame = read_frame(t)
             n += 1
-            if not ok:
+            if frame is None:
                 continue
             scale = 640.0 / frame.shape[1]
             gray = cv2.cvtColor(cv2.resize(frame, (640, int(frame.shape[0] * scale))), cv2.COLOR_BGR2GRAY)
             found = cascade.detectMultiScale(gray, 1.1, 5, minSize=(40, 40))
             if len(found):
                 x, y, w, h = max(found, key=lambda f: f[2] * f[3])
-                faces.append(((x + w / 2) / scale, (y + h / 2) / scale))
+                faces.append(((x + w / 2) / scale, (y + h / 2) / scale, h / scale))
+        sampled.append((faces, n))
+    cap.release()
+    base = fit_zoom([f[2] for fs, _ in sampled for f in fs], sh, face_frac, max_zoom, zoom)
+    plan, prev_cx, prev_cy = [], None, None
+    for i, ((ls, le), (faces, n)) in enumerate(zip(ranges, sampled)):
         flag = None
+        punch = base * (punch_in if (punch_in > 1 and i % 2 == 1) else 1.0)
         if faces:
             cx = statistics.median(f[0] for f in faces)
             cy = statistics.median(f[1] for f in faces)
-            punch = zoom * (punch_in if (punch_in > 1 and i % 2 == 1) else 1.0)
             _, _, cw, _ = crop_box(sw, sh, cx, cy, punch, aspect, face_at)
             if prev_cx is not None and abs(cx - prev_cx) < DEAD_ZONE * cw:
                 cx, cy = prev_cx, prev_cy
         else:
             flag = "no face found; kept the previous framing" if prev_cx is not None else "no face found; centred"
             cx, cy = (prev_cx, prev_cy) if prev_cx is not None else (sw / 2, sh * 0.42)
-            punch = zoom * (punch_in if (punch_in > 1 and i % 2 == 1) else 1.0)
         prev_cx, prev_cy = cx, cy
         x, y, w, h = crop_box(sw, sh, cx, cy, punch, aspect, face_at)
         plan.append({"range": [round(ls, 3), round(le, 3)], "crop": {"x": x, "y": y, "w": w, "h": h},
                      "faces_found": len(faces), "samples": n, "flag": flag})
-    cap.release()
-    return {"source_size": [sw, sh], "pieces": plan}
+    return {"source_size": [sw, sh], "zoom": round(base, 3), "pieces": plan}
 
 
 def main():

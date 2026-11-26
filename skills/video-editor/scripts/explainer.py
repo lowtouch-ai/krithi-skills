@@ -11,8 +11,10 @@ the defaults below are measured from the reference at 1080x1920 and scale with t
 DEFAULTS = {
     "panel_share": 0.40,       # the speaker's picture starts this far down the frame
     "seam": 0.075,             # height of the soft gradient where panel and picture meet (share of the frame)
-    "speaker_zoom": 1.25,      # how much tighter than full height the speaker is cropped
-    "face_at": 0.40,           # where the face sits in the speaker's picture (share from the top)
+    "speaker_zoom": 1.0,       # the zoom when no face is found
+    "face_frac": 0.60,         # the face (as the detector boxes it) takes this share of the picture's height, as in the reference
+    "max_zoom": 1.6,           # never zoom in further than this (more looks soft)
+    "face_at": 0.50,           # where the face centre sits in the speaker's picture (share from the top)
     "caption_em": 0.0225,      # caption type size (em, share of the frame height)
     "caption_words": 4,        # most words in one caption
     "caption_y": 0.416,        # caption centre (share of the frame height): at the seam

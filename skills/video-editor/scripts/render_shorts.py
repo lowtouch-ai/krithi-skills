@@ -439,7 +439,7 @@ def main():
             for ci in sorted({p[0] for p in pieces}):
                 rng = [(ls, le) for (c, ls, le) in pieces if c == ci]
                 try:
-                    plans[ci] = (detect(clipsrc[ci]["path"], rng, a.punch_in, W / float(PH), ecfg["speaker_zoom"], ecfg["face_at"]) if ecfg
+                    plans[ci] = (detect(clipsrc[ci]["path"], rng, a.punch_in, W / float(PH), ecfg["speaker_zoom"], ecfg["face_at"], ecfg["face_frac"], ecfg["max_zoom"]) if ecfg
                                  else detect(clipsrc[ci]["path"], rng, a.punch_in))
                 except (RuntimeError, ImportError) as e:
                     raise ClipError(f"face detection failed: {e}")

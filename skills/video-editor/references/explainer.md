@@ -6,7 +6,7 @@ A second look for short clips, modelled on the team's "tips" video: a dark graph
 Only when the user asks in words ("split-screen", "explainer", "graphics above the speaker", "like the Codex tips video"). If the request could mean either style, ask one short question. For list or step-by-step content you may offer it at the approval step, but never switch on your own. The same transcript serves both styles, so a user can ask for the other style later without transcribing again.
 
 ## What it draws
-- **Layout:** the picture starts 40% of the way down. The speaker is cropped to the picture's shape and zoomed a little (`speaker_zoom`), with the face about 40% down it. A soft gradient (the seam) joins the panel to the picture.
+- **Layout:** the picture starts 40% of the way down. The speaker is cropped to the picture's shape and zoomed so the face takes about 60% of the picture's height, as in the reference (`face_frac`), with the face centred in it. One zoom serves the whole clip, so cuts do not jump in size. It is never below 1 or above `max_zoom` (1.6): a wide shot is not blown up until it goes soft, and a close-up is not zoomed further. A soft gradient (the seam) joins the panel to the picture.
 - **Panel:** a dark gradient with an optional `panel_title` label at the top left. It holds animated **scenes** (below); with no scenes it shows the brand wordmark.
 - **Captions:** monospace (JetBrains Mono), upper case, up to four words at a time, centred at the seam. Words listed in the clip's `highlights` are drawn in the accent colour. A caption that is too wide is drawn smaller.
 - **Name tag:** bottom left with an accent bar, for the first few seconds.

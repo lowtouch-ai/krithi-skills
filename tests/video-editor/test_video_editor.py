@@ -832,6 +832,24 @@ expect(len(_evs) == 2 and _evs[0][2] == 5.0 and "DM lowtouch.ai" in _evs[1][4], 
 _rows = _ex.recap_rows([{"n": "01", "text": "Docs first"}, {"n": "02", "text": "Prompt builder"}, {"n": "03", "text": "Plan mode, then challenge it"}], _mono, 60, 1080)
 expect(len(_rows) >= 2 and sum(len(r_) for r_ in _rows) == 3, f"recap items wrap into rows that fit the width: {[len(r_) for r_ in _rows]}")
 
+# the speaker's zoom follows the face, so a close-up is not zoomed further and a wide shot is not blown up
+expect(_rfm.fit_zoom([], 1080, 0.60, 1.6, 1.0) == 1.0, "no face found: the fallback zoom")
+expect(_rfm.fit_zoom([700, 720, 710], 1080, 0.60, 1.6) == 1.0, "a face already as big as the picture wants: no zoom")
+expect(abs(_rfm.fit_zoom([270], 1080, 0.60, 1.6) - 1.6) < 1e-9, "a small face is zoomed, but never past the cap")
+expect(abs(_rfm.fit_zoom([540], 1080, 0.60, 1.6) - 1.2) < 1e-9, "a mid-size face: zoom = picture height x share / face height")
+expect(_rfm.fit_zoom([100, 540, 540], 1080, 0.60, 1.6) == _rfm.fit_zoom([540, 540, 540], 1080, 0.60, 1.6), "one stray detection does not move the median zoom")
+
+# a phone video stored sideways (a rotation flag) is read upright, so the face and the crop use the right coordinates
+expect(_rfm.upright_size(1920, 1440, 90) == (1440, 1920) and _rfm.upright_size(1920, 1440, 270) == (1440, 1920), "a 90 or 270 degree flag swaps width and height")
+expect(_rfm.upright_size(1920, 1080, 0) == (1920, 1080) and _rfm.upright_size(1920, 1080, 180) == (1920, 1080), "no flag, or 180 degrees: the same size")
+_vpy = Path.home() / ".krithi" / "video" / "venv" / "bin" / "python"
+if shutil.which("ffmpeg") and _vpy.exists():
+    _rot = tmp / "rotated.mp4"
+    _mk = subprocess.run(["ffmpeg", "-v", "error", "-y", "-display_rotation", "90", "-f", "lavfi", "-i", "testsrc=s=320x240:r=10:d=2", "-pix_fmt", "yuv420p", str(_rot)], capture_output=True, text=True)
+    if _mk.returncode == 0:
+        _chk = subprocess.run([str(_vpy), "-c", "import sys; sys.path.insert(0, %r); import reframe; cap, read, size = reframe.open_upright(%r); f = read(0.5); print(size[0], size[1], f.shape[1], f.shape[0])" % (str(scripts), str(_rot))], capture_output=True, text=True)
+        expect(_chk.stdout.split() == ["240", "320", "240", "320"], f"a rotated video is opened upright (240 wide, 320 high): {_chk.stdout} {_chk.stderr[-200:]}")
+
 # a relative work folder must not break the render (it runs inside the project folder)
 import subprocess as _sp, types as _ty2
 _seen = {}
