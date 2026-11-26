@@ -17,7 +17,7 @@ Work moves through four stages, and a human approves each one before anything me
 
 An orchestration agent routes each task to the model that suits it (Claude Code, Codex, Kimi or Gemma) and syncs status with Jira, Azure DevOps or ServiceNow. Krithi is aimed at engineering teams with a backlog and too few engineers, especially in regulated environments, for work such as legacy modernization, greenfield builds, data pipelines and platform migrations. lowtouch.ai also offers it as a managed service ([Velocity Pods](https://www.lowtouch.ai/agents/krithi/)), where its engineers run Krithi and own the review gates.
 
-The skills in this repository are reusable building blocks for that kind of work: accessibility scanning, security auditing, agent-ready documentation, ticket-to-plan prompt building, migration effort estimation, pull request preparation, pull request review and pull request validation.
+The skills in this repository are reusable building blocks for that kind of work: accessibility scanning, security auditing, agent-ready documentation, ticket-to-plan prompt building, migration effort estimation, pull request preparation, pull request review, pull request validation and video editing (long-form videos and short clips from raw recordings).
 
 ## Skills
 
@@ -32,6 +32,7 @@ The skills in this repository are reusable building blocks for that kind of work
 | [`prepare-pr`](#prepare-pr) | Takes finished, tested work to a pull request: reviews the change (bugs, security, quality, performance, requirements) and fixes what you approve, runs the tests, updates only the docs the change affects, checks the branch name fits the work, commits only in-scope files with a detailed message, then asks before pushing and opening the PR. |
 | [`review-pr`](#review-pr) | Reviews a pull request (a workshop participant's or one Krithi generated) against its requirements and the Krithi development process: validated findings with severity, file and line and a fix; a process compliance table for the eight workflow steps; a five-factor weighted scorecard and a recommendation. Fully automated from just the PR link: the reviewer needs no context and is never asked anything; requirements are inferred when not linked, the build and tests run in a sandbox, and an automatic quality gate checks the review before the review is posted (only when you say `post`) as one GitHub review: each finding as a comment on its code line, with the report summary on top. |
 | [`validate-pr`](#validate-pr) | Validates a pull request by testing it: works out the requirements, writes a test plan and Playwright tests into the repository (committed to the PR only after you approve the exact diff), builds and launches the app from the PR's exact commit for any stack, runs the tests, and saves screenshots, traces, console errors and app logs outside the repository per owner/repo/PR/run. Triages each failure as an application defect, a test problem or an environment issue, and computes Passed, Failed, Blocked or Needs Manual Verification. Supports reviewer challenges, extra scenarios, reruns and retests after fixes. |
+| [`video-editor`](#video-editor) | Turns a raw recording (podcast, webinar, training session; Zoom, Meet or Restream export) into a clean long-form video and a set of short vertical clips, locally with ffmpeg and Whisper. Transcribes, finds dead air and false starts, and proposes a cut list and a ranked list of 30 to 90 second moments; nothing renders until you approve each list. Long form: dead air and chatter cut, brand intro and outro, lower thirds, burned-in or SRT captions, loudness normalised, YouTube chapter timestamps. Shorts: 9:16 with the speaker kept in frame, word-by-word captions, title overlay, lower third, end card, plus a suggested title and post caption for each clip. |
 
 In Codex, install a skill with the command in its section, then restart Codex. Skills are installed as folders under `~/.codex/skills/` (or `$CODEX_HOME/skills/` if you set `CODEX_HOME`).
 
@@ -552,6 +553,133 @@ rm -rf ~/.codex/skills/validate-pr
 ```
 
 Validation evidence in `~/.krithi/validate-pr-artifacts/`, clones and worktrees in `~/.krithi/validate-pr/`, and test plans and tests committed to PRs are not removed with the skill.
+
+## video-editor
+
+Turns a raw recording into finished videos with very little manual editing. Point the agent at a podcast, webinar or training session (MP4 or MOV, one file or several clips from one session) and it returns a clean long-form video and a set of short clips. Everything runs on your machine with ffmpeg and a Whisper model; nothing is uploaded and no paid editing service is involved.
+
+It works transcript first. It transcribes the recording, finds the gaps where nothing is happening (short pauses and long dead stretches, keeping any silent stretch where the picture is changing), and the agent proposes a **cut list**: where the real content starts and ends, which gaps and false starts to remove, and chapter markers. You see the cuts with the words around each one and the reason, and approve or edit them. Only then does it render. For shorts, the agent reads the transcript and proposes the strongest **30 to 90 second moments**, each with a hook, a one-line reason, a score, a title and a post caption, and renders only the ones you choose. Scripts check every list (no cut inside a word, clip lengths, opening words, overlaps, copy style) before anything renders.
+
+Branding lives in one file, `assets/brand/brand.json`: logos, fonts, colours, intro and outro cards, lower-third and caption styles, loudness targets and a glossary of names for Whisper. The bundled defaults are lowtouch.ai's; pass `--brand` to use another.
+
+**Long form** (`long.mp4`, `long.srt`, `chapters.txt`): dead air, long pauses, false starts and the chatter before and after the session cut; brand intro and outro; lower thirds; burned-in or sidecar (SRT) captions as you choose; loudness normalised to -16 LUFS; chapter timestamps ready to paste into YouTube.
+
+**Shorts** (one folder per clip: `clip.mp4`, `clip.srt`, `meta.md`): 1080x1920 with the speaker kept in frame by a face-aware crop that changes only at cuts; a title over the first seconds; word-by-word captions with the current word highlighted; a lower third; a gradient end card; loudness at -15 LUFS; and `meta.md` with the title, post caption and reason.
+
+Re-running with different instructions is cheap. The transcript and the dead-air analysis are kept in `~/.krithi/video/<name>/`, so "find three more clips about security" or "cut more of the pauses" starts from the existing work instead of transcribing again.
+
+**Limits to know about.** Face detection is simple: it suits one person facing the camera, and a panel or a side-by-side layout needs a check by eye. Speaker names are supplied by you, because Zoom, Meet and Restream files carry no speaker labels. Cutting false starts and choosing moments is the agent's judgement, so review the lists before approving. Export of the cut list to Premiere or DaVinci is not included yet.
+
+**Needs:** Python 3.8+ (3.11 or 3.12 recommended), `ffmpeg` and `ffprobe` built with `libass` and `libx264`, about 1 GB of disk for the Python packages in a virtualenv under `~/.krithi/video/venv` (outside any repository), and about 0.5 GB for the default Whisper model, which downloads on first use. Transcription takes roughly 0.4 times the recording's length on a CPU-only laptop; a GPU is faster. Details: [`SKILL.md`](skills/video-editor/SKILL.md).
+
+Install ffmpeg first if you do not have it (the skill checks and prints the right command for your system):
+
+```
+sudo apt install ffmpeg          # Debian or Ubuntu
+brew install ffmpeg-full         # macOS (the plain "ffmpeg" formula has no libass, so captions fail)
+winget install Gyan.FFmpeg       # Windows (the full build, not "Essentials")
+```
+
+### Install
+
+In Codex:
+
+```
+$skill-installer install https://github.com/lowtouch-ai/krithi-skills/tree/main/skills/video-editor
+```
+
+Then restart Codex.
+
+In Claude Code, copy the skill folder into your personal skills folder:
+
+```
+git clone https://github.com/lowtouch-ai/krithi-skills.git
+```
+
+```
+cp -r krithi-skills/skills/video-editor ~/.claude/skills/video-editor
+```
+
+Then start a new Claude Code session. The first time you use the skill it checks your machine and, with your agreement, sets up the Python virtualenv (`scripts/setup_env.py`).
+
+### Test
+
+Open Codex or Claude Code in any folder and run (in Codex use `$video-editor`; in Claude Code use `/video-editor`, or just describe what you want):
+
+```
+$video-editor edit /path/to/recording.mp4: a clean long video with SRT captions and a few shorts. The speaker is Alex Doe, Head of Product.
+```
+
+With notes:
+
+```
+$video-editor edit /path/to/webinar.mp4, focus on the pricing discussion and skip the first 10 minutes. Long video only, burned-in captions.
+```
+
+Several clips from one session:
+
+```
+$video-editor edit these clips as one session: /path/part1.mp4 /path/part2.mp4 /path/part3.mp4
+```
+
+After the first run, ask for changes without starting over:
+
+```
+$video-editor find three more clips about security
+```
+
+### What you get
+
+Working files stay under `~/.krithi/video/<name>/` (set `KRITHI_HOME` to change `~/.krithi`):
+
+```
+~/.krithi/video/<name>/
+    source.json  transcript.json  transcript.md  analysis.json
+    cutlist.json  clips.json  sentences.md
+    renders/<run-id>/
+        long.mp4  long.srt  chapters.txt
+        clip-01-<title>/  clip.mp4  clip.srt  meta.md
+```
+
+Each render goes to a new folder, so earlier versions are kept. Your original recording is never modified.
+
+### Update
+
+To get the latest version, use either option, then restart Codex or start a new Claude Code session.
+
+Option 1: in Codex, ask the installer to update from the URL:
+
+```
+$skill-installer update https://github.com/lowtouch-ai/krithi-skills/tree/main/skills/video-editor
+```
+
+Option 2: remove the installed folder and install it again (the virtualenv and your working files are not affected):
+
+```
+rm -rf ~/.codex/skills/video-editor
+```
+
+```
+$skill-installer install https://github.com/lowtouch-ai/krithi-skills/tree/main/skills/video-editor
+```
+
+For Claude Code, pull the repository and copy the folder again:
+
+```
+git -C krithi-skills pull
+```
+
+```
+rm -rf ~/.claude/skills/video-editor && cp -r krithi-skills/skills/video-editor ~/.claude/skills/video-editor
+```
+
+### Uninstall
+
+```
+rm -rf ~/.codex/skills/video-editor ~/.claude/skills/video-editor
+```
+
+To also remove the virtualenv and your working files: `rm -rf ~/.krithi/video`.
 
 ## Uninstalling from inside Codex
 

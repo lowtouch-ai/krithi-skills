@@ -1,0 +1,146 @@
+{
+  "name": "lowtouch.ai",
+  "logo": {
+    "wordmark": "logo-wordmark.png",
+    "square": "logo-square-alpha.png"
+  },
+  "intro": {
+    "card": "intro-card.png",
+    "seconds": 3,
+    "fade_seconds": 0.5
+  },
+  "outro": {
+    "card": "outro-card.png",
+    "seconds": 5,
+    "fade_seconds": 0.5
+  },
+  "fonts": {
+    "regular": "fonts/Poppins-Regular.ttf",
+    "medium": "fonts/Poppins-Medium.ttf",
+    "semibold": "fonts/Poppins-SemiBold.ttf",
+    "bold": "fonts/Poppins-Bold.ttf",
+    "mono": "fonts/JetBrainsMono-Bold.ttf",
+    "mono_medium": "fonts/JetBrainsMono-Medium.ttf"
+  },
+  "colors": {
+    "background": "#041250",
+    "surface": "#0F1E66",
+    "primary": "#FB47DE",
+    "secondary": "#7ED957",
+    "text": "#FFFFFF",
+    "text_muted": "#81B5A1"
+  },
+  "lower_third": {
+    "name_font": "semibold",
+    "title_font": "regular",
+    "name_color": "text",
+    "title_color": "secondary",
+    "accent_bar": "primary",
+    "box": "background",
+    "show_seconds": 5,
+    "repeat_every_seconds": 600
+  },
+  "captions": {
+    "long": {
+      "mode": "sidecar"
+    },
+    "short": {
+      "font": "bold",
+      "color": "text",
+      "highlight": "primary",
+      "outline": "#000000",
+      "max_words_per_line": 3,
+      "style": "box"
+    }
+  },
+  "output": {
+    "long": {
+      "resolution": "1920x1080",
+      "fps": 30,
+      "lufs": -16
+    },
+    "short": {
+      "resolution": "1080x1920",
+      "fps": 30,
+      "lufs": -15,
+      "crf": 21,
+      "preset": "veryfast",
+      "piece_crf": 18,
+      "piece_preset": "ultrafast"
+    }
+  },
+  "glossary": [
+    "lowtouch.ai",
+    "Krithi"
+  ],
+  "shorts": {
+    "title": {
+      "seconds": 3,
+      "blur_overlay": "#041250",
+      "blur_alpha": 0.72
+    },
+    "lower_third": {
+      "seconds": 16
+    },
+    "end_card": {
+      "seconds": 3,
+      "gradient": [
+        "#0B1250",
+        "#8A3378"
+      ],
+      "url": "www.lowtouch.ai",
+      "logo_width": 0.7
+    },
+    "cover": {
+      "width": 0.7,
+      "line": 0.92,
+      "gap": 0.09
+    },
+    "cards": {
+      "label_px": 30,
+      "pill_px": 44,
+      "pill_height": 1.55,
+      "pill_pad_x": 0.75,
+      "gap_px": 14,
+      "pad_x": 40,
+      "pad_y": 30,
+      "width_min": 0.54,
+      "width_max": 0.86,
+      "box_bottom": 0.925,
+      "min_scale": 0.7
+    },
+    "explainer": {
+      "panel_share": 0.4,
+      "seam": 0.075,
+      "speaker_zoom": 1.0,
+      "face_frac": 0.6,
+      "max_zoom": 1.6,
+      "face_at": 0.5,
+      "caption_em": 0.0225,
+      "caption_words": 4,
+      "caption_y": 0.416,
+      "caption_spacing": 0.05,
+      "caption_dim": "#9AA0C8",
+      "panel_top": "#05071E",
+      "panel_bottom": "#0A0E33",
+      "panel_glow": "#3A1B5C",
+      "name_tag_seconds": 5.0,
+      "recap_seconds": 5.0,
+      "scene_card": "#0E1140",
+      "scene_border": "#262B6E",
+      "scene_dim": "#8D93C6",
+      "length": {
+        "soft_min": 30,
+        "soft_max": 150,
+        "hard_min": 20,
+        "hard_max": 180
+      }
+    }
+  },
+  "corrections": {
+    "lotage.ai": "lowtouch.ai",
+    "lotage": "lowtouch",
+    "chat bots": "chatbots",
+    "chat bot": "chatbot"
+  }
+}

@@ -1,0 +1,3 @@
+interface:
+  display_name: "video-editor"
+  short_description: "Turn a raw recording into a clean long-form video: dead-air cut list you approve, brand intro/outro, captions, chapters"

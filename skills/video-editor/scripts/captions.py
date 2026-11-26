@@ -1,0 +1,176 @@
+#!/usr/bin/env python3
+"""Build captions that match the FINAL video (after cuts) from the transcript.
+
+Usage:
+  captions.py TRANSCRIPT.json --cutlist CUTLIST.json --out long.srt
+  captions.py TRANSCRIPT.json --range START END --out clip.srt [--max-words 3]   (a short clip)
+
+Words outside the kept ranges are dropped; the rest are re-timed to the output timeline.
+Cue rules: at most 2 lines of 42 characters, at most 6 s, a break at sentence ends and at pauses
+over 0.8 s. With --max-words, cues are short and word-sized for vertical video.
+Prints JSON with the cue count; writes SRT.
+"""
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _vlib import hms, kept_before, in_keep, load_json, words_of  # noqa: E402
+
+MAX_CHARS = 42
+MAX_LINES = 2
+MAX_CUE_SECONDS = 6.0
+PAUSE_BREAK = 0.8
+SENTENCE_END = re.compile(r"[.!?]['\")\]]*$")
+
+
+PUNCT_END = re.compile(r"[.,;:!?]['\")\]]*$")
+
+
+def _core(word):
+    return re.sub(r"[^\w']+", "", word.lower())
+
+
+def dedupe_repeats(words, max_gap=0.7, max_len=3):
+    """Show an immediately repeated word or phrase once ("also also", "is that Is that", "From From").
+
+    Captions are for reading, and a stutter looks like a typo; the audio keeps it. The shown words stay on screen for
+    the whole repetition. A repeat after punctuation ("never, never.") is left alone, because that is usually deliberate."""
+    for _ in range(3):  # a triple repeat needs a second pass
+        out, i, changed = [], 0, False
+        while i < len(words):
+            hit = False
+            for n in range(min(max_len, (len(words) - i) // 2), 0, -1):
+                a, b = words[i:i + n], words[i + n:i + 2 * n]
+                same = [_core(w["word"]) for w in a] == [_core(w["word"]) for w in b] and all(_core(w["word"]) for w in a)
+                if same and not any(PUNCT_END.search(w["word"]) for w in a) and b[0]["start"] - a[-1]["end"] <= max_gap:
+                    kept = [dict(w) for w in a]
+                    kept[-1]["end"] = b[-1]["end"]
+                    out.extend(kept)
+                    i += 2 * n
+                    hit = changed = True
+                    break
+            if not hit:
+                out.append(words[i])
+                i += 1
+        words = out
+        if not changed:
+            break
+    return words
+
+
+def retime(words, keep, offset=0.0, dedupe=True):
+    """Keep words whose midpoint is in a kept range and map them to output time."""
+    out = []
+    for w in words:
+        mid = (w["start"] + w["end"]) / 2
+        if not in_keep(keep, mid):
+            continue
+        s = kept_before(keep, max(w["start"], _range_start(keep, mid)))
+        e = kept_before(keep, min(w["end"], _range_end(keep, mid)))
+        if e <= s:
+            e = s + 0.05
+        out.append({**w, "start": s - offset, "end": e - offset})
+    return dedupe_repeats(out) if dedupe else out
+
+
+def _range_start(keep, t):
+    for k in keep:
+        if k["start"] - 1e-9 <= t <= k["end"] + 1e-9:
+            return k["start"]
+    return t
+
+
+def _range_end(keep, t):
+    for k in keep:
+        if k["start"] - 1e-9 <= t <= k["end"] + 1e-9:
+            return k["end"]
+    return t
+
+
+def group(words, max_words=None):
+    cues, cur = [], []
+
+    def flush():
+        if cur:
+            cues.append(list(cur))
+            cur.clear()
+
+    for i, w in enumerate(words):
+        if cur:
+            gap = w["start"] - cur[-1]["end"]
+            text_len = len(" ".join(x["word"] for x in cur + [w]))
+            too_long = (max_words and len(cur) >= max_words) or (
+                not max_words and (text_len > MAX_CHARS * MAX_LINES or w["end"] - cur[0]["start"] > MAX_CUE_SECONDS)
+            )
+            if gap > PAUSE_BREAK or too_long:
+                flush()
+        cur.append(w)
+        if SENTENCE_END.search(w["word"]):
+            flush()
+    flush()
+    return cues
+
+
+def shift(cues, offset):
+    """The same cues moved later by `offset` seconds (for a video that starts with an intro)."""
+    return [[{**w, "start": w["start"] + offset, "end": w["end"] + offset} for w in c] for c in cues]
+
+
+def wrap(text):
+    if len(text) <= MAX_CHARS:
+        return text
+    words = text.split()
+    best, best_diff = None, None
+    for i in range(1, len(words)):
+        a, b = " ".join(words[:i]), " ".join(words[i:])
+        diff = abs(len(a) - len(b))
+        if best_diff is None or diff < best_diff:
+            best, best_diff = (a, b), diff
+    return "\n".join(best) if best else text
+
+
+def to_srt(cues, wrap_lines=True):
+    lines = []
+    for n, c in enumerate(cues, 1):
+        text = " ".join(w["word"] for w in c).strip()
+        text = wrap(text) if wrap_lines else text
+        start, end = c[0]["start"], c[-1]["end"]
+        lines.append(f"{n}\n{hms(start, ms=True)} --> {hms(end, ms=True)}\n{text}\n")
+    return "\n".join(lines)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("transcript")
+    ap.add_argument("--cutlist")
+    ap.add_argument("--range", nargs=2, type=float, metavar=("START", "END"))
+    ap.add_argument("--max-words", type=int)
+    ap.add_argument("--out", required=True)
+    a = ap.parse_args()
+    if bool(a.cutlist) == bool(a.range):
+        print(json.dumps({"ok": False, "error": "give exactly one of --cutlist or --range"}))
+        return 1
+    try:
+        words = words_of(load_json(a.transcript))
+        if a.cutlist:
+            keep = load_json(a.cutlist)["keep"]
+            offset = 0.0
+        else:
+            keep = [{"start": a.range[0], "end": a.range[1]}]
+            offset = 0.0
+        timed = retime(words, keep, offset)
+        cues = group(timed, a.max_words)
+        Path(a.out).parent.mkdir(parents=True, exist_ok=True)
+        Path(a.out).write_text(to_srt(cues, wrap_lines=not a.max_words), encoding="utf-8")
+    except (OSError, ValueError, KeyError) as e:
+        print(json.dumps({"ok": False, "error": str(e)}))
+        return 1
+    print(json.dumps({"ok": True, "cues": len(cues), "out": str(a.out)}))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
